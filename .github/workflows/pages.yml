@@ -1,4 +1,4 @@
-name: Deploy thIAguinho Soluções Automotiva
+name: Validate and deploy thIAguinho
 
 on:
   push:
@@ -23,18 +23,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
       - name: Validate JavaScript
-        run: node --check js/app.js && node --check js/firebase.js && node --check js/media.js && node --check data/knowledge.js
+        run: |
+          node --check js/app.js
+          node --check js/firebase.js
+          node --check js/media.js
+          node --check data/knowledge.js
+          node --check sw.js
+
       - name: Validate manifest
         run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest ok')"
-      - name: Verify critical assets
-        run: test -f index.html && test -f css/app.css && test -f js/firebase.js && test -f js/media.js && test -f database.rules.json && test -f assets/icon.svg && test -f assets/logo-thIAguinho.webp && test -f assets/mascote-thIAguinho.webp
+
+      - name: Verify critical files and privacy architecture
+        run: |
+          test -f index.html
+          test -f css/app.css
+          test -f assets/logo-thIAguinho.svg
+          test -f assets/icon-thIAguinho.svg
+          test -f assets/mascote-thIAguinho.webp
+          test -f database.rules.json
+          grep -q "signInAnonymously" js/firebase.js
+          grep -q "mecanico-b222e-default-rtdb" js/firebase.js
+          grep -q "Fotos e vídeos são analisados temporariamente" index.html
+          ! grep -q "AUTODATA 3.45.rar" index.html
+          ! grep -q "SIMPLO-2019.rar" index.html
+          ! grep -q "CONHECIMENTO.ZIP" index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
+
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
           path: "."
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

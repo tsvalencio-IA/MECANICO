@@ -1,229 +1,417 @@
 window.ORACLE_KNOWLEDGE = {
-  version: "0.1.0",
+  version: "1.0.0",
   updatedAt: "2026-10-06",
   philosophy: [
-    "Nunca condenar componente antes de verificar alimentação, aterramento e sinal quando aplicável.",
-    "Distinguir fato documental, inferência técnica e hipótese de oficina.",
-    "Toda resposta importante deve apontar a fonte ou declarar que é heurística.",
-    "Após reparo, repetir leitura de falhas, teste funcional e, quando aplicável, teste de rodagem."
+    "Nunca condenar componente apenas por sintoma ou DTC.",
+    "Separar alimentação, aterramento, sinal, comando, componente e condição mecânica.",
+    "Quando houver valor documental específico, usar o valor somente no veículo/sistema compatível.",
+    "Quando não houver dado específico, declarar que o passo é heurística de oficina.",
+    "Depois do reparo, limpar falhas quando aplicável, reproduzir a condição original e repetir a leitura."
   ],
+
+  /* Registro interno. Não é exibido na interface. */
   sources: [
+    {id:"duster-workshop", vehicle:"Renault/Dacia Duster", system:"manual de oficina e diagnóstico", indexed:true},
+    {id:"duster-v42", vehicle:"Renault Duster 1.6 16V", system:"injeção Valeo V42 / esquema elétrico", indexed:true},
+    {id:"lexus-ewd", vehicle:"Lexus IS 300", system:"diagramas elétricos EWD", indexed:true}
+  ],
+
+  dtcs: {
+    "P0300": {label:"Falha de combustão aleatória/múltipla",aliases:["DF065"],scope:["renault","duster"]},
+    "P0301": {label:"Falha de combustão cilindro 1",aliases:["DF059"],scope:["renault","duster"]},
+    "P0302": {label:"Falha de combustão cilindro 2",aliases:["DF060"],scope:["renault","duster"]},
+    "P0303": {label:"Falha de combustão cilindro 3",aliases:["DF061"],scope:["renault","duster"]},
+    "P0304": {label:"Falha de combustão cilindro 4",aliases:["DF062"],scope:["renault","duster"]},
+    "P0335": {label:"Sinal do sensor de rotação / PMS",aliases:["DF120"],scope:["renault","duster"]},
+    "P0420": {label:"Eficiência do catalisador",aliases:["DF394"],scope:["renault","duster"]},
+    "P0130": {label:"Circuito da sonda lambda antes do catalisador",aliases:["DF092"],scope:["renault","duster"]},
+    "P0136": {label:"Circuito da sonda lambda depois do catalisador",aliases:["DF093"],scope:["renault","duster"]},
+    "P0120": {label:"Circuito do potenciômetro da borboleta pista 1",aliases:["DF095"],scope:["renault","duster"]},
+    "P0220": {label:"Circuito do potenciômetro da borboleta pista 2",aliases:["DF096"],scope:["renault","duster"]},
+    "P0500": {label:"Sinal de velocidade do veículo",aliases:["DF091"],scope:["renault","duster"]},
+    "P0560": {label:"Tensão de alimentação da ECU",aliases:["DF047"],scope:["renault","duster"]},
+    "P0627": {label:"Comando do relé da bomba de combustível",aliases:["DF085"],scope:["renault","duster"]},
+
+    "DF001": {label:"Circuito do sensor de temperatura do líquido de arrefecimento",scope:["renault","duster","v42"]},
+    "DF002": {label:"Circuito do sensor de temperatura do ar",scope:["renault","duster","v42"]},
+    "DF018": {label:"Comando do relé do eletroventilador em baixa velocidade",scope:["renault","duster","v42"]},
+    "DF026": {label:"Circuito de comando do injetor do cilindro 1",scope:["renault","duster","v42"]},
+    "DF027": {label:"Circuito de comando do injetor do cilindro 2",scope:["renault","duster","v42"]},
+    "DF028": {label:"Circuito de comando do injetor do cilindro 3",scope:["renault","duster","v42"]},
+    "DF029": {label:"Circuito de comando do injetor do cilindro 4",scope:["renault","duster","v42"]},
+    "DF038": {label:"Falha interna do computador de injeção",scope:["renault","duster","v42"]},
+    "DF047": {label:"Tensão de alimentação do computador",aliases:["P0560"],scope:["renault","duster","v42"]},
+    "DF085": {label:"Circuito de comando do relé da bomba de combustível",aliases:["P0627"],scope:["renault","duster","v42"]},
+    "DF088": {label:"Circuito do sensor de detonação",scope:["renault","duster","v42"]},
+    "DF342": {label:"Circuito da luz indicadora de avaria",scope:["renault","duster","v42"]},
+    "DF361": {label:"Circuito de bobina de ignição 1-4",scope:["renault","duster","v42"]},
+    "DF398": {label:"Correção / mistura - investigar pressão, entrada falsa de ar, vazamentos e vedação de injetor",scope:["renault","duster","v42"]},
+    "DF409": {label:"Circuito do sensor de nível de combustível",scope:["renault","duster","v42"]},
+    "DF457": {label:"Alvo do volante / referência de PMS",scope:["renault","duster","v42"]},
+    "DF974": {label:"Circuito do potenciômetro do pedal - pista 1",scope:["renault","duster","v42"]},
+    "DF975": {label:"Circuito do potenciômetro do pedal - pista 2",scope:["renault","duster","v42"]}
+  },
+
+  facts: [
     {
-      id: "duster-workshop",
-      title: "Dacia-Duster-Renault-Duster_2009-2017.pdf",
-      type: "Manual de oficina / diagnóstico",
-      state: "indexed",
-      pages: 2372,
-      size: "27,4 MB",
-      vehicles: ["Renault Duster", "Dacia Duster"],
-      systems: ["motor", "injeção", "diesel", "elétrica", "UCH", "ABS/ESP", "climatização", "carroceria", "câmbio", "direção"],
-      ref: "MR-453-X79",
-      notes: "Base extensa com especificações, procedimentos, tabelas de falhas, testes, parâmetros e fluxos de diagnóstico."
+      id:"k4m-injector-resistance",
+      brands:["renault","dacia"],models:["duster"],engines:["k4m","1.6"],systems:["injeção","injetor"],
+      keywords:["injetor","bico","resistencia","resistência","ohm","df026","df027","df028","df029"],
+      value:"Nos injetores do K4M, a resistência indicada no procedimento V42 é 11 Ω a 20 Ω, medida entre 0 °C e 40 °C.",
+      sourceIds:["duster-workshop"],documented:true
     },
     {
-      id: "duster-v42",
-      title: "2011-RENAULT DUSTER 1.6 16V.pdf",
-      type: "Esquema elétrico",
-      state: "indexed",
-      pages: 2,
-      size: "2 páginas",
-      vehicles: ["Renault Duster 1.6 16V 2011+"],
-      systems: ["injeção Valeo V42", "ECU", "bobinas", "injetores", "CKP", "MAP", "ECT", "TPS", "sondas", "eletroventilador"],
-      ref: "DICATEC • Valeo V42",
-      notes: "Diagrama gráfico de injeção com alimentação, relés, sensores, atuadores e conectores."
+      id:"k7m-injector-resistance",
+      brands:["renault","dacia"],models:["duster"],engines:["k7m"],systems:["injeção","injetor"],
+      keywords:["injetor","bico","resistencia","resistência","ohm","df026","df027","df028","df029"],
+      value:"Nos injetores do K7M, a resistência indicada no procedimento V42 é 9,2 Ω a 17 Ω, medida entre 0 °C e 40 °C.",
+      sourceIds:["duster-workshop"],documented:true
     },
     {
-      id: "lexus-ewd",
-      title: "[LEXUS]_Esquemas_electricos_Lexus_2002_a_2005.pdf",
-      type: "Diagramas elétricos",
-      state: "indexed",
-      pages: 43,
-      size: "43 páginas",
-      vehicles: ["Lexus IS 300 2002"],
-      systems: ["partida", "ignição", "carga", "ECM", "bomba combustível", "injeção", "iluminação"],
-      ref: "EWD451U",
-      notes: "Diagramas elétricos com alimentação, ignição, partida, ECM, bobinas, sensores e circuitos associados."
+      id:"v42-coolant-sensor",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["arrefecimento","injeção"],
+      keywords:["df001","temperatura","ect","sensor agua","sensor água","resistencia","resistência"],
+      value:"Para DF001 no V42, o procedimento aceita 100 Ω a 10 kΩ para o sensor de temperatura do líquido em temperatura ambiente; fora disso, o sensor é reprovado pelo procedimento.",
+      sourceIds:["duster-workshop"],documented:true
     },
     {
-      id: "autodata-link",
-      title: "PLATAFORMA+AUTO+DATA (1).pdf",
-      type: "Página de acesso",
-      state: "indexed",
-      pages: 1,
-      size: "1 página",
-      vehicles: [],
-      systems: [],
-      ref: "Documento de acesso",
-      notes: "Não contém a base AutoData. Apenas uma página com referência a plataforma externa."
+      id:"v42-pedal-position",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["pedal","acelerador"],
+      keywords:["pedal","acelerador","pr030","posição","posicao","df974","df975"],
+      value:"No parâmetro PR030 do V42: pedal sem carga ≤ 16% e carga total ≥ 85%.",
+      sourceIds:["duster-workshop"],documented:true
     },
     {
-      id: "knowledge-zip",
-      title: "CONHECIMENTO.ZIP",
-      type: "Acervo compactado",
-      state: "registered",
-      pages: null,
-      size: "2,69 GB",
-      vehicles: [],
-      systems: ["acervo geral"],
-      ref: "Google Drive",
-      notes: "Arquivo de origem registrado; conteúdo interno ainda precisa ser extraído e indexado."
+      id:"v42-idle-integral",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["borboleta","marcha lenta"],
+      keywords:["borboleta","marcha lenta","pr444","programar","adaptação","adaptacao"],
+      value:"No TEST 3 do V42, PR444 deve ficar entre 5 N·m e 10 N·m com motor em marcha lenta, aquecido a 75 °C, sem consumidores; a leitura é feita pelo menos 20 min após atingir 75 °C.",
+      sourceIds:["duster-workshop"],documented:true
     },
     {
-      id: "simplo",
-      title: "SIMPLO-2019.rar",
-      type: "Base técnica compactada",
-      state: "registered",
-      pages: null,
-      size: "10,60 GB",
-      vehicles: [],
-      systems: ["diagnóstico", "manuais", "esquemas"],
-      ref: "Google Drive",
-      notes: "Registrado no inventário. Não tratado como conhecimento lido até extração/indexação."
+      id:"v42-engine-torque",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["injeção"],
+      keywords:["pr015","torque motor","marcha lenta","torque"],
+      value:"PR015, com motor funcionando e líquido de arrefecimento acima de 80 °C: 20 N·m a 40 N·m.",
+      sourceIds:["duster-workshop"],documented:true
     },
     {
-      id: "eper",
-      title: "ePER-CatalogoPartes.rar",
-      type: "Catálogo de peças compactado",
-      state: "registered",
-      pages: null,
-      size: "6,24 GB",
-      vehicles: [],
-      systems: ["catálogo de peças", "aplicação", "códigos"],
-      ref: "Google Drive",
-      notes: "Registrado no inventário. Deve alimentar relações peça ↔ aplicação ↔ código após extração."
+      id:"v42-knock-resistance",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["detonação","sensor"],
+      keywords:["df088","detonação","detonacao","pinking","knock","resistencia","resistência"],
+      value:"Para DF088 no V42, o procedimento exige resistência interna do sensor de detonação maior que 10 MΩ.",
+      sourceIds:["duster-workshop"],documented:true
     },
     {
-      id: "autodata345",
-      title: "AUTODATA 3.45.rar",
-      type: "Base técnica compactada",
-      state: "registered",
-      pages: null,
-      size: "7,76 GB",
-      vehicles: [],
-      systems: ["dados técnicos", "manutenção", "diagnóstico"],
-      ref: "Google Drive",
-      notes: "Registrado no inventário. Ainda não indexado."
+      id:"k4m-coils",
+      brands:["renault","dacia"],models:["duster"],engines:["k4m","1.6"],systems:["ignição"],
+      keywords:["bobina","ignicao","ignição","df361","p0301","p0302","p0303","p0304"],
+      value:"O K4M usa quatro bobinas tipo lápis. O TEST 14 manda inspecionar conectores das quatro bobinas e confirmar produção de arco com o testador de bobina especificado.",
+      sourceIds:["duster-workshop"],documented:true
+    },
+    {
+      id:"v42-fuel-pump-test",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["combustível","bomba"],
+      keywords:["bomba","combustivel","combustível","df085","p0627","ac015","não pega","nao pega"],
+      value:"No TEST 1 do V42, a bomba e o relé são comandados por AC015; o procedimento confirma alimentação da bomba, continuidade do circuito e aterramento antes de condenar componente.",
+      sourceIds:["duster-workshop"],documented:true
+    },
+    {
+      id:"v42-after-repair",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["diagnóstico"],
+      keywords:["depois","reparo","apagar falha","road test","teste rodagem"],
+      value:"Após reparo nos procedimentos V42: tratar demais falhas, limpar memória quando aplicável, fazer teste de rodagem e repetir a leitura com o equipamento de diagnóstico.",
+      sourceIds:["duster-workshop"],documented:true
     }
   ],
-  dtcs: {
-    "P0300": {label:"Falha de combustão aleatória/múltipla", source:"duster-workshop", aliases:["DF065"]},
-    "P0301": {label:"Falha de combustão cilindro 1", source:"duster-workshop", aliases:["DF059"]},
-    "P0302": {label:"Falha de combustão cilindro 2", source:"duster-workshop", aliases:["DF060"]},
-    "P0303": {label:"Falha de combustão cilindro 3", source:"duster-workshop", aliases:["DF061"]},
-    "P0304": {label:"Falha de combustão cilindro 4", source:"duster-workshop", aliases:["DF062"]},
-    "P0335": {label:"Sinal do sensor de rotação / PMS", source:"duster-workshop", aliases:["DF120"]},
-    "P0420": {label:"Eficiência do catalisador", source:"duster-workshop", aliases:["DF394"]},
-    "P0130": {label:"Circuito sonda lambda antes do catalisador", source:"duster-workshop", aliases:["DF092"]},
-    "P0136": {label:"Circuito sonda lambda depois do catalisador", source:"duster-workshop", aliases:["DF093"]},
-    "P0120": {label:"Circuito potenciômetro da borboleta pista 1", source:"duster-workshop", aliases:["DF095"]},
-    "P0220": {label:"Circuito potenciômetro da borboleta pista 2", source:"duster-workshop", aliases:["DF096"]},
-    "P0500": {label:"Sinal de velocidade do veículo", source:"duster-workshop", aliases:["DF091"]},
-    "P0560": {label:"Tensão de alimentação da ECU", source:"duster-workshop", aliases:["DF047"]},
-    "P0627": {label:"Comando do relé da bomba de combustível", source:"duster-workshop", aliases:["DF085"]}
-  },
+
   rules: [
     {
-      id:"misfire-duster-v42",
-      title:"Falha de combustão — Duster 1.6 16V / Valeo V42",
-      brands:["renault","dacia"],
-      models:["duster"],
-      engines:["1.6","k4m"],
-      dtcs:["P0300","P0301","P0302","P0303","P0304","DF059","DF060","DF061","DF062"],
-      keywords:["falha","falhando","rateia","engasga","cilindro","misfire","vibra"],
+      id:"duster-v42-misfire",
+      evidence:"documented+shop",
+      title:"Falha de combustão - Duster 1.6 16V / K4M / V42",
+      brands:["renault","dacia"],models:["duster"],engines:["1.6","k4m"],
+      dtcs:["P0300","P0301","P0302","P0303","P0304","DF059","DF060","DF061","DF062","DF361"],
+      keywords:["falha","falhando","rateia","engasga","cilindro","misfire","vibra","bobina","vela"],
       sourceIds:["duster-workshop","duster-v42"],
       hypotheses:[
-        {name:"Ignição do cilindro afetado", why:"A falha individual deve ser separada entre centelha, combustível e condição mecânica antes de substituir componentes.", weight:92},
-        {name:"Injetor / comando do injetor", why:"O sistema Valeo V42 possui comando individual de injetores e a documentação separa falhas de circuito por cilindro.", weight:84},
-        {name:"Compressão / condição mecânica", why:"Se ignição e injeção estiverem confirmadas, o teste mecânico passa a ter prioridade.", weight:74},
-        {name:"Mistura / combustível / entrada falsa de ar", why:"Falha múltipla ou em mais de um cilindro exige olhar causa comum antes de componentes individuais.", weight:68}
+        {name:"Ignição do cilindro afetado",why:"O K4M usa bobinas individuais; o procedimento V42 manda verificar conectores e confirmar produção de arco antes de substituir a bobina.",weight:96},
+        {name:"Injetor / alimentação / comando",why:"Os injetores têm alimentação +12 V e comando individual; o procedimento manda medir resistência e testar acionamento.",weight:91},
+        {name:"Compressão / condição mecânica",why:"Se centelha e injeção estiverem confirmadas, a causa deve ser separada da parte elétrica antes de trocar mais componentes.",weight:82},
+        {name:"Mistura / entrada falsa de ar / combustível",why:"Falha múltipla ou em vários cilindros aumenta a prioridade de uma causa comum.",weight:76}
       ],
       tests:[
-        {id:"spark-swap",title:"Separar ignição de combustível",procedure:"Com a falha presente, confirme centelha e faça teste comparativo do componente de ignição do cilindro afetado sem comprar peça. Se a falha migrar junto com o componente, a evidência muda de cilindro.",good:"falha não migrou",bad:"falha migrou com o componente"},
-        {id:"injector-command",title:"Confirmar comando do injetor",procedure:"Verifique alimentação e pulso/comando do injetor do cilindro afetado. Compare com cilindro funcional. Não condene ECU sem verificar chicote e conector.",good:"alimentação e comando presentes",bad:"alimentação ou comando ausente"},
-        {id:"compression",title:"Confirmar integridade mecânica",procedure:"Faça compressão relativa ou convencional e compare cilindros. Diferença relevante exige investigar vedação antes de insistir em ignição/injeção.",good:"compressões equilibradas",bad:"cilindro com compressão inferior"}
+        {id:"k4m-coil-check",title:"Confirmar ignição do cilindro",procedure:"Inspecione conector da bobina, alimentação e comando. Confirme centelha com método apropriado. No procedimento de fábrica, o TEST 14 usa testador específico; não condene bobina apenas pelo P030X.",good:"centelha e alimentação/comando confirmados",bad:"sem centelha ou circuito incorreto"},
+        {id:"k4m-injector-ohms",title:"Medir o injetor",procedure:"Com o circuito isolado e temperatura entre 0 °C e 40 °C, meça o injetor do cilindro afetado. No K4M, o procedimento V42 especifica 11 Ω a 20 Ω. Confirme também +12 V e comando.",good:"11 Ω a 20 Ω e comando presente",bad:"fora de 11 Ω a 20 Ω, sem alimentação ou sem comando"},
+        {id:"compression-compare",title:"Comparar compressão",procedure:"Compare os cilindros por teste de compressão/relativa. Se o cilindro afetado estiver abaixo dos demais, investigue vedação, válvulas e sincronismo antes de insistir na elétrica.",good:"cilindros equilibrados",bad:"cilindro afetado inferior"}
       ],
-      warnings:["Não trocar bobina, vela ou injetor apenas pelo P030X.","Depois do reparo: apagar falhas, repetir leitura e testar em condição que reproduzia o defeito."]
+      warnings:["P030X identifica o cilindro com falha, não a peça defeituosa.","Após o reparo, repetir leitura e teste na condição que fazia a falha aparecer."]
     },
     {
-      id:"duster-no-start-ckp",
-      title:"Não pega / morre — alimentação, rotação e combustível",
-      brands:["renault","dacia"],
-      models:["duster"],
-      engines:["1.6","k4m"],
-      dtcs:["P0335","DF120","P0627","DF085","P0560","DF047"],
-      keywords:["não pega","nao pega","morre","apagou","sem partida","não funciona","nao funciona","sem pulso"],
-      sourceIds:["duster-workshop","duster-v42"],
-      hypotheses:[
-        {name:"Sinal de rotação / PMS (CKP)",why:"Sem referência de rotação confiável a estratégia de injeção/ignição pode ser interrompida.",weight:94},
-        {name:"Alimentação principal / relé / tensão ECU",why:"O esquema V42 mostra alimentação da ECU e relés principais como pontos estruturais do sistema.",weight:90},
-        {name:"Comando e alimentação da bomba",why:"A tabela de falhas da injeção inclui circuito de comando do relé da bomba.",weight:85},
-        {name:"Imobilizador / autorização de partida",why:"Se alimentação, rotação e combustível estiverem corretos, autorização de partida precisa ser verificada.",weight:66}
-      ],
-      tests:[
-        {id:"rpm-crank",title:"RPM durante partida",procedure:"No scanner, observe rotação do motor enquanto aciona a partida. Se o valor permanecer zero, priorize CKP, conector, chicote e alimentação/referência conforme o circuito.",good:"scanner lê RPM coerente",bad:"0 rpm ou sinal instável"},
-        {id:"ecu-supply",title:"Carga real na alimentação",procedure:"Confirme +12 V, pós-chave e aterramentos da ECU/relés sob carga. Use lâmpada de teste quando apropriado, não apenas tensão em circuito aberto.",good:"alimentações e terras sustentam carga",bad:"queda de tensão ou alimentação ausente"},
-        {id:"fuel-relay",title:"Bomba de combustível",procedure:"Confirme comando do relé, alimentação da bomba e pressão/entrega. Separe falha elétrica de falha hidráulica.",good:"comando e pressão corretos",bad:"comando, alimentação ou pressão incorretos"}
-      ],
-      warnings:["Um sensor CKP pode falhar intermitente e o manuseio do chicote pode alterar temporariamente a falha.","Não substituir ECU antes de provar alimentação, terra, rede e sinais essenciais."]
-    },
-    {
-      id:"generic-wiring",
-      title:"Falha elétrica / intermitente — método de chicote",
-      brands:[],
-      models:[],
-      engines:[],
-      dtcs:[],
-      keywords:["intermitente","chicote","elétric","eletric","conector","oxidação","oxidacao","mau contato","sem sinal","curto"],
+      id:"duster-v42-injector-circuit",
+      evidence:"documented",
+      title:"Circuito de injetor V42",
+      brands:["renault","dacia"],models:["duster"],engines:["k4m","1.6","k7m"],
+      dtcs:["DF026","DF027","DF028","DF029"],
+      keywords:["injetor","bico","circuito","aberto","curto","cc.0","cc.1"],
       sourceIds:["duster-workshop"],
       hypotheses:[
-        {name:"Conector / terminal / chicote",why:"O manual orienta inspeção física, travamento, oxidação, deformação e manipulação monitorada do circuito.",weight:88},
-        {name:"Alimentação ou aterramento sob carga",why:"Medição sem carga pode mascarar resistência de contato; confirmar queda de tensão evita falso diagnóstico.",weight:82}
+        {name:"Injetor fora da resistência especificada",why:"O procedimento exige medição do injetor antes de substituição.",weight:95},
+        {name:"Falta de +12 V no injetor",why:"O V42 manda confirmar +12 V no terminal de alimentação do injetor.",weight:92},
+        {name:"Chicote entre injetor e ECU",why:"O procedimento exige continuidade, isolamento e ausência de resistência parasita no comando individual.",weight:90}
       ],
       tests:[
-        {id:"connector-inspection",title:"Inspeção dirigida de conector",procedure:"Inspecione travas, terminais recuados ou abertos, oxidação, marcas de calor, contaminação e dano próximo à saída dos fios. Manipule o chicote enquanto monitora o parâmetro ou circuito.",good:"sem alteração e contatos íntegros",bad:"falha reage à manipulação ou há dano visual"},
-        {id:"continuity",title:"Continuidade com circuito isolado",procedure:"Com as extremidades desconectadas quando o procedimento permitir, compare a continuidade com o valor esperado da documentação. No manual Duster consultado, vários testes orientam continuidade próxima de 1 Ω ± 1 Ω por ligação.",good:"continuidade dentro do esperado",bad:"aberto ou resistência elevada"}
+        {id:"injector-resistance",title:"Resistência do injetor",procedure:"Meça entre 0 °C e 40 °C. K4M: 11-20 Ω. K7M: 9,2-17 Ω.",good:"dentro da faixa do motor",bad:"fora da faixa"},
+        {id:"injector-12v",title:"Alimentação do injetor",procedure:"Com ignição ligada, confirme +12 V no circuito de alimentação do injetor. Se faltar, siga o circuito de alimentação/relé antes de condenar ECU.",good:"+12 V presente",bad:"+12 V ausente"},
+        {id:"injector-command",title:"Comando individual",procedure:"Confirme comando no fio individual e integridade do chicote entre injetor e ECU. Compare com um cilindro funcional quando necessário.",good:"comando e chicote corretos",bad:"sem comando ou chicote alterado"}
       ],
-      warnings:["Desconectar e reconectar pode esconder temporariamente mau contato.","Não perfure isolação de chicote sem necessidade; preserve vedação e terminais."]
+      warnings:["Não aplicar a faixa K4M ao K7M.","Não condenar ECU antes de provar alimentação, chicote e injetor."]
     },
     {
-      id:"lexus-start-charge",
-      title:"Lexus IS 300 — partida, ignição e carga",
-      brands:["lexus"],
-      models:["is 300","is300"],
-      engines:[],
-      dtcs:[],
-      keywords:["não pega","nao pega","partida","starter","carga","alternador","ignição","ignicao","sem partida"],
-      sourceIds:["lexus-ewd"],
+      id:"duster-v42-no-start",
+      evidence:"documented+shop",
+      title:"Não pega / morre - V42",
+      brands:["renault","dacia"],models:["duster"],engines:["1.6","k4m","k7m"],
+      dtcs:["P0335","DF120","P0627","DF085","P0560","DF047","DF457"],
+      keywords:["não pega","nao pega","morre","apagou","sem partida","sem pulso","sem combustivel","sem combustível"],
+      sourceIds:["duster-workshop","duster-v42"],
       hypotheses:[
-        {name:"Distribuição de alimentação / fusíveis principais",why:"O EWD mostra bateria, fusíveis principais, chave de ignição e ramificações de alimentação antes dos consumidores.",weight:90},
-        {name:"Circuito de partida / relé / posição P-N",why:"O diagrama liga chave de ignição, starter e sinal de posição Park/Neutral no caminho de partida.",weight:86},
-        {name:"ECM / ignição",why:"O EWD também relaciona ECM, igniter e bobinas ao sistema de ignição.",weight:78}
+        {name:"Referência de rotação / PMS",why:"Sem rotação válida a estratégia de ignição e injeção não consegue sincronizar.",weight:96},
+        {name:"Alimentação da ECU / queda de tensão",why:"DF047 é tratado como tensão de alimentação do computador e o procedimento manda movimentar/verificar chicote ECU-bateria.",weight:94},
+        {name:"Relé / alimentação da bomba",why:"DF085 e TEST 1 mandam comandar o relé, confirmar saída e continuidade antes de substituir a bomba.",weight:91},
+        {name:"Autorização de partida / imobilizador",why:"Se alimentação, rotação, combustível e centelha estiverem corretos, a autorização de partida deve ser confirmada.",weight:70}
       ],
       tests:[
-        {id:"lexus-power",title:"Rastrear alimentação pelo EWD",procedure:"Comece na bateria e nos fusíveis principais; confirme tensão e continuidade pelo circuito até chave/relé/carga afetada, usando o diagrama EWD451U.",good:"alimentação chega ao estágio seguinte",bad:"alimentação some em um ponto do circuito"},
-        {id:"lexus-starter",title:"Comando de partida",procedure:"Confirme sinal de partida, condição Park/Neutral quando automático e comando no starter. O ponto onde o sinal desaparece define a próxima verificação.",good:"comando chega ao starter",bad:"comando não chega"}
+        {id:"crank-rpm",title:"RPM durante a partida",procedure:"Observe RPM no scanner enquanto aciona o motor. Se ficar em zero ou instável, priorize sensor de PMS/rotação, alvo do volante, conector e chicote.",good:"RPM coerente durante partida",bad:"0 RPM ou leitura instável"},
+        {id:"ecu-load",title:"Alimentação da ECU sob carga",procedure:"Confirme bateria, pós-chave e aterramentos sob carga e procure queda de tensão. Movimente o chicote ECU-bateria se a falha for intermitente.",good:"tensões e terras estáveis",bad:"queda, corte ou oscilação"},
+        {id:"fuel-ac015",title:"Comando da bomba",procedure:"Acione a bomba/relé pelo scanner quando disponível. Confirme operação, alimentação na bomba e aterramento; depois separe elétrica de pressão/entrega.",good:"comando, alimentação e entrega presentes",bad:"um dos três ausente"}
       ],
-      warnings:["Use o diagrama do ano/sistema correspondente; não extrapole pinagem para outro modelo sem confirmar."]
+      warnings:["Desconectar/reconectar conector pode mascarar mau contato.","ECU é hipótese final depois de provar alimentação, terra, rede e sinais essenciais."]
+    },
+    {
+      id:"duster-v42-coolant",
+      evidence:"documented",
+      title:"Sensor de temperatura / eletroventilador V42",
+      brands:["renault","dacia"],models:["duster"],engines:[],
+      dtcs:["DF001","DF018"],
+      keywords:["temperatura","esquenta","esquentando","ventoinha","eletroventilador","df001","df018","ect"],
+      sourceIds:["duster-workshop","duster-v42"],
+      hypotheses:[
+        {name:"Leitura ECT incorreta",why:"DF001 trata tensão baixa/alta e microcorte do sensor de temperatura.",weight:94},
+        {name:"Relé / circuito de baixa velocidade do eletroventilador",why:"DF018 possui teste específico de relé, comando e alimentação.",weight:90},
+        {name:"Problema de circulação/troca térmica",why:"Se leitura e acionamento elétrico estiverem corretos, a investigação migra para o sistema mecânico de arrefecimento.",weight:78}
+      ],
+      tests:[
+        {id:"ect-cold",title:"Coerência do ECT a frio",procedure:"Com motor frio, compare a temperatura do scanner com a ambiente. Se houver grande desvio, teste sensor e chicote.",good:"ECT próximo da temperatura ambiente",bad:"leitura incoerente"},
+        {id:"ect-resistance",title:"Resistência do ECT",procedure:"No procedimento DF001, a resistência em temperatura ambiente deve estar entre 100 Ω e 10 kΩ.",good:"100 Ω a 10 kΩ em ambiente",bad:"fora da faixa"},
+        {id:"fan-relay",title:"Relé e potência do eletroventilador",procedure:"Comande a baixa velocidade pelo scanner quando possível e separe: comando da ECU, relé, alimentação de potência e motor da ventoinha.",good:"comando e potência presentes",bad:"falta comando, relé ou potência"}
+      ],
+      warnings:["Não abrir sistema pressurizado quente.","Temperatura alta por si só não comprova junta de cabeçote."]
+    },
+    {
+      id:"duster-v42-pedal-throttle",
+      evidence:"documented",
+      title:"Pedal / borboleta / marcha lenta V42",
+      brands:["renault","dacia"],models:["duster"],engines:[],
+      dtcs:["P0120","P0220","DF095","DF096","DF974","DF975"],
+      keywords:["pedal","acelerador","borboleta","marcha lenta","acelerando sozinho","racing","pr030","pr444"],
+      sourceIds:["duster-workshop"],
+      hypotheses:[
+        {name:"Sinal do pedal fora da faixa",why:"PR030 possui limites de coerência para repouso e carga total.",weight:94},
+        {name:"Borboleta / adaptação de batente",why:"TEST 3 usa PR444 e orienta programação do batente quando a correção está acima do limite.",weight:89},
+        {name:"Chicote / conectores do pedal e ECU",why:"O procedimento manda verificar seis conexões entre pedal e ECU.",weight:85}
+      ],
+      tests:[
+        {id:"pedal-pr030",title:"PR030 do pedal",procedure:"Sem carga, PR030 deve ser ≤16%. Em carga total, ≥85%. Verifique progressividade sem saltos.",good:"repouso ≤16%, total ≥85% e progressivo",bad:"fora da faixa ou com falhas"},
+        {id:"throttle-pr444",title:"PR444 em marcha lenta",procedure:"Com motor aquecido a 75 °C, sem consumidores e após 20 min nessa condição, PR444 deve ficar entre 5 e 10 N·m. Acima de 10 N·m o procedimento orienta programar o batente da borboleta.",good:"5-10 N·m",bad:"fora da faixa"}
+      ],
+      warnings:["Não forçar borboleta eletrônica manualmente sem procedimento.","Confirmar compatibilidade do sistema antes de usar os valores V42."]
+    },
+    {
+      id:"duster-v42-charging",
+      evidence:"documented+shop",
+      title:"Carga / alternador / baixa tensão",
+      brands:["renault","dacia"],models:["duster"],engines:[],
+      dtcs:["P0560","DF047"],
+      keywords:["alternador","bateria","carga","tensão","tensao","descarrega","luz bateria","baixa tensão","baixa tensao"],
+      sourceIds:["duster-workshop"],
+      hypotheses:[
+        {name:"Queda de tensão em alimentação ou aterramento",why:"A tensão medida sem carga pode parecer normal mesmo com resistência de contato.",weight:95},
+        {name:"Alternador / módulo de sinal",why:"TEST 2 compara a carga sem consumidores e com consumidores e verifica o circuito de sinal do alternador.",weight:89},
+        {name:"Bateria com capacidade reduzida",why:"A bateria precisa ser separada do sistema de carga por teste de capacidade/queda durante partida.",weight:82}
+      ],
+      tests:[
+        {id:"charge-load",title:"Carga com e sem consumidores",procedure:"Meça a carga e observe o parâmetro do alternador no scanner quando disponível; ligue consumidores e confirme resposta do sistema. Faça queda de tensão nos cabos positivo e negativo.",good:"carga responde e quedas são baixas",bad:"carga não responde ou há queda anormal"},
+        {id:"battery-crank",title:"Bateria durante partida",procedure:"Observe tensão e corrente/queda durante partida e teste capacidade da bateria. Não condene alternador por bateria fraca nem bateria por conexão ruim.",good:"bateria sustenta a partida",bad:"queda excessiva / capacidade insuficiente"}
+      ],
+      warnings:["Falhas de baixa tensão podem criar múltiplos DTCs secundários.","Limpar falhas somente depois de estabilizar alimentação."]
+    },
+    {
+      id:"duster-v42-pump",
+      evidence:"documented",
+      title:"Bomba / relé de combustível V42",
+      brands:["renault","dacia"],models:["duster"],engines:[],
+      dtcs:["P0627","DF085"],
+      keywords:["bomba","combustível","combustivel","relé","rele","sem pressão","sem pressao","não pega","nao pega"],
+      sourceIds:["duster-workshop","duster-v42"],
+      hypotheses:[
+        {name:"Comando do relé",why:"DF085 prevê circuito aberto, curto à massa ou curto a +12 V no comando do relé.",weight:96},
+        {name:"Saída de potência do relé / alimentação da bomba",why:"O procedimento manda verificar a saída do circuito de potência durante AC015.",weight:93},
+        {name:"Chicote / aterramento da bomba",why:"TEST 1 exige continuidade e aterramento antes de substituir componente.",weight:90}
+      ],
+      tests:[
+        {id:"pump-command",title:"AC015 / relé da bomba",procedure:"Se o scanner permitir, execute AC015. Escute o relé e a bomba e meça a saída do relé.",good:"relé comanda e saída chega à bomba",bad:"sem comando ou sem saída"},
+        {id:"pump-ground",title:"Alimentação e terra na bomba",procedure:"Confirme alimentação e aterramento na bomba sob carga. Se ambos estiverem corretos, só então teste pressão/entrega da bomba.",good:"alimentação/terra corretos",bad:"alimentação ou terra ausente"}
+      ],
+      warnings:["Não substituir bomba sem separar comando elétrico de falha hidráulica."]
+    },
+    {
+      id:"duster-v42-knock",
+      evidence:"documented",
+      title:"Sensor de detonação V42",
+      brands:["renault","dacia"],models:["duster"],engines:[],
+      dtcs:["DF088"],
+      keywords:["detonação","detonacao","knock","pinking","batida pino"],
+      sourceIds:["duster-workshop"],
+      hypotheses:[
+        {name:"Sensor / aperto / contato mecânico",why:"O procedimento manda verificar limpeza, condição e aperto do sensor.",weight:95},
+        {name:"Chicote blindado / continuidade",why:"O chicote é blindado e deve ser testado quanto a continuidade e isolamento.",weight:90}
+      ],
+      tests:[
+        {id:"knock-ohms",title:"Resistência interna",procedure:"O procedimento V42 exige resistência interna maior que 10 MΩ.",good:">10 MΩ",bad:"≤10 MΩ"},
+        {id:"knock-harness",title:"Conector, aperto e chicote",procedure:"Confirme montagem/aperto, conector limpo e integridade das ligações até a ECU.",good:"montagem e chicote corretos",bad:"falha de montagem ou circuito"}
+      ],
+      warnings:["Não confundir ruído mecânico real com falha elétrica do sensor."]
+    },
+    {
+      id:"lexus-is300-start",
+      evidence:"documented",
+      title:"Lexus IS 300 - partida / ignição / alimentação",
+      brands:["lexus"],models:["is 300","is300"],engines:[],
+      dtcs:[],
+      keywords:["não pega","nao pega","partida","starter","ignição","ignicao","alternador","carga","sem partida"],
+      sourceIds:["lexus-ewd"],
+      hypotheses:[
+        {name:"Alimentação e fusíveis principais",why:"O EWD liga bateria, fusíveis e chave de ignição aos circuitos de partida e ECM.",weight:95},
+        {name:"Comando de partida / condição P-N",why:"O circuito de partida inclui condição Park/Neutral nos veículos automáticos.",weight:90},
+        {name:"ECM / ignição / bobinas",why:"O diagrama relaciona ECM, igniter/bobinas e alimentação do sistema.",weight:84}
+      ],
+      tests:[
+        {id:"lexus-power-trace",title:"Rastrear alimentação",procedure:"Comece na bateria e fusíveis principais e siga o diagrama até chave/relé/carga afetada. O ponto onde a tensão desaparece define a etapa seguinte.",good:"alimentação chega ao próximo estágio",bad:"alimentação se perde em um ponto"},
+        {id:"lexus-start-signal",title:"Sinal de partida",procedure:"Confirme comando de partida e condição P/N quando aplicável; depois confirme chegada do comando ao motor de partida.",good:"comando chega ao starter",bad:"comando não chega"}
+      ],
+      warnings:["Use somente o diagrama correspondente ao ano/sistema do veículo."]
+    },
+
+    /* Heurísticas gerais: não carregam valores específicos de fabricante. */
+    {
+      id:"generic-wiring",
+      evidence:"heuristic",
+      title:"Falha elétrica / intermitente",
+      brands:[],models:[],engines:[],dtcs:[],
+      keywords:["intermitente","chicote","elétric","eletric","conector","oxidação","oxidacao","mau contato","sem sinal","curto"],
+      sourceIds:[],
+      hypotheses:[
+        {name:"Conector / terminal / chicote",why:"Falha que muda com vibração, temperatura ou manipulação exige inspeção de terminais e chicote.",weight:91},
+        {name:"Alimentação ou aterramento sob carga",why:"Tensão em circuito aberto pode esconder resistência de contato.",weight:88}
+      ],
+      tests:[
+        {id:"wiggle-monitor",title:"Manipulação monitorada",procedure:"Monitore o parâmetro/sinal enquanto movimenta conectores e trechos do chicote. Procure terminal recuado, aberto, oxidado, aquecido ou contaminado.",good:"sem alteração e contatos íntegros",bad:"falha reage à manipulação"},
+        {id:"voltage-drop",title:"Queda de tensão",procedure:"Teste positivo e aterramento com o circuito trabalhando. Compare com circuito funcional quando não houver especificação disponível.",good:"quedas baixas e estáveis",bad:"queda anormal ou oscilação"}
+      ],
+      warnings:["Desconectar e reconectar pode esconder temporariamente mau contato."]
     },
     {
       id:"generic-overheat",
-      title:"Superaquecimento — separar circulação, comando e troca térmica",
-      brands:[],
-      models:[],
-      engines:[],
-      dtcs:["P0217","DF721"],
+      evidence:"heuristic",
+      title:"Superaquecimento",
+      brands:[],models:[],engines:[],dtcs:["P0217"],
       keywords:["esquenta","esquentando","superaquece","temperatura","ferve","ventoinha","eletroventilador"],
-      sourceIds:["duster-workshop","duster-v42"],
+      sourceIds:[],
       hypotheses:[
-        {name:"Comando do eletroventilador / relés",why:"A documentação V42 representa relés de velocidades do eletroventilador e sensor ECT no circuito.",weight:86},
-        {name:"Leitura incorreta de temperatura",why:"ECT incoerente altera decisão de comando e pode gerar diagnóstico errado se a temperatura real não for comparada.",weight:80},
-        {name:"Circulação / troca térmica",why:"Se leitura e comando elétrico estiverem corretos, a investigação deve migrar para circulação e capacidade térmica.",weight:74}
+        {name:"Leitura de temperatura / sensor",why:"Primeiro confirme se a temperatura vista pelo módulo corresponde à temperatura real.",weight:92},
+        {name:"Comando e potência do eletroventilador",why:"Separe comando lógico, relé, alimentação e motor da ventoinha.",weight:89},
+        {name:"Circulação e troca térmica",why:"Com elétrica correta, investigue fluxo, válvula termostática, bomba, radiador e presença de gases/ar.",weight:84}
       ],
       tests:[
-        {id:"ect-compare",title:"Comparar ECT com temperatura real",procedure:"A frio, compare ECT com temperatura ambiente. Durante aquecimento, acompanhe evolução e compare com medição independente quando possível.",good:"leitura coerente e progressiva",bad:"leitura deslocada, travada ou intermitente"},
-        {id:"fan-command",title:"Comando das velocidades da ventoinha",procedure:"Confirme se a ECU solicita o acionamento e se relé/alimentação entregam tensão ao eletroventilador. Separe comando de potência.",good:"comando e potência presentes",bad:"falta comando ou falta potência"}
+        {id:"temp-compare",title:"Temperatura real x scanner",procedure:"A frio, compare scanner com ambiente. Durante aquecimento, confirme evolução com medição independente quando possível.",good:"leituras coerentes",bad:"scanner e temperatura real divergem"},
+        {id:"fan-separate",title:"Separar comando de potência",procedure:"Verifique se há solicitação de ventoinha, se o relé comuta e se chega alimentação ao motor.",good:"comando e potência corretos",bad:"falha identificada em um estágio"}
       ],
-      warnings:["Não abrir reservatório pressurizado quente.","Não condenar junta do cabeçote apenas por temperatura alta; primeiro documente evidências."]
+      warnings:["Não abrir reservatório pressurizado quente.","Não condenar junta de cabeçote apenas por temperatura alta."]
+    },
+    {
+      id:"generic-hard-brake",
+      evidence:"heuristic",
+      title:"Pedal de freio duro / assistência a vácuo",
+      brands:[],models:[],engines:[],dtcs:[],
+      keywords:["freio duro","pedal duro","servo freio","hidrovacuo","hidrovácuo","vácuo","vacuo"],
+      sourceIds:[],
+      hypotheses:[
+        {name:"Falta de vácuo para o servo",why:"Pedal que endurece intermitentemente exige confirmar a fonte de vácuo e retenção.",weight:94},
+        {name:"Mangueira / válvula de retenção / vazamento",why:"Vazamento pode afetar assistência de freio e também mistura/marcha lenta em alguns motores.",weight:90},
+        {name:"Servo-freio",why:"Só ganha prioridade depois de confirmar que o vácuo chega e é retido corretamente.",weight:79}
+      ],
+      tests:[
+        {id:"vacuum-source",title:"Medir vácuo disponível",procedure:"Confirme vácuo na linha do servo em marcha lenta e durante a condição que endurece o pedal.",good:"vácuo presente e estável",bad:"vácuo baixo ou desaparece"},
+        {id:"check-valve",title:"Retenção e estanqueidade",procedure:"Teste mangueira, conexões e válvula de retenção. Após desligar o motor, verifique se a assistência mantém reserva por algumas aplicações do pedal.",good:"retém vácuo",bad:"perde vácuo rapidamente"}
+      ],
+      warnings:["Falha de assistência não significa necessariamente falha hidráulica de frenagem, mas exige atenção imediata."]
+    },
+    {
+      id:"generic-trans-no-engage",
+      evidence:"heuristic",
+      title:"Câmbio automático não engata",
+      brands:[],models:[],engines:[],dtcs:[],
+      keywords:["câmbio não engata","cambio nao engata","não engata","nao engata","sem marcha","d não entra","r não entra","falsa impressão de engate","falsa impressao de engate"],
+      sourceIds:[],
+      hypotheses:[
+        {name:"Nível/pressão hidráulica ou alimentação do circuito",why:"Ausência total de tração em todas as posições exige separar pressão/fluido de comando eletrônico.",weight:94},
+        {name:"Reconhecimento de faixa / seletor",why:"O módulo precisa reconhecer corretamente P-R-N-D e condições de habilitação.",weight:89},
+        {name:"TCM / chicote / alimentação após substituição",why:"Após troca de conjunto, confirme compatibilidade, alimentação, comunicação e necessidade de programação/aprendizado antes de abrir o câmbio.",weight:86},
+        {name:"Acoplamento mecânico / conversor / diferencial",why:"Se pressão e comando existem, confirme transmissão mecânica de torque.",weight:80}
+      ],
+      tests:[
+        {id:"range-scan",title:"Faixa reconhecida no scanner",procedure:"Compare posição real da alavanca com o parâmetro de faixa do módulo em P-R-N-D. Se divergir, não avance para condenação interna.",good:"todas as faixas reconhecidas",bad:"faixa ausente ou incoerente"},
+        {id:"trans-power",title:"Alimentação/comunicação do TCM",procedure:"Confirme tensão, aterramentos, comunicação e identificação/calibração do módulo/conjunto instalado.",good:"alimentação e comunicação corretas",bad:"falha de alimentação, rede ou compatibilidade"},
+        {id:"hydraulic-pressure",title:"Pressão hidráulica",procedure:"Se o procedimento do câmbio permitir, medir pressão de linha nas posições indicadas pelo fabricante. Não invente valor sem a especificação daquele câmbio.",good:"pressão conforme especificação",bad:"pressão ausente/fora do especificado"}
+      ],
+      warnings:["Não aplicar procedimento de outro câmbio apenas porque o veículo/modelo é parecido.","Após troca de transmissão/módulo, programação e aprendizado podem ser obrigatórios conforme a aplicação."]
+    },
+    {
+      id:"generic-oil-pressure",
+      evidence:"heuristic",
+      title:"Luz / pressão de óleo",
+      brands:[],models:[],engines:[],dtcs:[],
+      keywords:["pressão de óleo","pressao de oleo","luz de óleo","luz de oleo","interruptor óleo","interruptor oleo","bomba de óleo","bomba de oleo"],
+      sourceIds:[],
+      hypotheses:[
+        {name:"Nível/viscosidade/óleo inadequado",why:"Antes de desmontar, confirme quantidade e condição do óleo.",weight:94},
+        {name:"Sensor/interruptor ou circuito",why:"Uma indicação incorreta deve ser separada de pressão mecânica realmente baixa.",weight:91},
+        {name:"Pressão mecânica baixa",why:"Somente manômetro confirma pressão real; a causa pode estar em bomba, pescador, folgas ou válvula reguladora.",weight:88}
+      ],
+      tests:[
+        {id:"oil-level",title:"Confirmar nível e condição",procedure:"Veículo nivelado e conforme procedimento do fabricante, confirme nível, especificação e contaminação do óleo.",good:"nível/especificação corretos",bad:"nível ou condição incorreta"},
+        {id:"oil-gauge",title:"Manômetro mecânico",procedure:"Instale manômetro no ponto correto e compare a pressão fria/quente e em rotação com a especificação exata do motor.",good:"pressão dentro da especificação",bad:"pressão abaixo da especificação"}
+      ],
+      warnings:["Não condenar bomba apenas pelo interruptor ou pela luz.","Se houver ruído mecânico ou pressão real baixa, evite manter o motor funcionando."]
+    },
+    {
+      id:"generic-catalyst-restriction",
+      evidence:"heuristic",
+      title:"Perda de potência / suspeita de escape restrito",
+      brands:[],models:[],engines:[],dtcs:["P0420"],
+      keywords:["xoxo","sem força","sem potencia","sem potência","catalisador","escape entupido","abafado","não sobe giro","nao sobe giro"],
+      sourceIds:[],
+      hypotheses:[
+        {name:"Restrição de escape / catalisador",why:"Contrapressão elevada pode limitar enchimento do motor e provocar perda de potência.",weight:88},
+        {name:"Falha de ignição/mistura que danificou o catalisador",why:"Catalisador pode ser consequência de outra falha; é preciso corrigir a causa primária.",weight:84},
+        {name:"Alimentação de combustível / carga do motor",why:"Perda de potência também pode vir de combustível, sincronismo ou sensores de carga.",weight:78}
+      ],
+      tests:[
+        {id:"exhaust-diff",title:"Confirmar restrição",procedure:"Use método apropriado para medir contrapressão/vácuo ou comparar comportamento com ponto de escape aliviado, respeitando segurança e procedimento do veículo.",good:"sem evidência de restrição",bad:"evidência clara de restrição"},
+        {id:"misfire-before-cat",title:"Procurar causa primária",procedure:"Antes de trocar catalisador, verifique falha de ignição, mistura rica, consumo de óleo e injetor com vazamento.",good:"causas primárias descartadas",bad:"há falha que pode danificar o novo catalisador"}
+      ],
+      warnings:["P0420 não prova entupimento; mede eficiência do catalisador em muitas aplicações."]
     }
   ]
 };

@@ -4,212 +4,164 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta id="themeColorMeta" name="theme-color" content="#07111f">
-  <meta name="description" content="thIAguinho Soluções Automotiva — Oráculo Automotivo com IA Mecânico baseada em evidências, testes e documentação técnica.">
+  <meta name="description" content="thIAguinho Soluções Automotiva — IA Mecânico para diagnóstico automotivo orientado por evidências.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="./assets/icon-thIAguinho.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./css/app.css">
-  <title>thIAguinho Soluções Automotiva • Oráculo Automotivo</title>
+  <title>thIAguinho • IA Mecânico</title>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
   <div class="ambient ambient-b"></div>
 
   <header class="topbar">
-    <div class="brand">
-      <img src="./assets/logo-thIAguinho.webp" alt="thIAguinho Soluções Automotiva" class="brand-logo">
-      <div class="brand-mobile">
-        <strong class="brand-wordmark">th<span class="ia-mark">IA</span>guinho Soluções Automotiva</strong>
-        <span>ORÁCULO AUTOMOTIVO • IA MECÂNICO</span>
+    <a class="brand" href="./" aria-label="thIAguinho Soluções Automotiva">
+      <img src="./assets/logo-thIAguinho.svg" alt="thIAguinho Soluções Automotiva" class="brand-logo">
+      <div class="brand-compact">
+        <strong>th<span>IA</span>guinho</strong>
+        <small>Soluções Automotiva</small>
       </div>
-    </div>
+    </a>
     <div class="top-actions">
-      <button id="themeBtn" class="ghost small theme-btn" type="button" aria-label="Alternar tema" title="Tema automático">◐ <span>Auto</span></button>
-      <button id="installBtn" class="ghost small" hidden>Instalar</button>
-      <div class="live-pill" id="cloudStatus"><i></i><span id="engineStatus">conectando histórico...</span></div>
+      <div class="live-pill" id="cloudStatus" title="Status do histórico">
+        <i></i><span id="engineStatus">conectando...</span>
+      </div>
+      <button id="themeBtn" class="icon-btn" type="button" aria-label="Alternar tema" title="Tema automático">◐</button>
+      <button id="installBtn" class="icon-btn" type="button" aria-label="Instalar aplicativo" title="Instalar" hidden>⇩</button>
     </div>
   </header>
 
-  <main class="shell">
-    <section class="hero">
-      <div>
-        <div class="eyebrow">MODO OFICINA</div>
-        <h1>Não adivinha. <span>Testa.</span></h1>
-        <p>Conte o defeito como você contaria para outro mecânico. O thIAguinho cruza sintomas, códigos, medições e o conhecimento técnico interno para indicar o próximo teste.</p>
+  <main class="app-shell">
+    <aside class="identity-panel">
+      <div class="identity-logo">
+        <img src="./assets/logo-thIAguinho.svg" alt="thIAguinho Soluções Automotiva">
       </div>
-      <div class="hero-side">
-        <div class="mascot-card" id="heroMascotCard">
-          <img src="./assets/mascote-thIAguinho.webp" alt="thIAguinho, assistente mecânico virtual" class="mascot-hero">
-          <div>
-            <span class="mascot-kicker">th<span class="ia-mark">IA</span>guinho • IA MECÂNICO</span>
-            <strong>Me mostre o defeito. Eu te guio no diagnóstico.</strong>
-            <button type="button" id="heroAskBtn" class="ghost small">Falar com o thIAguinho</button>
+      <div class="mascot-stage" aria-hidden="true">
+        <div class="mascot-glow"></div>
+        <img src="./assets/mascote-thIAguinho.webp" alt="" class="main-mascot">
+        <div class="scan-line"></div>
+      </div>
+      <div class="identity-copy">
+        <span class="eyebrow">IA MECÂNICO</span>
+        <h1>Seu parceiro de <span>diagnóstico.</span></h1>
+        <p>Você conta o defeito. O <b>th<span class="ia">IA</span>guinho</b> organiza hipóteses, separa o que precisa ser medido e te guia no próximo teste.</p>
+      </div>
+      <div class="privacy-chip">🔒 Fotos e vídeos são analisados temporariamente e não são armazenados.</div>
+    </aside>
+
+    <section class="chat-card" aria-label="Conversa com o thIAguinho">
+      <header class="chat-head">
+        <div class="assistant-id">
+          <div class="avatar-wrap">
+            <img src="./assets/mascote-thIAguinho.webp" alt="thIAguinho">
+            <span></span>
           </div>
+          <div>
+            <strong>th<span class="ia">IA</span>guinho</strong>
+            <small>IA Mecânico • pronto para diagnosticar</small>
+          </div>
+        </div>
+        <div class="chat-actions">
+          <button id="newCaseBtn" class="ghost-btn" type="button">Novo</button>
+          <button id="historyBtn" class="icon-btn" type="button" title="Histórico" aria-label="Abrir histórico">◴</button>
+        </div>
+      </header>
+
+      <div class="context-row">
+        <button id="vehicleBtn" class="context-chip" type="button">
+          <span>🚘</span>
+          <span id="vehicleSummary">Informar veículo</span>
+          <b>›</b>
+        </button>
+        <div class="context-state">
+          <i></i><span>conhecimento técnico interno ativo</span>
         </div>
       </div>
-    </section>
 
-    <nav class="tabs" aria-label="Navegação principal">
-      <button class="tab active" data-tab="diagnostico">Diagnóstico</button>
-      <button class="tab" data-tab="historico">Histórico</button>
-    </nav>
-
-    <section id="diagnostico" class="panel tab-panel active">
-      <div class="safety-strip">
-        <span class="shield">✓</span>
-        <div><strong>Regra do Oráculo:</strong> peça não é condenada por “parecer”. Primeiro: alimentação, aterramento, sinal, teste dirigido e confirmação.</div>
+      <div id="messages" class="messages" aria-live="polite">
+        <article class="message bot welcome">
+          <div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp" alt=""></div>
+          <div class="bubble">
+            <strong>th<span class="ia">IA</span>guinho</strong>
+            <p>Me diga o que o carro está fazendo. Pode mandar o sintoma, DTC, medição ou uma foto/vídeo da tela do scanner. Eu vou separar hipótese de evidência e te passar o próximo teste.</p>
+          </div>
+        </article>
       </div>
 
-      <form id="diagnosisForm" class="diagnosis-form">
-        <div class="section-head">
-          <div>
-            <span class="step">01</span>
-            <h2>Identifique o carro</h2>
-          </div>
-          <button type="button" id="resetBtn" class="ghost small">Novo caso</button>
+      <div class="quick-prompts" id="quickPrompts">
+        <button type="button" data-prompt="O motor está falhando. Quero começar o diagnóstico sem trocar peça no chute.">Motor falhando</button>
+        <button type="button" data-prompt="O carro não pega. Me guie pelo diagnóstico passo a passo.">Não pega</button>
+        <button type="button" data-prompt="O motor está esquentando. Quero separar sensor, ventoinha e circulação.">Esquentando</button>
+        <button type="button" data-prompt="O câmbio automático não engata. Quero separar comando, pressão e parte mecânica.">Câmbio</button>
+      </div>
+
+      <div id="mediaQueue" class="media-queue"></div>
+
+      <form id="chatForm" class="composer">
+        <div class="composer-tools">
+          <button id="photoBtn" type="button" class="tool-btn" title="Foto do scanner" aria-label="Enviar foto">📷</button>
+          <button id="videoBtn" type="button" class="tool-btn" title="Vídeo do scanner" aria-label="Enviar vídeo">🎥</button>
+          <button id="micBtn" type="button" class="tool-btn" title="Falar" aria-label="Ditado por voz">🎙</button>
+          <button id="vehicleComposerBtn" type="button" class="tool-btn" title="Dados do veículo" aria-label="Dados do veículo">🚘</button>
         </div>
-
-        <div class="grid vehicle-grid">
-          <label>Marca
-            <input id="brand" autocomplete="off" placeholder="Ex.: Renault">
-          </label>
-          <label>Modelo
-            <input id="model" autocomplete="off" placeholder="Ex.: Duster">
-          </label>
-          <label>Ano
-            <input id="year" inputmode="numeric" placeholder="Ex.: 2011">
-          </label>
-          <label>Motor
-            <input id="engine" autocomplete="off" placeholder="Ex.: 1.6 16V K4M">
-          </label>
-          <label>Câmbio
-            <input id="transmission" autocomplete="off" placeholder="Manual / Automático">
-          </label>
-          <label>Quilometragem
-            <input id="mileage" inputmode="numeric" placeholder="Ex.: 145000">
-          </label>
-        </div>
-
-        <div class="section-head compact">
-          <div>
-            <span class="step">02</span>
-            <h2>O que o carro está fazendo?</h2>
-          </div>
-        </div>
-
-        <label class="wide">Sintomas / histórico
-          <textarea id="symptoms" rows="5" placeholder="Conte como mecânico: quando acontece, frio/quente, marcha lenta/carga, o que foi trocado, o que já foi medido..."></textarea>
-        </label>
-
-        <div class="grid evidence-grid">
-          <label>DTCs / códigos
-            <input id="dtcs" autocomplete="off" placeholder="Ex.: P0301, DF059, P0420">
-          </label>
-          <label>Medições já feitas
-            <input id="measurements" autocomplete="off" placeholder="Ex.: combustível 3,5 bar; carga 14,1 V">
-          </label>
-        </div>
-
-        <section class="media-capture">
-          <div class="media-copy">
-            <strong>Foto ou vídeo do scanner</strong>
-            <span>A mídia é analisada temporariamente neste aparelho e não é enviada ao Firebase.</span>
-          </div>
-          <label class="media-button" for="mediaInput">📷 Selecionar foto/vídeo</label>
-          <input id="mediaInput" type="file" accept="image/*,video/*" multiple hidden>
-          <div id="mediaQueue" class="media-queue"></div>
-        </section>
-
-        <div class="action-row">
-          <button class="primary" type="submit">
-            <span>ANALISAR COMO MECÂNICO</span>
-            <b>→</b>
-          </button>
-          <span class="microcopy">Resultado = aderência técnica, não “chute de IA”.</span>
-        </div>
+        <textarea id="chatInput" rows="1" placeholder="Ex.: Duster 1.6 K4M falhando, P0301..." autocomplete="off" aria-label="Mensagem para o thIAguinho"></textarea>
+        <button id="sendBtn" type="submit" class="send-btn" aria-label="Enviar">➜</button>
       </form>
 
-      <section id="results" class="results" hidden>
-        <div class="result-header">
-          <div>
-            <div class="eyebrow">RACIOCÍNIO TÉCNICO</div>
-            <h2 id="resultTitle">Diagnóstico priorizado</h2>
-          </div>
-          <button id="copyReport" class="ghost small">Copiar laudo</button>
-        </div>
-
-        <div id="vehicleFingerprint" class="fingerprint"></div>
-
-        <div class="result-grid">
-          <div class="result-main">
-            <article class="card verdict-card">
-              <div class="card-title">
-                <span>Hipóteses priorizadas</span>
-                <small>ordenadas por aderência às evidências</small>
-              </div>
-              <div id="hypotheses"></div>
-            </article>
-
-            <article class="card test-card">
-              <div class="card-title">
-                <span>Próximo teste</span>
-                <small>responda o resultado e o Oráculo recalcula o caminho</small>
-              </div>
-              <div id="nextTest"></div>
-            </article>
-          </div>
-
-          <aside class="result-side">
-            <article class="card">
-              <div class="card-title"><span>Alertas</span><small>antes de trocar peça</small></div>
-              <div id="warnings" class="warning-list"></div>
-            </article>
-          </aside>
-        </div>
-      </section>
-    </section>
-
-    <section id="historico" class="panel tab-panel">
-      <div class="section-head">
-        <div>
-          <span class="step">OS</span>
-          <h2>Casos diagnosticados</h2>
-        </div>
-        <button id="clearHistory" class="ghost small danger">Limpar histórico</button>
+      <div class="composer-note">
+        <span>Não adivinha. <b>Testa.</b></span>
+        <span>Histórico automático no Realtime Database</span>
       </div>
-      <p class="panel-intro">Histórico salvo no Realtime Database pelo acesso anônimo deste aparelho. Fotos e vídeos não são armazenados.</p>
-      <div id="historyList" class="history-list"></div>
     </section>
   </main>
 
-  <aside class="mascot-assistant" id="mascotAssistant" aria-live="polite">
-    <button id="mascotFab" class="mascot-fab" type="button" aria-label="Abrir thIAguinho">
-      <img src="./assets/mascote-thIAguinho.webp" alt="">
-      <span class="assistant-pulse"></span>
-    </button>
-    <section id="mascotPanel" class="mascot-panel" hidden>
-      <header class="mascot-panel-head">
-        <div class="mascot-id">
-          <img src="./assets/mascote-thIAguinho.webp" alt="">
-          <div><strong>thIAguinho</strong><span>Assistente da thIAguinho Soluções Automotiva</span></div>
+  <dialog id="vehicleDialog" class="app-dialog">
+    <form method="dialog" id="vehicleForm">
+      <div class="dialog-head">
+        <div>
+          <span class="eyebrow">CONTEXTO DO DIAGNÓSTICO</span>
+          <h2>Dados do veículo</h2>
         </div>
-        <div class="mascot-head-actions">
-          <button id="speakLastBtn" type="button" class="icon-btn" title="Ouvir última resposta" aria-label="Ouvir última resposta">🔊</button>
-          <button id="closeMascotBtn" type="button" class="icon-btn" title="Fechar" aria-label="Fechar assistente">×</button>
-        </div>
-      </header>
-      <div id="mascotMessages" class="mascot-messages">
-        <div class="msg bot"><b>thIAguinho</b><p>Me passe veículo, sintoma, código de falha ou medição. Eu cruzo isso com o que já está indexado e separo hipótese de evidência.</p></div>
+        <button class="icon-btn" value="cancel" aria-label="Fechar">×</button>
       </div>
-      <form id="mascotForm" class="mascot-form">
-        <input id="mascotInput" autocomplete="off" placeholder="Ex.: Duster 1.6 falha P0301..." aria-label="Pergunta para o thIAguinho">
-        <button type="submit" class="primary mascot-send" aria-label="Enviar pergunta">➜</button>
-      </form>
-      <div class="assistant-note">IA Mecânico • conhecimento técnico interno • histórico no Realtime Database.</div>
-    </section>
-  </aside>
+      <p class="dialog-intro">Não é obrigatório preencher tudo. Quanto mais contexto correto, menos chance de aplicar um procedimento de outro motor ou sistema.</p>
+      <div class="vehicle-grid">
+        <label>Marca<input id="brand" placeholder="Ex.: Renault"></label>
+        <label>Modelo<input id="model" placeholder="Ex.: Duster"></label>
+        <label>Ano<input id="year" inputmode="numeric" placeholder="Ex.: 2011"></label>
+        <label>Motor<input id="engine" placeholder="Ex.: 1.6 16V K4M"></label>
+        <label>Câmbio<input id="transmission" placeholder="Manual / Automático"></label>
+        <label>Quilometragem<input id="mileage" inputmode="numeric" placeholder="Ex.: 145000"></label>
+      </div>
+      <div class="dialog-actions">
+        <button id="clearVehicleBtn" type="button" class="ghost-btn danger">Limpar</button>
+        <button id="saveVehicleBtn" value="default" class="primary-btn">Usar estes dados</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="historyDialog" class="app-dialog history-dialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow">REALTIME DATABASE</span>
+        <h2>Histórico de diagnósticos</h2>
+      </div>
+      <button id="closeHistoryBtn" class="icon-btn" type="button" aria-label="Fechar">×</button>
+    </div>
+    <div class="history-toolbar">
+      <span id="historyStatus">Carregando...</span>
+      <button id="clearHistoryBtn" type="button" class="ghost-btn danger">Apagar meu histórico</button>
+    </div>
+    <div id="historyList" class="history-list"></div>
+  </dialog>
+
+  <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+  <input id="videoInput" type="file" accept="video/*" capture="environment" hidden>
 
   <footer>
-    <span>ORÁCULO AUTOMOTIVO • v0.4</span>
+    <span>th<span class="ia">IA</span>guinho • IA Mecânico</span>
     <strong>Powered by thIAguinho Soluções Automotiva</strong>
   </footer>
 

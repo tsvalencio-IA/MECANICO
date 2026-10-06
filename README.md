@@ -1,52 +1,31 @@
-# thIAguinho Soluções Automotiva — ORÁCULO AUTOMOTIVO
+# thIAguinho Soluções Automotiva — IA Mecânico
 
-Sistema de diagnóstico automotivo orientado por evidências.
+Aplicação mobile-first de apoio ao diagnóstico automotivo.
 
-> **Não adivinha. Testa.**
+## Versão 1.0
 
-## v0.2
+- interface principal em formato de conversa;
+- mascote oficial **thIAguinho**, com **IA** destacada na identidade;
+- logotipo automotivo com engrenagem + veículo + diagnóstico eletrônico;
+- tema automático, claro e escuro;
+- PWA instalável;
+- contexto opcional de marca, modelo, ano, motor, câmbio e quilometragem;
+- análise local temporária de foto e vídeo de tela de scanner;
+- OCR extrai texto e DTCs sem enviar a mídia para Firebase;
+- Auth anônimo automático;
+- histórico automático no Firebase Realtime Database;
+- base técnica fica no motor interno e não é listada na interface;
+- motor de diagnóstico prioriza hipóteses, valores documentados e próximo teste;
+- resultados de testes podem ser registrados e usados na continuidade do caso.
 
-- nova identidade **thIAguinho Soluções Automotiva**;
-- logotipo automotivo próprio;
-- ícone PWA com engrenagem + ferramenta;
-- **Thiabot**, mascote robô mecânico inspirado na identidade visual da empresa;
-- mascote animado e assistente técnico local que responde usando a base já indexada;
-- leitura por voz da última resposta quando o navegador suporta Web Speech;
-- tema **automático / claro / escuro**, com preferência persistida no aparelho;
-- responsividade adaptativa para celular, tablet e desktop;
-- mantém triagem por veículo, sintomas, DTCs, medições, próximos testes, fontes e histórico.
+## Firebase
 
-## Base técnica inicial
+Projeto configurado no cliente para:
 
-- **Dacia-Duster-Renault-Duster_2009-2017.pdf** — 2.372 páginas;
-- **2011-RENAULT DUSTER 1.6 16V.pdf** — esquema de injeção Valeo V42;
-- **[LEXUS]_Esquemas_electricos_Lexus_2002_a_2005.pdf** — EWD;
-- **PLATAFORMA+AUTO+DATA (1).pdf** — classificado como página de acesso, não como base técnica.
+- Authentication: Anonymous
+- Realtime Database: `usuarios/{uid}/casos/{caseId}`
 
-Arquivos grandes registrados para ingestão posterior:
-
-- CONHECIMENTO.ZIP
-- SIMPLO-2019.rar
-- ePER-CatalogoPartes.rar
-- AUTODATA 3.45.rar
-
-O sistema **não finge** que um arquivo compactado já foi lido. Ele só vira conhecimento depois de extração e indexação.
-
-## Arquitetura
-
-    Google Drive / acervo original
-            ↓
-    inventário + extração
-            ↓
-    normalização técnica
-            ↓
-    índice de conhecimento
-            ↓
-    Oráculo / Thiabot
-            ↓
-    teste → resultado → reavaliação
-            ↓
-    caso confirmado da oficina
+As fotos e vídeos **não são gravados no Firebase**. Somente texto extraído, códigos, mensagens e histórico do diagnóstico.
 
 ## Publicação
 

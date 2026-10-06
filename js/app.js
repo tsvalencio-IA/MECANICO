@@ -1,427 +1,687 @@
 (function(){
   "use strict";
-  var KB = window.ORACLE_KNOWLEDGE || {sources:[],rules:[],dtcs:{},philosophy:[]};
-  var state = {ranked:[], tests:[], testIndex:0, testLog:[], currentCase:null, deferredInstall:null, mediaAnalyses:[], cloudHistory:null};
+
+  var KB = window.ORACLE_KNOWLEDGE || {rules:[],dtcs:{},facts:[]};
+  var state = {
+    vehicle: loadJSON("thiaguinho_vehicle", {}),
+    sessionId: newSessionId(),
+    createdAt: new Date().toISOString(),
+    messages: [],
+    mediaAnalyses: [],
+    cloudHistory: [],
+    currentDiagnosis: null,
+    activeTests: [],
+    activeTestIndex: 0,
+    testResults: [],
+    deferredInstall: null,
+    recognition: null
+  };
 
   function $(id){ return document.getElementById(id); }
-  function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c];});}
-  function norm(v){ return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim(); }
-  function words(v){ return norm(v).split(/[^a-z0-9]+/).filter(Boolean); }
-  function uniq(arr){ return Array.from(new Set(arr)); }
+  function loadJSON(key,fallback){ try{return JSON.parse(localStorage.getItem(key)||"null")||fallback;}catch(e){return fallback;} }
+  function saveJSON(key,value){ try{localStorage.setItem(key,JSON.stringify(value));}catch(e){} }
+  function newSessionId(){ return "CASE-"+Date.now()+"-"+Math.random().toString(36).slice(2,7); }
   function now(){ return new Date().toISOString(); }
-  function sourceById(id){ return KB.sources.find(function(s){return s.id===id;}); }
+  function esc(v){ return String(v==null?"":v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c];}); }
+  function norm(v){ return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim(); }
+  function uniq(arr){ return Array.from(new Set((arr||[]).filter(Boolean))); }
+  function extractCodes(text){ return uniq((String(text||"").toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[])); }
+  function firstNonEmpty(){ for(var i=0;i<arguments.length;i++){if(arguments[i])return arguments[i];} return ""; }
 
   function toast(msg){
     var el=document.querySelector(".toast");
     if(!el){el=document.createElement("div");el.className="toast";document.body.appendChild(el);}
-    el.textContent=msg;el.classList.add("show");setTimeout(function(){el.classList.remove("show");},1800);
+    el.textContent=msg; el.classList.add("show");
+    clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove("show");},1900);
   }
 
-  function initTabs(){
-    document.querySelectorAll(".tab").forEach(function(btn){
-      btn.addEventListener("click",function(){
-        document.querySelectorAll(".tab").forEach(function(x){x.classList.remove("active");});
-        document.querySelectorAll(".tab-panel").forEach(function(x){x.classList.remove("active");});
-        btn.classList.add("active");
-        $(btn.dataset.tab).classList.add("active");
-      });
+  function vehicleText(v){
+    return [v.brand,v.model,v.year,v.engine,v.transmission].filter(Boolean).join(" ");
+  }
+
+  function updateVehicleUI(){
+    var text=vehicleText(state.vehicle);
+    $("vehicleSummary").textContent=text||"Informar veículo";
+    ["brand","model","year","engine","transmission","mileage"].forEach(function(k){
+      if($(k)) $(k).value=state.vehicle[k]||"";
     });
   }
 
-  function getCase(){
-    var mediaText=state.mediaAnalyses.map(function(x){return x.text||"";}).join("\n").trim();
-    var mediaCodes=window.ORACLE_MEDIA ? ORACLE_MEDIA.detectCodes(mediaText) : [];
-    var manualCodes=uniq(($("dtcs").value.toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[]));
-    return {
-      id:"CASE-"+Date.now(),
-      createdAt:now(),
-      brand:$("brand").value.trim(),
-      model:$("model").value.trim(),
-      year:$("year").value.trim(),
-      engine:$("engine").value.trim(),
-      transmission:$("transmission").value.trim(),
-      mileage:$("mileage").value.trim(),
-      symptoms:$("symptoms").value.trim(),
-      dtcs:uniq(manualCodes.concat(mediaCodes)),
-      measurements:[$("measurements").value.trim(),mediaText ? "Leitura visual temporária do scanner: "+mediaText : ""].filter(Boolean).join("\n"),
-      mediaAnalysis:state.mediaAnalyses.map(function(x){return {type:x.kind,text:(x.text||"").slice(0,4000),codes:x.codes||[]};})
-    };
+  function openDialog(el){
+    if(!el) return;
+    if(typeof el.showModal==="function") el.showModal(); else el.setAttribute("open","");
+  }
+  function closeDialog(el){
+    if(!el) return;
+    if(typeof el.close==="function") el.close(); else el.removeAttribute("open");
   }
 
   function expandDtcs(dtcs){
-    var out=dtcs.slice();
+    var out=(dtcs||[]).slice();
     Object.keys(KB.dtcs||{}).forEach(function(code){
-      var d=KB.dtcs[code];
-      if(dtcs.indexOf(code)>=0) out=out.concat(d.aliases||[]);
-      (d.aliases||[]).forEach(function(a){ if(dtcs.indexOf(a)>=0) out.push(code); });
+      var item=KB.dtcs[code]||{};
+      var aliases=item.aliases||[];
+      if(out.indexOf(code)>=0) out=out.concat(aliases);
+      aliases.forEach(function(a){ if(out.indexOf(a)>=0) out.push(code); });
     });
-    return uniq(out);
+    return uniq(out.map(function(x){return String(x).toUpperCase();}));
+  }
+
+  function matchesScope(list,value){
+    if(!list || !list.length) return true;
+    if(!value) return false;
+    var n=norm(value);
+    return list.some(function(x){return n.indexOf(norm(x))>=0 || norm(x).indexOf(n)>=0;});
   }
 
   function scoreRule(rule,c){
     var score=0, reasons=[];
-    var b=norm(c.brand),m=norm(c.model),e=norm(c.engine),text=norm(c.symptoms+" "+c.measurements),allDtcs=expandDtcs(c.dtcs);
-    var brandMatch=rule.brands.length && rule.brands.some(function(x){return b.indexOf(norm(x))>=0;});
-    var modelMatch=rule.models.length && rule.models.some(function(x){return m.indexOf(norm(x))>=0;});
-    var engineMatch=rule.engines.length && rule.engines.some(function(x){return e.indexOf(norm(x))>=0;});
-    if(rule.brands.length && b && !brandMatch) return {rule:rule,score:-999,reasons:["marca incompatível"]};
-    if(rule.models.length && m && !modelMatch) return {rule:rule,score:-999,reasons:["modelo incompatível"]};
-    if(rule.engines.length && e && !engineMatch) return {rule:rule,score:-999,reasons:["motor incompatível"]};
-    if(brandMatch){score+=14;reasons.push("marca");}
-    if(modelMatch){score+=20;reasons.push("modelo");}
-    if(engineMatch){score+=16;reasons.push("motor");}
-    var dtcHits=(rule.dtcs||[]).filter(function(x){return allDtcs.indexOf(x.toUpperCase())>=0;});
-    if(dtcHits.length){score+=Math.min(42,26+(dtcHits.length-1)*8);reasons.push("DTC "+dtcHits.join("/"));}
-    var keyHits=(rule.keywords||[]).filter(function(k){return text.indexOf(norm(k))>=0;});
-    if(keyHits.length){score+=Math.min(32,keyHits.length*8);reasons.push("sintoma");}
-    if(!rule.brands.length && !rule.models.length && (keyHits.length||dtcHits.length)) score+=5;
-    return {rule:rule,score:score,reasons:reasons};
-  }
+    var b=norm(c.brand),m=norm(c.model),e=norm(c.engine);
+    var text=norm([c.question,c.mediaText,c.testText,c.measurements].join(" "));
+    var allDtcs=expandDtcs(c.dtcs);
 
-  function analyze(c){
-    var ranked=KB.rules.map(function(r){return scoreRule(r,c);}).filter(function(x){return x.score>0;}).sort(function(a,b){return b.score-a.score;});
-    if(!ranked.length){
-      ranked=[{rule:{
-        id:"baseline",title:"Triagem técnica inicial",sourceIds:[],hypotheses:[
-          {name:"Alimentação / aterramento / condição básica",why:"Ainda não há correspondência documental suficiente. Comece pelas condições fundamentais do sistema afetado.",weight:70},
-          {name:"Reprodução controlada do sintoma",why:"Sem reproduzir ou medir o evento, qualquer peça seria apenas hipótese.",weight:65}
-        ],
-        tests:[{id:"baseline-observe",title:"Definir condição exata da falha",procedure:"Registre quando ocorre (frio/quente, carga, marcha, rotação), leia todos os módulos e anote parâmetros relevantes antes de apagar códigos.",good:"condição reproduzida e registrada",bad:"falha não reproduzida"}],
-        warnings:["A base atual ainda não encontrou fonte específica para este conjunto veículo/sintoma.","Não use esta triagem como autorização para substituir peça."]
-      },score:12,reasons:["triagem"]}];
+    if(rule.brands && rule.brands.length){
+      if(b && !matchesScope(rule.brands,b)) return {rule:rule,score:-999,reasons:["marca incompatível"]};
+      if(matchesScope(rule.brands,b)){score+=15;reasons.push("marca");}
     }
-    return ranked;
+    if(rule.models && rule.models.length){
+      if(m && !matchesScope(rule.models,m)) return {rule:rule,score:-999,reasons:["modelo incompatível"]};
+      if(matchesScope(rule.models,m)){score+=22;reasons.push("modelo");}
+    }
+    if(rule.engines && rule.engines.length){
+      if(e && !matchesScope(rule.engines,e)) return {rule:rule,score:-999,reasons:["motor incompatível"]};
+      if(matchesScope(rule.engines,e)){score+=17;reasons.push("motor");}
+    }
+
+    var dtcHits=(rule.dtcs||[]).filter(function(x){return allDtcs.indexOf(String(x).toUpperCase())>=0;});
+    if(dtcHits.length){score+=Math.min(46,28+(dtcHits.length-1)*7);reasons.push("dtc");}
+
+    var keyHits=(rule.keywords||[]).filter(function(k){return text.indexOf(norm(k))>=0;});
+    if(keyHits.length){score+=Math.min(36,keyHits.length*7);reasons.push("sintoma");}
+
+    return {rule:rule,score:score,reasons:reasons,dtcHits:dtcHits,keyHits:keyHits};
   }
 
-  function renderDiagnosis(c,ranked){
-    state.currentCase=c;state.ranked=ranked;state.testLog=[];state.testIndex=0;
-    var top=ranked.slice(0,3);
-    var chips=[c.brand,c.model,c.year,c.engine,c.transmission,c.dtcs.join(" • ")].filter(Boolean);
-    $("vehicleFingerprint").innerHTML=chips.map(function(x){return '<span class="chip">'+esc(x)+'</span>';}).join("");
-    $("resultTitle").textContent=(c.brand||c.model)?((c.brand+" "+c.model+" "+c.year).trim()):"Diagnóstico priorizado";
+  function scoreFact(fact,c){
+    var score=0;
+    if(fact.brands && fact.brands.length){
+      if(c.brand && !matchesScope(fact.brands,c.brand)) return -999;
+      if(matchesScope(fact.brands,c.brand)) score+=12;
+    }
+    if(fact.models && fact.models.length){
+      if(c.model && !matchesScope(fact.models,c.model)) return -999;
+      if(matchesScope(fact.models,c.model)) score+=16;
+    }
+    if(fact.engines && fact.engines.length){
+      if(c.engine && !matchesScope(fact.engines,c.engine)) return -999;
+      if(matchesScope(fact.engines,c.engine)) score+=14;
+    }
+    var hay=norm([c.question,c.mediaText,c.measurements,c.dtcs.join(" ")].join(" "));
+    (fact.keywords||[]).forEach(function(k){if(hay.indexOf(norm(k))>=0)score+=9;});
+    return score;
+  }
+
+  function buildContext(question){
+    var mediaText=state.mediaAnalyses.map(function(x){return x.text||"";}).join("\n");
+    var mediaCodes=extractCodes(mediaText);
+    var qCodes=extractCodes(question);
+    var testText=state.testResults.map(function(x){return x.title+" "+x.result;}).join(" ");
+    return {
+      brand:state.vehicle.brand||"",
+      model:state.vehicle.model||"",
+      year:state.vehicle.year||"",
+      engine:state.vehicle.engine||"",
+      transmission:state.vehicle.transmission||"",
+      mileage:state.vehicle.mileage||"",
+      question:String(question||"").trim(),
+      mediaText:mediaText,
+      measurements:"",
+      testText:testText,
+      dtcs:uniq(qCodes.concat(mediaCodes))
+    };
+  }
+
+  function fallbackRule(){
+    return {
+      id:"baseline",evidence:"heuristic",title:"Triagem técnica inicial",sourceIds:[],
+      hypotheses:[
+        {name:"Reproduzir e definir a condição da falha",why:"Sem saber quando a falha aparece, qualquer peça vira apenas palpite.",weight:80},
+        {name:"Alimentação, aterramento e sinais básicos",why:"Antes de componente caro, confirme as condições que permitem o sistema funcionar.",weight:76}
+      ],
+      tests:[
+        {id:"baseline-scan",title:"Registrar a falha antes de apagar",procedure:"Leia todos os módulos, anote DTCs presentes/armazenados e parâmetros que mudam quando o sintoma aparece. Informe frio/quente, marcha lenta/carga e o que já foi trocado.",good:"falha reproduzida e dados registrados",bad:"falha ainda não reproduzida"}
+      ],
+      warnings:["Sem veículo/sistema específico eu não vou inventar torque, pressão, pinagem ou tolerância."]
+    };
+  }
+
+  function evidenceLabel(score,rule){
+    if(rule.evidence==="documented" && score>=45) return "procedimento técnico compatível";
+    if(rule.evidence==="documented+shop" && score>=45) return "documentação + sequência de oficina";
+    if(score>=55) return "alta aderência";
+    if(score>=30) return "aderência moderada";
+    return "triagem";
+  }
+
+  function buildDiagnosis(question){
+    var c=buildContext(question);
+    var ranked=(KB.rules||[]).map(function(r){return scoreRule(r,c);})
+      .filter(function(x){return x.score>0;})
+      .sort(function(a,b){return b.score-a.score;});
+    if(!ranked.length) ranked=[{rule:fallbackRule(),score:10,reasons:["triagem"],dtcHits:[],keyHits:[]}];
+
+    var top=ranked[0];
+    var rule=top.rule;
+    var dtcExpanded=expandDtcs(c.dtcs);
+    var dtcInfo=[];
+    Object.keys(KB.dtcs||{}).forEach(function(code){
+      var item=KB.dtcs[code]||{};
+      var aliases=item.aliases||[];
+      if(dtcExpanded.indexOf(code)>=0 || aliases.some(function(a){return dtcExpanded.indexOf(a)>=0;})){
+        dtcInfo.push({code:code,label:item.label,aliases:aliases});
+      }
+    });
+
+    var facts=(KB.facts||[]).map(function(f){return {fact:f,score:scoreFact(f,c)};})
+      .filter(function(x){return x.score>0;})
+      .sort(function(a,b){return b.score-a.score;})
+      .slice(0,4)
+      .map(function(x){return x.fact;});
 
     var hypotheses=[];
-    top.forEach(function(item,ri){
-      (item.rule.hypotheses||[]).forEach(function(h,hi){
-        var match=Math.min(99,Math.max(38,Math.round((item.score*0.62)+(h.weight*0.38))));
-        hypotheses.push({name:h.name,why:h.why,score:match,rank:ri*10+hi});
+    ranked.slice(0,3).forEach(function(item){
+      (item.rule.hypotheses||[]).forEach(function(h){
+        if(!hypotheses.some(function(x){return x.name===h.name;})) hypotheses.push(h);
       });
     });
-    hypotheses.sort(function(a,b){return b.score-a.score;});
-    var seen={};hypotheses=hypotheses.filter(function(h){if(seen[h.name])return false;seen[h.name]=1;return true;}).slice(0,5);
-    $("hypotheses").innerHTML=hypotheses.map(function(h,i){
-      return '<div class="hypothesis"><div class="hypothesis-head"><strong>'+(i+1)+'. '+esc(h.name)+'</strong><span class="score">'+h.score+'%</span></div><p>'+esc(h.why)+'</p><div class="bar"><i style="width:'+h.score+'%"></i></div></div>';
-    }).join("");
+    hypotheses=hypotheses.slice(0,4);
 
-    state.tests=[];
-    top.forEach(function(item){ (item.rule.tests||[]).forEach(function(t){if(!state.tests.some(function(x){return x.id===t.id;}))state.tests.push(t);}); });
-    renderNextTest();
+    var tests=[];
+    ranked.slice(0,2).forEach(function(item){
+      (item.rule.tests||[]).forEach(function(t){
+        if(!tests.some(function(x){return x.id===t.id;})) tests.push(t);
+      });
+    });
 
-    var warns=uniq([].concat.apply([],top.map(function(x){return x.rule.warnings||[];})));
-    $("warnings").innerHTML=warns.concat(["Confiança exibida = aderência das evidências; não é probabilidade estatística de defeito."]).map(function(w){return "<div>⚠ "+esc(w)+"</div>";}).join("");
-    $("results").hidden=false;$("results").scrollIntoView({behavior:"smooth",block:"start"});
-    saveCase(c,top,hypotheses);
+    var warnings=uniq([].concat.apply([],ranked.slice(0,2).map(function(x){return x.rule.warnings||[];}))).slice(0,4);
+
+    return {
+      context:c,
+      ruleId:rule.id,
+      title:rule.title,
+      evidence:evidenceLabel(top.score,rule),
+      score:top.score,
+      dtcs:dtcInfo,
+      facts:facts,
+      hypotheses:hypotheses,
+      tests:tests,
+      warnings:warnings
+    };
   }
 
-  function renderNextTest(){
-    var wrap=$("nextTest");
-    if(!state.tests.length || state.testIndex>=state.tests.length){
-      wrap.innerHTML='<div class="test-title">Ciclo de testes concluído</div><div class="test-procedure">Revise os resultados registrados. Se o defeito persistir, adicione novas medições/códigos e rode a análise novamente.</div>';
-      return;
+  function recordMessage(role,text,extra){
+    var msg={role:role,text:String(text||""),at:now()};
+    if(extra) Object.keys(extra).forEach(function(k){msg[k]=extra[k];});
+    state.messages.push(msg);
+    if(state.messages.length>80) state.messages=state.messages.slice(-80);
+    return msg;
+  }
+
+  function scrollMessages(){
+    var box=$("messages");
+    requestAnimationFrame(function(){box.scrollTop=box.scrollHeight;});
+  }
+
+  function appendTextMessage(role,text,opts){
+    opts=opts||{};
+    var article=document.createElement("article");
+    article.className="message "+role+(opts.typing?" typing":"");
+    if(role==="bot"){
+      var av=document.createElement("div");av.className="message-avatar";
+      av.innerHTML='<img src="./assets/mascote-thIAguinho.webp" alt="">';
+      article.appendChild(av);
     }
-    var t=state.tests[state.testIndex];
-    wrap.innerHTML='<div class="test-title">'+(state.testIndex+1)+'. '+esc(t.title)+'</div><div class="test-procedure">'+esc(t.procedure)+'</div><div class="test-actions"><button class="test-answer good" data-answer="good">Dentro do esperado</button><button class="test-answer bad" data-answer="bad">Fora do esperado</button><button class="test-answer skip" data-answer="skip">Não testei</button></div><div class="test-log">'+(state.testLog.length?state.testLog.map(function(x){return esc(x);}).join(" • "):"Aguardando resultado do teste.")+'</div>';
-    wrap.querySelectorAll(".test-answer").forEach(function(btn){
-      btn.addEventListener("click",function(){
-        var ans=btn.dataset.answer;
-        var msg=t.title+": "+(ans==="good"?t.good:ans==="bad"?t.bad:"não realizado");
-        state.testLog.push(msg);
-        state.testIndex++;
-        renderNextTest();
-        toast("Resultado registrado");
-      });
-    });
+    var bubble=document.createElement("div");bubble.className="bubble";
+    if(role==="bot") bubble.innerHTML='<strong>th<span class="ia">IA</span>guinho</strong>';
+    var p=document.createElement("p");p.textContent=text;bubble.appendChild(p);
+    article.appendChild(bubble);
+    $("messages").appendChild(article);
+    scrollMessages();
+    return article;
   }
 
-  function saveCase(c,top,hypotheses){
-    var item={
-      id:c.id,
-      createdAt:c.createdAt,
-      vehicle:[c.brand,c.model,c.year,c.engine].filter(Boolean).join(" "),
-      vehicleData:{
-        brand:c.brand,model:c.model,year:c.year,engine:c.engine,
-        transmission:c.transmission,mileage:c.mileage
-      },
-      symptoms:c.symptoms,
-      measurements:c.measurements,
-      dtcs:c.dtcs,
-      top:hypotheses[0]?hypotheses[0].name:"Triagem",
-      mediaAnalysis:(c.mediaAnalysis||[]).map(function(m){
-        return {type:m.type,text:(m.text||"").slice(0,4000),codes:m.codes||[]};
+  function appendDiagnosis(diag){
+    var article=document.createElement("article");
+    article.className="message bot";
+    article.innerHTML='<div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp" alt=""></div>';
+    var bubble=document.createElement("div");bubble.className="bubble";
+    bubble.innerHTML='<strong>th<span class="ia">IA</span>guinho</strong>';
+
+    var lead=document.createElement("p");
+    var vehicle=vehicleText(state.vehicle);
+    lead.textContent=(vehicle?vehicle+": ":"")+diag.title+".";
+    bubble.appendChild(lead);
+
+    if(diag.dtcs.length){
+      var sec=document.createElement("div");sec.className="answer-section";
+      sec.innerHTML='<span class="answer-title">Códigos identificados</span><ul>'+
+        diag.dtcs.slice(0,5).map(function(d){
+          var aliases=d.aliases&&d.aliases.length?' <small>('+esc(d.aliases.join(", "))+')</small>':'';
+          return '<li><b>'+esc(d.code)+'</b> — '+esc(d.label)+aliases+'</li>';
+        }).join("")+'</ul>';
+      bubble.appendChild(sec);
+    }
+
+    if(diag.facts.length){
+      var fsec=document.createElement("div");fsec.className="answer-section";
+      fsec.innerHTML='<span class="answer-title">Valores / procedimentos confirmados para este contexto</span><ul>'+
+        diag.facts.slice(0,3).map(function(f){return '<li>'+esc(f.value)+'</li>';}).join("")+'</ul>';
+      bubble.appendChild(fsec);
+    }
+
+    if(diag.hypotheses.length){
+      var hsec=document.createElement("div");hsec.className="answer-section";
+      hsec.innerHTML='<span class="answer-title">Prioridades agora</span><ul>'+
+        diag.hypotheses.slice(0,4).map(function(h,i){return '<li><b>'+(i+1)+'. '+esc(h.name)+'</b> — '+esc(h.why)+'</li>';}).join("")+'</ul>';
+      bubble.appendChild(hsec);
+    }
+
+    if(diag.tests.length){
+      var t=diag.tests[0];
+      var box=document.createElement("div");box.className="test-box";
+      box.innerHTML='<b>Faça agora: '+esc(t.title)+'</b><p>'+esc(t.procedure)+'</p>'+
+        '<div class="test-actions">'+
+        '<button type="button" class="good" data-test-result="good">Dentro do esperado</button>'+
+        '<button type="button" class="bad" data-test-result="bad">Fora do esperado</button>'+
+        '<button type="button" class="skip" data-test-result="skip">Não testei</button>'+
+        '</div>';
+      box.dataset.testId=t.id;
+      bubble.appendChild(box);
+    }
+
+    if(diag.warnings.length){
+      var wsec=document.createElement("div");wsec.className="answer-section";
+      wsec.innerHTML='<span class="answer-title">Antes de trocar peça</span><ul>'+
+        diag.warnings.slice(0,3).map(function(w){return '<li>'+esc(w)+'</li>';}).join("")+'</ul>';
+      bubble.appendChild(wsec);
+    }
+
+    var tag=document.createElement("span");tag.className="evidence-tag";tag.textContent="✓ "+diag.evidence;
+    bubble.appendChild(tag);
+    article.appendChild(bubble);
+    $("messages").appendChild(article);
+
+    state.currentDiagnosis=diag;
+    state.activeTests=diag.tests.slice();
+    state.activeTestIndex=0;
+
+    article.querySelectorAll("[data-test-result]").forEach(function(btn){
+      btn.addEventListener("click",function(){handleTestResult(btn.dataset.testResult);});
+    });
+
+    scrollMessages();
+  }
+
+  function handleTestResult(result){
+    if(!state.activeTests.length) return;
+    var t=state.activeTests[state.activeTestIndex]||state.activeTests[0];
+    var label=result==="good"?firstNonEmpty(t.good,"dentro do esperado"):result==="bad"?firstNonEmpty(t.bad,"fora do esperado"):"não realizado";
+    state.testResults.push({id:t.id,title:t.title,result:label,at:now()});
+    var userText='Resultado do teste "'+t.title+'": '+label+".";
+    appendTextMessage("user",userText);
+    recordMessage("user",userText,{testResult:true});
+
+    state.activeTestIndex++;
+    if(state.activeTestIndex<state.activeTests.length){
+      var next=state.activeTests[state.activeTestIndex];
+      var bot='Registrei. Próximo teste: '+next.title+".\n"+next.procedure;
+      appendTextMessage("bot",bot);
+      recordMessage("bot",bot,{testStep:true});
+      state.currentDiagnosis.tests=state.activeTests.slice(state.activeTestIndex);
+    }else{
+      var bot2="Registrei o resultado. Agora me diga se o sintoma mudou, permaneceu igual ou se apareceu algum novo DTC/parâmetro.";
+      appendTextMessage("bot",bot2);
+      recordMessage("bot",bot2,{testStep:true});
+    }
+    persistSession();
+  }
+
+  function isGreeting(text){
+    return /^(oi|ola|olá|e ai|eai|bom dia|boa tarde|boa noite|fala)\b/.test(norm(text));
+  }
+
+  function handleQuestion(text,options){
+    options=options||{};
+    text=String(text||"").trim();
+    if(!text) return;
+
+    appendTextMessage("user",text);
+    recordMessage("user",text);
+    $("chatInput").value=""; autoResize();
+
+    var typing=appendTextMessage("bot","Analisando",{typing:true});
+    setTimeout(function(){
+      typing.remove();
+
+      if(isGreeting(text)){
+        var greeting="Estou pronto. Me diga o veículo e o defeito. Se tiver código, tensão, pressão, temperatura ou algo já trocado, mande junto.";
+        appendTextMessage("bot",greeting);recordMessage("bot",greeting);persistSession();return;
+      }
+
+      if(norm(text).indexOf("quem e voce")>=0 || norm(text).indexOf("seu nome")>=0){
+        var who="Sou o thIAguinho, IA Mecânico da thIAguinho Soluções Automotiva. Organizo o diagnóstico por evidências e não condeno peça sem teste.";
+        appendTextMessage("bot",who);recordMessage("bot",who);persistSession();return;
+      }
+
+      var diag=buildDiagnosis(text);
+      appendDiagnosis(diag);
+
+      var summary=diag.title;
+      if(diag.tests[0]) summary+=" | Próximo: "+diag.tests[0].title;
+      recordMessage("bot",summary,{diagnosis:diag.ruleId});
+      persistSession();
+    },options.immediate?20:260);
+  }
+
+  function buildSessionPayload(){
+    var allCodes=[];
+    state.messages.forEach(function(m){allCodes=allCodes.concat(extractCodes(m.text));});
+    state.mediaAnalyses.forEach(function(m){allCodes=allCodes.concat(m.codes||[]);});
+    var firstUser=state.messages.find(function(m){return m.role==="user" && !m.testResult;});
+    return {
+      id:state.sessionId,
+      createdAt:state.createdAt,
+      updatedAt:now(),
+      vehicle:vehicleText(state.vehicle)||"Veículo não informado",
+      vehicleData:state.vehicle,
+      title:(firstUser?firstUser.text:"Novo diagnóstico").slice(0,140),
+      messages:state.messages.slice(-60).map(function(m){return {role:m.role,text:(m.text||"").slice(0,5000),at:m.at};}),
+      dtcs:uniq(allCodes),
+      tests:state.testResults.slice(-20),
+      lastDiagnosis:state.currentDiagnosis?{
+        ruleId:state.currentDiagnosis.ruleId,
+        title:state.currentDiagnosis.title,
+        evidence:state.currentDiagnosis.evidence,
+        nextTest:state.currentDiagnosis.tests&&state.currentDiagnosis.tests[0]?state.currentDiagnosis.tests[0].title:""
+      }:null,
+      mediaAnalysis:state.mediaAnalyses.map(function(m){
+        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],frames:m.frames||1};
       })
     };
+  }
 
-    var history=loadHistory().filter(function(x){return x.id!==item.id;});
-    history.unshift(item);history=history.slice(0,40);
-    localStorage.setItem("oracle_cases",JSON.stringify(history));
-    renderHistory(history);
-
+  function persistSession(){
+    if(!state.messages.length) return;
+    var item=buildSessionPayload();
+    var local=loadJSON("thiaguinho_history",[]).filter(function(x){return x.id!==item.id;});
+    local.unshift(item);local=local.slice(0,50);saveJSON("thiaguinho_history",local);
+    renderHistory(state.cloudHistory.length?state.cloudHistory:local);
     if(window.ORACLE_FIREBASE){
-      ORACLE_FIREBASE.saveCase(item).then(function(){
-        toast("Histórico salvo no Realtime");
-      }).catch(function(err){
-        console.warn("[Firebase] salvamento:",err);
-        toast("Salvo localmente; Realtime indisponível");
+      ORACLE_FIREBASE.saveCase(item).catch(function(err){
+        console.warn("[Realtime]",err);
+        toast("Histórico salvo neste aparelho; nuvem indisponível");
       });
     }
   }
-  function loadHistory(){try{return JSON.parse(localStorage.getItem("oracle_cases")||"[]");}catch(e){return[];}}
-  function renderHistory(){
-    var h=loadHistory();
-    $("historyList").innerHTML=h.length?h.map(function(x){
-      return '<article class="history-item"><div><strong>'+esc(x.vehicle||"Veículo não informado")+'</strong><p>'+esc(x.top)+(x.dtcs&&x.dtcs.length?" • "+esc(x.dtcs.join(", ")):"")+'</p><time>'+new Date(x.createdAt).toLocaleString("pt-BR")+'</time></div><span class="badge indexed">SALVO</span></article>';
-    }).join(""):'<div class="empty">Nenhum caso salvo neste dispositivo ainda.</div>';
+
+  function renderHistory(rows){
+    rows=Array.isArray(rows)?rows:[];
+    var list=$("historyList");
+    $("historyStatus").textContent=rows.length+" diagnóstico(s)";
+    if(!rows.length){
+      list.innerHTML='<div class="empty">Seu histórico ainda está vazio.</div>';return;
+    }
+    list.innerHTML=rows.map(function(x,i){
+      var dtcs=x.dtcs&&x.dtcs.length?" • "+x.dtcs.slice(0,4).join(", "):"";
+      return '<button type="button" class="history-item" data-history-index="'+i+'">'+
+        '<div><strong>'+esc(x.vehicle||"Veículo não informado")+'</strong>'+
+        '<p>'+esc((x.title||x.lastDiagnosis&&x.lastDiagnosis.title||"Diagnóstico").slice(0,150))+esc(dtcs)+'</p></div>'+
+        '<time>'+esc(formatDate(x.updatedAt||x.createdAt))+'</time></button>';
+    }).join("");
+    list.querySelectorAll("[data-history-index]").forEach(function(btn){
+      btn.addEventListener("click",function(){loadHistoryItem(rows[Number(btn.dataset.historyIndex)]);});
+    });
   }
 
-  function resetForm(){
-    $("diagnosisForm").reset();$("results").hidden=true;state.currentCase=null;state.ranked=[];state.tests=[];state.testLog=[];state.mediaAnalyses=[];
-    var q=$("mediaQueue"); if(q) q.innerHTML="";
-    window.scrollTo({top:0,behavior:"smooth"});
+  function formatDate(v){
+    try{return new Date(v).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}catch(e){return "";}
   }
 
-  function makeReport(){
-    if(!state.currentCase)return "";
-    var c=state.currentCase, lines=[];
-    lines.push("ORÁCULO AUTOMOTIVO — RELATÓRIO DE TRIAGEM");
-    lines.push("Veículo: "+[c.brand,c.model,c.year,c.engine,c.transmission].filter(Boolean).join(" "));
-    if(c.dtcs.length)lines.push("DTCs: "+c.dtcs.join(", "));
-    lines.push("Sintomas: "+(c.symptoms||"não informado"));
-    if(c.measurements)lines.push("Medições: "+c.measurements);
-    lines.push("");
-    lines.push("PRIORIDADES:");
-    document.querySelectorAll(".hypothesis").forEach(function(el){lines.push("- "+el.innerText.replace(/\n/g," — "));});
-    if(state.testLog.length){lines.push("");lines.push("TESTES REGISTRADOS:");state.testLog.forEach(function(x){lines.push("- "+x);});}
-    lines.push("");lines.push("Aviso: diagnóstico deve ser confirmado por testes e documentação aplicável.");
-    lines.push("Powered by thIAguinho Soluções Automotiva");
-    return lines.join("\n");
+  function loadHistoryItem(item){
+    closeDialog($("historyDialog"));
+    state.sessionId=item.id||newSessionId();
+    state.createdAt=item.createdAt||now();
+    state.vehicle=item.vehicleData||{};
+    state.messages=(item.messages||[]).slice();
+    state.testResults=(item.tests||[]).slice();
+    state.mediaAnalyses=(item.mediaAnalysis||[]).map(function(m){return Object.assign({status:"Análise recuperada do histórico"},m);});
+    state.currentDiagnosis=null;state.activeTests=[];state.activeTestIndex=0;
+    saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();renderMediaQueue();
+
+    $("messages").innerHTML="";
+    if(!state.messages.length){
+      appendTextMessage("bot","Histórico aberto. Continue me contando o que aconteceu depois.");
+    }else{
+      state.messages.forEach(function(m){appendTextMessage(m.role==="user"?"user":"bot",m.text);});
+    }
+    scrollMessages();
+    toast("Diagnóstico reaberto");
   }
 
-  $("diagnosisForm").addEventListener("submit",function(e){e.preventDefault();var c=getCase();renderDiagnosis(c,analyze(c));});
-  $("resetBtn").addEventListener("click",resetForm);
-  if($("clearHistory")) $("clearHistory").addEventListener("click",function(){
-    localStorage.removeItem("oracle_cases");
-    state.cloudHistory=[];
-    renderHistory([]);
-    if(window.ORACLE_FIREBASE){
-      ORACLE_FIREBASE.clearCases().then(function(){toast("Histórico apagado");}).catch(function(){toast("Histórico local apagado");});
-    }else toast("Histórico local apagado");
-  });
-  $("copyReport").addEventListener("click",function(){navigator.clipboard.writeText(makeReport()).then(function(){toast("Laudo copiado");});});
+  function startNewCase(){
+    state.sessionId=newSessionId();state.createdAt=now();state.messages=[];state.mediaAnalyses=[];state.currentDiagnosis=null;
+    state.activeTests=[];state.activeTestIndex=0;state.testResults=[];
+    $("messages").innerHTML='<article class="message bot welcome"><div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp" alt=""></div><div class="bubble"><strong>th<span class="ia">IA</span>guinho</strong><p>Novo diagnóstico. Me diga o sintoma, DTC ou mande a tela do scanner.</p></div></article>';
+    renderMediaQueue();$("chatInput").focus();toast("Novo diagnóstico");
+  }
 
-  window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
-  $("installBtn").addEventListener("click",function(){if(state.deferredInstall){state.deferredInstall.prompt();state.deferredInstall=null;$("installBtn").hidden=true;}});
+  function initVehicle(){
+    updateVehicleUI();
+    var open=function(){updateVehicleUI();openDialog($("vehicleDialog"));};
+    $("vehicleBtn").addEventListener("click",open);
+    $("vehicleComposerBtn").addEventListener("click",open);
+    $("saveVehicleBtn").addEventListener("click",function(e){
+      e.preventDefault();
+      state.vehicle={};
+      ["brand","model","year","engine","transmission","mileage"].forEach(function(k){state.vehicle[k]=$(k).value.trim();});
+      saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();closeDialog($("vehicleDialog"));
+      toast("Veículo aplicado");
+      if(state.messages.length) persistSession();
+    });
+    $("clearVehicleBtn").addEventListener("click",function(){
+      state.vehicle={};saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();
+      ["brand","model","year","engine","transmission","mileage"].forEach(function(k){$(k).value="";});
+    });
+  }
 
   function initTheme(){
-    var btn=$("themeBtn"), meta=$("themeColorMeta");
-    if(!btn) return;
-    var media=window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
-    var mode=localStorage.getItem("oracle_theme") || "auto";
-    function resolved(){ return mode==="auto" ? (media && media.matches ? "dark" : "light") : mode; }
+    var btn=$("themeBtn"),meta=$("themeColorMeta");
+    var media=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)");
+    var mode=localStorage.getItem("thiaguinho_theme")||"auto";
+    function resolved(){return mode==="auto"?(media&&media.matches?"dark":"light"):mode;}
     function paint(){
-      var r=resolved();
-      document.documentElement.dataset.theme=r;
-      btn.innerHTML=(mode==="auto"?"◐ <span>Auto</span>":mode==="light"?"☀ <span>Claro</span>":"☾ <span>Escuro</span>");
+      var r=resolved();document.documentElement.dataset.theme=r;
+      btn.textContent=mode==="auto"?"◐":mode==="light"?"☀":"☾";
       btn.title="Tema: "+(mode==="auto"?"automático":mode==="light"?"claro":"escuro");
-      btn.setAttribute("aria-label",btn.title+". Toque para alternar.");
-      if(meta) meta.setAttribute("content",r==="light"?"#f2f7fb":"#07111f");
+      if(meta)meta.content=r==="light"?"#eef5fa":"#07111f";
     }
-    btn.addEventListener("click",function(){
-      mode=mode==="auto"?"light":mode==="light"?"dark":"auto";
-      localStorage.setItem("oracle_theme",mode); paint(); toast("Tema "+(mode==="auto"?"automático":mode));
-    });
+    btn.addEventListener("click",function(){mode=mode==="auto"?"light":mode==="light"?"dark":"auto";localStorage.setItem("thiaguinho_theme",mode);paint();});
     if(media){
-      var onChange=function(){if(mode==="auto")paint();};
-      if(media.addEventListener) media.addEventListener("change",onChange); else if(media.addListener) media.addListener(onChange);
+      var fn=function(){if(mode==="auto")paint();};
+      if(media.addEventListener)media.addEventListener("change",fn);else if(media.addListener)media.addListener(fn);
     }
     paint();
   }
 
-  function initMascot(){
-    var panel=$("mascotPanel"), fab=$("mascotFab"), close=$("closeMascotBtn"), form=$("mascotForm"), input=$("mascotInput"), messages=$("mascotMessages"), hero=$("heroAskBtn"), speak=$("speakLastBtn");
-    if(!panel || !fab || !form || !input || !messages) return;
-    var lastBot="";
-
-    function openPanel(){
-      panel.hidden=false;
-      fab.setAttribute("aria-expanded","true");
-      setTimeout(function(){input.focus();},80);
-    }
-    function closePanel(){
-      panel.hidden=true;
-      fab.setAttribute("aria-expanded","false");
-      if(window.speechSynthesis) window.speechSynthesis.cancel();
-      document.body.classList.remove("mascot-talking");
-    }
-    function appendMessage(role,text){
-      var el=document.createElement("div");
-      el.className="msg "+role;
-      var b=document.createElement("b");
-      b.textContent=role==="bot"?"thIAguinho":"Você";
-      var p=document.createElement("p");
-      p.textContent=text;
-      p.style.whiteSpace="pre-line";
-      el.appendChild(b);el.appendChild(p);messages.appendChild(el);
-      messages.scrollTop=messages.scrollHeight;
-      if(role==="bot") lastBot=text;
-      return el;
-    }
-    function findDtcInfo(codes){
-      var hits=[];
-      Object.keys(KB.dtcs||{}).forEach(function(code){
-        var item=KB.dtcs[code], aliases=(item.aliases||[]).map(function(x){return x.toUpperCase();});
-        if(codes.indexOf(code)>=0 || aliases.some(function(a){return codes.indexOf(a)>=0;})){
-          hits.push({code:code,label:item.label,source:item.source,aliases:item.aliases||[]});
-        }
-      });
-      return hits;
-    }
-    function assistantAnswer(question){
-      var q=String(question||"").trim();
-      var n=norm(q);
-      if(!q) return "Escreva o sintoma, o DTC ou a medição que você quer investigar.";
-      if(/^(oi|ola|olá|e ai|eai|bom dia|boa tarde|boa noite)\b/.test(n)){
-        return "Estou pronto. Me diga o carro e o defeito. Se tiver DTC, tensão, pressão, temperatura ou algo já trocado, mande junto.";
-      }
-      if(n.indexOf("quem e voce")>=0 || n.indexOf("quem é você")>=0 || n.indexOf("seu nome")>=0){
-        return "Sou o thIAguinho, IA mecânico da thIAguinho Soluções Automotiva. Minha função é organizar o diagnóstico por evidências: fonte, hipótese, teste e confirmação.";
-      }
-      if(n.indexOf("o que sabe")>=0 || n.indexOf("base")>=0 || n.indexOf("fontes")>=0 || n.indexOf("conhecimento")>=0){
-        return "Meu conhecimento técnico fica no cérebro interno. Na tela eu mostro apenas o diagnóstico, os testes e a conclusão — sem expor nomes de conteúdo técnico interno.";
-      }
-
-      var codes=uniq((q.toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[]));
-      var cse=getCase();
-      cse.symptoms=[cse.symptoms,q].filter(Boolean).join(" ");
-      cse.dtcs=uniq(cse.dtcs.concat(codes));
-      var ranked=analyze(cse);
-      var top=ranked[0] && ranked[0].rule;
-      var dtcHits=findDtcInfo(cse.dtcs);
-      var out=[];
-
-      if(dtcHits.length){
-        out.push(dtcHits.slice(0,3).map(function(d){
-          return d.code+" — "+d.label+(d.aliases.length?" (equivalência: "+d.aliases.join(", ")+")":"");
-        }).join("\n\n"));
-      }
-      if(top){
-        if(top.id==="baseline"){
-          out.push("Ainda não encontrei correspondência documental específica suficiente para esse conjunto. Não vou inventar uma peça.");
-          out.push("Primeiro passo: "+top.tests[0].procedure);
-        }else{
-          out.push("Caminho mais aderente agora: "+top.title+".");
-          if(top.hypotheses && top.hypotheses.length){
-            out.push("Prioridades:\n"+top.hypotheses.slice(0,3).map(function(h,i){return (i+1)+". "+h.name+" — "+h.why;}).join("\n"));
-          }
-          if(top.tests && top.tests.length){
-            out.push("Próximo teste: "+top.tests[0].title+"\n"+top.tests[0].procedure);
-          }
-          if(top.sourceIds && top.sourceIds.length) out.push("Base técnica interna consultada.");
-        }
-      }
-      out.push("Antes de condenar componente, confirme alimentação, aterramento e sinal quando aplicável.");
-      return out.join("\n\n");
-    }
-    function speakText(text){
-      if(!("speechSynthesis" in window) || !text){toast("Leitura por voz não disponível");return;}
-      window.speechSynthesis.cancel();
-      var u=new SpeechSynthesisUtterance(text);
-      u.lang="pt-BR";u.rate=.98;u.pitch=1.02;
-      u.onstart=function(){document.body.classList.add("mascot-talking");};
-      u.onend=u.onerror=function(){document.body.classList.remove("mascot-talking");};
-      window.speechSynthesis.speak(u);
-    }
-
-    fab.addEventListener("click",function(){panel.hidden?openPanel():closePanel();});
-    if(close) close.addEventListener("click",closePanel);
-    if(hero) hero.addEventListener("click",openPanel);
-    if(speak) speak.addEventListener("click",function(){speakText(lastBot);});
-    form.addEventListener("submit",function(e){
-      e.preventDefault();
-      var q=input.value.trim();if(!q)return;
-      appendMessage("user",q);input.value="";
-      var thinking=appendMessage("bot","Analisando");
-      thinking.classList.add("thinking");
-      setTimeout(function(){
-        thinking.remove();
-        appendMessage("bot",assistantAnswer(q));
-      },260);
-    });
-    fab.setAttribute("aria-expanded","false");
+  function autoResize(){
+    var el=$("chatInput");el.style.height="auto";el.style.height=Math.min(el.scrollHeight,112)+"px";
   }
 
-  function initFirebaseHistory(){
-    var status=$("engineStatus");
-    if(!window.ORACLE_FIREBASE){
-      if(status) status.textContent="histórico local";
-      return;
+  function renderMediaQueue(){
+    var q=$("mediaQueue");
+    if(!state.mediaAnalyses.length){q.innerHTML="";return;}
+    q.innerHTML=state.mediaAnalyses.map(function(x,i){
+      var pct=typeof x.progress==="number"?x.progress:100;
+      var status=x.status||"Analisado";
+      var codes=x.codes&&x.codes.length?'<span class="media-codes">'+esc(x.codes.join(", "))+'</span>':'';
+      return '<div class="media-item"><div class="media-item-main"><span class="media-icon">'+(x.kind==="video"?"🎥":"📷")+'</span>'+
+        '<div><strong>'+(x.kind==="video"?"Vídeo":"Foto")+'</strong><small>'+esc(status)+'</small>'+codes+
+        (pct<100?'<div class="progress"><i style="width:'+pct+'%"></i></div>':'')+
+        '</div></div><button type="button" class="media-remove" data-remove-media="'+i+'" aria-label="Remover">×</button></div>';
+    }).join("");
+    q.querySelectorAll("[data-remove-media]").forEach(function(btn){
+      btn.addEventListener("click",function(){state.mediaAnalyses.splice(Number(btn.dataset.removeMedia),1);renderMediaQueue();});
+    });
+  }
+
+  async function processMedia(file){
+    if(!file) return;
+    if(file.size>120*1024*1024){toast("Vídeo/foto acima de 120 MB. Grave um trecho menor.");return;}
+    if(!window.ORACLE_MEDIA){toast("Motor visual não carregou");return;}
+
+    var idx=state.mediaAnalyses.length;
+    state.mediaAnalyses.push({
+      kind:(file.type||"").indexOf("video/")===0?"video":"foto",
+      text:"",codes:[],status:"Preparando análise...",progress:0
+    });
+    renderMediaQueue();
+
+    try{
+      var result=await ORACLE_MEDIA.analyzeFile(file,function(p){
+        if(!state.mediaAnalyses[idx]) return;
+        state.mediaAnalyses[idx].progress=p;
+        state.mediaAnalyses[idx].status="Lendo tela do scanner... "+p+"%";
+        renderMediaQueue();
+      });
+      if(!state.mediaAnalyses[idx]) return;
+      state.mediaAnalyses[idx]=Object.assign({},result,{
+        progress:100,
+        status:result.text?"Leitura concluída; arquivo descartado":"Sem texto legível; arquivo descartado"
+      });
+      renderMediaQueue();
+
+      var codes=result.codes||[];
+      var text="";
+      if(codes.length) text="Identifiquei na mídia: "+codes.join(", ")+".";
+      else if(result.text) text="Consegui extrair informações da tela. Vou usar essa leitura no diagnóstico.";
+      else text="Analisei os quadros, mas não consegui extrair texto confiável da tela. Tente uma imagem mais próxima e sem reflexo.";
+      appendTextMessage("bot",text);recordMessage("bot",text,{mediaRead:true});
+
+      if(codes.length || result.text){
+        handleQuestion("Analise a mídia do scanner que acabei de enviar e me diga o próximo teste.",{immediate:true});
+      }else persistSession();
+    }catch(err){
+      console.warn("[Mídia]",err);
+      if(state.mediaAnalyses[idx]){
+        state.mediaAnalyses[idx].progress=100;
+        state.mediaAnalyses[idx].status="Não consegui ler esta mídia; arquivo descartado";
+        renderMediaQueue();
+      }
+      toast("Não consegui ler esta mídia");
     }
+  }
+
+  function initMedia(){
+    $("photoBtn").addEventListener("click",function(){$("photoInput").click();});
+    $("videoBtn").addEventListener("click",function(){$("videoInput").click();});
+    $("photoInput").addEventListener("change",function(){var f=this.files&&this.files[0];this.value="";processMedia(f);});
+    $("videoInput").addEventListener("change",function(){var f=this.files&&this.files[0];this.value="";processMedia(f);});
+  }
+
+  function initVoice(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    var btn=$("micBtn");
+    if(!SR){btn.style.display="none";return;}
+    var rec=new SR();state.recognition=rec;rec.lang="pt-BR";rec.interimResults=true;rec.continuous=false;
+    var finalText="";
+    btn.addEventListener("click",function(){
+      if(btn.classList.contains("listening")){rec.stop();return;}
+      finalText=$("chatInput").value.trim();
+      try{rec.start();}catch(e){}
+    });
+    rec.onstart=function(){btn.classList.add("listening");toast("Pode falar");};
+    rec.onresult=function(e){
+      var interim="",finalPart="";
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        if(e.results[i].isFinal) finalPart+=e.results[i][0].transcript; else interim+=e.results[i][0].transcript;
+      }
+      if(finalPart) finalText=(finalText+" "+finalPart).trim();
+      $("chatInput").value=(finalText+" "+interim).trim();autoResize();
+    };
+    rec.onend=function(){btn.classList.remove("listening");};
+    rec.onerror=function(){btn.classList.remove("listening");};
+  }
+
+  function initFirebase(){
+    var status=$("engineStatus"),pill=$("cloudStatus");
+    var local=loadJSON("thiaguinho_history",[]);
+    renderHistory(local);
+
+    if(!window.ORACLE_FIREBASE){status.textContent="histórico local";return;}
     ORACLE_FIREBASE.ready.then(function(api){
-      if(status) status.textContent=api.uid?"histórico online":"histórico local";
-      if(!api.uid) return;
-      api.watchCases(function(rows){
-        state.cloudHistory=rows;
-        localStorage.setItem("oracle_cases",JSON.stringify(rows.slice(0,40)));
-        renderHistory(rows);
-      });
+      if(api.uid){
+        status.textContent="histórico online";pill.classList.add("online");
+        api.watchCases(function(rows){
+          state.cloudHistory=rows||[];
+          saveJSON("thiaguinho_history",state.cloudHistory.slice(0,50));
+          renderHistory(state.cloudHistory);
+        });
+      }else{
+        status.textContent="histórico local";pill.classList.remove("online");
+      }
     });
-    window.addEventListener("oracle:firebase-ready",function(){
-      if(status) status.textContent="histórico online";
+    window.addEventListener("oracle:firebase-status",function(e){
+      var online=!!(e.detail&&e.detail.online);
+      status.textContent=online?"histórico online":"sem conexão";
+      pill.classList.toggle("online",online);
     });
   }
 
-  function initMediaAnalysis(){
-    var input=$("mediaInput"), queue=$("mediaQueue");
-    if(!input || !queue) return;
-
-    function render(){
-      queue.innerHTML=state.mediaAnalyses.map(function(x,i){
-        var codes=(x.codes||[]).length?'<span>'+esc(x.codes.join(", "))+'</span>':'';
-        return '<div class="media-item"><div><strong>'+(x.kind==="video"?"🎥 Vídeo":"📷 Foto")+'</strong><small>'+esc(x.status||"Analisado")+'</small>'+codes+'</div><button type="button" data-remove="'+i+'" aria-label="Remover">×</button></div>';
-      }).join("");
-      queue.querySelectorAll("[data-remove]").forEach(function(btn){
-        btn.addEventListener("click",function(){
-          state.mediaAnalyses.splice(Number(btn.dataset.remove),1); render();
-        });
-      });
-    }
-
-    input.addEventListener("change",async function(){
-      var files=Array.from(input.files||[]).slice(0,4);
-      input.value="";
-      for(var i=0;i<files.length;i++){
-        var file=files[i];
-        var placeholder={kind:(file.type||"").indexOf("video/")===0?"video":"foto",text:"",codes:[],status:"Preparando análise..."};
-        state.mediaAnalyses.push(placeholder); var idx=state.mediaAnalyses.length-1; render();
-        try{
-          if(!window.ORACLE_MEDIA) throw new Error("Motor visual indisponível");
-          var result=await ORACLE_MEDIA.analyzeFile(file,function(p){
-            state.mediaAnalyses[idx].status="Analisando "+p+"%"; render();
-          });
-          state.mediaAnalyses[idx]=Object.assign({},result,{status:result.text?"Texto do scanner extraído":"Nenhum texto legível encontrado"});
-          render();
-          if(result.codes && result.codes.length){
-            var current=$("dtcs").value.trim();
-            $("dtcs").value=uniq((current?current.split(/[ ,;]+/):[]).concat(result.codes)).filter(Boolean).join(", ");
-          }
-          toast(result.text?"Mídia analisada; arquivo descartado":"Mídia lida; sem texto legível");
-        }catch(err){
-          state.mediaAnalyses[idx].status="Falha na análise local";
-          render(); console.warn("[Mídia]",err); toast("Não consegui ler esta mídia");
-        }
+  function initHistory(){
+    $("historyBtn").addEventListener("click",function(){renderHistory(state.cloudHistory.length?state.cloudHistory:loadJSON("thiaguinho_history",[]));openDialog($("historyDialog"));});
+    $("closeHistoryBtn").addEventListener("click",function(){closeDialog($("historyDialog"));});
+    $("clearHistoryBtn").addEventListener("click",function(){
+      if(!confirm("Apagar todo o seu histórico deste usuário anônimo?")) return;
+      saveJSON("thiaguinho_history",[]);state.cloudHistory=[];renderHistory([]);
+      if(window.ORACLE_FIREBASE){
+        ORACLE_FIREBASE.clearCases().then(function(){toast("Histórico apagado");}).catch(function(){toast("Histórico local apagado");});
       }
     });
   }
 
-  if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});}
-  initTheme();initTabs();renderHistory();initMascot();initFirebaseHistory();initMediaAnalysis();
+  function initChat(){
+    $("chatInput").addEventListener("input",autoResize);
+    $("chatInput").addEventListener("keydown",function(e){
+      if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();$("chatForm").requestSubmit();}
+    });
+    $("chatForm").addEventListener("submit",function(e){
+      e.preventDefault();var text=$("chatInput").value.trim();if(text)handleQuestion(text);
+    });
+    $("quickPrompts").querySelectorAll("[data-prompt]").forEach(function(btn){
+      btn.addEventListener("click",function(){handleQuestion(btn.dataset.prompt);});
+    });
+    $("newCaseBtn").addEventListener("click",startNewCase);
+  }
+
+  function initPwa(){
+    window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
+    $("installBtn").addEventListener("click",function(){
+      if(!state.deferredInstall)return;
+      state.deferredInstall.prompt();state.deferredInstall=null;$("installBtn").hidden=true;
+    });
+    if("serviceWorker" in navigator){
+      window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(err){console.warn("[SW]",err);});});
+    }
+  }
+
+  initTheme();
+  initVehicle();
+  initChat();
+  initMedia();
+  initVoice();
+  initHistory();
+  initFirebase();
+  initPwa();
+  updateVehicleUI();
+  autoResize();
 })();
