@@ -999,3 +999,18 @@ body{
   .tool-btn{width:30px!important}
   .context-chip{max-width:calc(100vw - 18px)!important}
 }
+
+
+/* v1.2.1 — avatar único e confiável para cabeçalho e mensagens */
+.avatar-wrap,
+.message-avatar{
+  background-color:#0a1827;
+  background-image:url("../assets/mascote-thIAguinho-avatar.png?v=1.2.1");
+  background-repeat:no-repeat;
+  background-position:center 22%;
+  background-size:cover;
+}
+.avatar-wrap img,
+.message-avatar img{
+  display:none!important;
+}
