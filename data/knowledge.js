@@ -10,6 +10,13 @@ window.ORACLE_KNOWLEDGE = {
   ],
 
   /* Registro interno. Não é exibido na interface. */
+  archives: [
+    {id:"drive-conhecimento",title:"CONHECIMENTO.ZIP",driveId:"1NNzN0Zhw-G8IiTkveWFU4N-uLk4Hq5jD",sizeBytes:2890485781,state:"registered-not-indexed"},
+    {id:"drive-simplo",title:"SIMPLO-2019.rar",driveId:"1yWwICYHH6AyaV2uAOyXYsahFt2Hj1mhV",sizeBytes:10602840126,state:"registered-not-indexed"},
+    {id:"drive-eper",title:"ePER-CatalogoPartes.rar",driveId:"1o9Q54wG-DUKvSbxxcWmMgH1JvZM5khne",sizeBytes:6241352586,state:"registered-not-indexed"},
+    {id:"drive-autodata",title:"AUTODATA 3.45.rar",driveId:"1bKeYQjmtpdqlGJXPiaGsqfLh6lScGM7b",sizeBytes:7763702640,state:"registered-not-indexed"}
+  ],
+
   sources: [
     {id:"duster-workshop", vehicle:"Renault/Dacia Duster", system:"manual de oficina e diagnóstico", indexed:true},
     {id:"duster-v42", vehicle:"Renault Duster 1.6 16V", system:"injeção Valeo V42 / esquema elétrico", indexed:true},
@@ -221,6 +228,27 @@ window.ORACLE_KNOWLEDGE = {
       keywords:["depois","reparo","apagar falha","road test","teste rodagem"],
       value:"Após reparo nos procedimentos V42: tratar demais falhas, limpar memória quando aplicável, fazer teste de rodagem e repetir a leitura com o equipamento de diagnóstico.",
       sourceIds:["duster-workshop"],documented:true
+    },
+    {
+      id:"lexus-is300-starting-circuit",
+      brands:["lexus"],models:["is 300","is300"],engines:[],systems:["partida","ignição","alimentação"],
+      keywords:["starter","partida","não pega","nao pega","park neutral","clutch start","am1","am2"],
+      value:"No EWD do Lexus IS 300 2002, o circuito de partida passa por bateria, fusíveis MAIN/AM1/AM2/STARTER, chave de ignição I12, relé de partida e condição Park/Neutral (A/T) ou Clutch Start (M/T) antes do motor de partida.",
+      sourceIds:["lexus-ewd"],documented:true
+    },
+    {
+      id:"lexus-is300-fuel-pump-circuit",
+      brands:["lexus"],models:["is 300","is300"],engines:[],systems:["combustível","bomba"],
+      keywords:["fuel pump","bomba","circuit opening relay","efi relay","f12","f15"],
+      value:"No EWD do Lexus IS 300 2002, a alimentação da bomba envolve EFI Relay, Circuit Opening Relay, Fuel Pump Relay, Fuel Pump Resistor F12 e Fuel Pump F15. O diagnóstico deve separar comando do ECM, relés, resistor, alimentação e a própria bomba.",
+      sourceIds:["lexus-ewd"],documented:true
+    },
+    {
+      id:"lexus-is300-engine-sensors",
+      brands:["lexus"],models:["is 300","is300"],engines:[],systems:["injeção","sensores","ecm"],
+      keywords:["crankshaft","camshaft","maf","coolant","throttle","accelerator","knock","oil pressure"],
+      value:"O EWD do IS 300 2002 mostra o ECM ligado ao sensor de rotação C3, sensor de fase C1, sensor de temperatura E8, sensores de detonação K2/K3, MAF M1, TPS T3, pedal A9, pressão da direção P2 e interruptor de pressão do óleo E11.",
+      sourceIds:["lexus-ewd"],documented:true
     }
   ],
 
@@ -403,6 +431,42 @@ window.ORACLE_KNOWLEDGE = {
     },
 
     /* Heurísticas gerais: não carregam valores específicos de fabricante. */
+    {
+      id:"lexus-is300-fuel-no-start",
+      evidence:"documented",
+      title:"Lexus IS 300 - bomba / alimentação EFI",
+      brands:["lexus"],models:["is 300","is300"],engines:[],dtcs:[],
+      keywords:["não pega","nao pega","sem combustível","sem combustivel","bomba","fuel pump","efi"],
+      sourceIds:["lexus-ewd"],
+      hypotheses:[
+        {name:"EFI Relay / Circuit Opening Relay",why:"O EWD mostra esses relés no caminho de alimentação/comando da bomba.",weight:95},
+        {name:"Fuel Pump Relay / resistor da bomba",why:"O sistema também usa relé e resistor dedicados antes da bomba.",weight:91},
+        {name:"Comando do ECM ou alimentação principal",why:"A bomba depende do circuito EFI e das alimentações principais do sistema de gerenciamento.",weight:86}
+      ],
+      tests:[
+        {id:"lexus-efi-power",title:"Separar alimentação EFI",procedure:"Confirme alimentação nos fusíveis/EFI Relay e saída do Circuit Opening Relay. Depois confirme Fuel Pump Relay/resistor e tensão efetiva chegando à bomba.",good:"alimentação percorre todo o circuito",bad:"a tensão desaparece em um estágio"},
+        {id:"lexus-fuel-pump-load",title:"Confirmar bomba sob carga",procedure:"Com alimentação e terra presentes na bomba, confirme funcionamento e entrega. Se a bomba não operar com alimentação correta, a hipótese migra para a própria bomba.",good:"bomba opera e entrega",bad:"bomba não opera apesar de alimentação/terra"}
+      ],
+      warnings:["Não condenar bomba apenas porque o motor não pega.","Use o EWD correspondente ao ano/aplicação."]
+    },
+    {
+      id:"lexus-is300-sensor-sync",
+      evidence:"documented",
+      title:"Lexus IS 300 - sincronismo eletrônico / sensores",
+      brands:["lexus"],models:["is 300","is300"],engines:[],dtcs:[],
+      keywords:["sem rpm","rotação","rotacao","crankshaft","camshaft","não pega","nao pega","sensor fase"],
+      sourceIds:["lexus-ewd"],
+      hypotheses:[
+        {name:"Sensor de rotação C3 / circuito",why:"O EWD liga o sensor de rotação diretamente ao ECM.",weight:95},
+        {name:"Sensor de fase C1 / circuito",why:"O sensor de posição do comando também é entrada direta do ECM.",weight:90},
+        {name:"Alimentação/terra do ECM",why:"Sinais corretos só são úteis se as alimentações e terras do ECM estiverem estáveis.",weight:86}
+      ],
+      tests:[
+        {id:"lexus-rpm-scan",title:"Ver RPM durante a partida",procedure:"Observe RPM no scanner durante a partida. Se não houver leitura, priorize o sensor de rotação C3 e seu circuito antes de outras hipóteses.",good:"RPM presente e coerente",bad:"RPM ausente/instável"},
+        {id:"lexus-crank-cam",title:"Comparar sinais de rotação e fase",procedure:"Confirme integridade do chicote e presença dos sinais de C3 e C1 no ECM usando método apropriado.",good:"sinais presentes e coerentes",bad:"um dos sinais ausente ou incoerente"}
+      ],
+      warnings:["Não use pinagem de outro ano sem confirmar o EWD correto."]
+    },
     {
       id:"generic-wiring",
       evidence:"heuristic",
