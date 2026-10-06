@@ -1,4 +1,4 @@
-const CACHE="thiaguinho-auto-v1.1.1";
+// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.1.1";
 const STATIC=[
   "./",
   "./index.html?v=1.1.1",
