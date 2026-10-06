@@ -264,7 +264,7 @@
     article.className="message "+role+(opts.typing?" typing":"");
     if(role==="bot"){
       var av=document.createElement("div");av.className="message-avatar";
-      av.innerHTML='<img src="./assets/mascote-thIAguinho.webp" alt="">';
+      av.innerHTML='<img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt="">';
       article.appendChild(av);
     }
     var bubble=document.createElement("div");bubble.className="bubble";
@@ -279,7 +279,7 @@
   function appendDiagnosis(diag){
     var article=document.createElement("article");
     article.className="message bot";
-    article.innerHTML='<div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp" alt=""></div>';
+    article.innerHTML='<div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt=""></div>';
     var bubble=document.createElement("div");bubble.className="bubble";
     bubble.innerHTML='<strong>th<span class="ia">IA</span>guinho</strong>';
 
@@ -497,7 +497,7 @@
   function startNewCase(){
     state.sessionId=newSessionId();state.createdAt=now();state.messages=[];state.mediaAnalyses=[];state.currentDiagnosis=null;
     state.activeTests=[];state.activeTestIndex=0;state.testResults=[];
-    $("messages").innerHTML='<article class="message bot welcome"><div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp" alt=""></div><div class="bubble"><strong>th<span class="ia">IA</span>guinho</strong><p>Novo diagnóstico. Me diga o sintoma, DTC ou mande a tela do scanner.</p></div></article>';
+    $("messages").innerHTML='<article class="message bot welcome"><div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt=""></div><div class="bubble"><strong>th<span class="ia">IA</span>guinho</strong><p>Novo diagnóstico. Me diga o sintoma, DTC ou mande a tela do scanner.</p></div></article>';
     renderMediaQueue();$("chatInput").focus();toast("Novo diagnóstico");
   }
 

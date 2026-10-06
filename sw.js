@@ -1,16 +1,16 @@
-const CACHE="thiaguinho-auto-v1.0.0";
+const CACHE="thiaguinho-auto-v1.0.1";
 const STATIC=[
   "./",
-  "./index.html",
-  "./css/app.css",
-  "./js/app.js",
-  "./js/firebase.js",
-  "./js/media.js",
-  "./data/knowledge.js",
-  "./manifest.webmanifest",
-  "./assets/icon-thIAguinho.svg",
-  "./assets/logo-thIAguinho.svg",
-  "./assets/mascote-thIAguinho.webp"
+  "./index.html?v=1.0.1",
+  "./css/app.css?v=1.0.1",
+  "./js/app.js?v=1.0.1",
+  "./js/firebase.js?v=1.0.1",
+  "./js/media.js?v=1.0.1",
+  "./data/knowledge.js?v=1.0.1",
+  "./manifest.webmanifest?v=1.0.1",
+  "./assets/icon-thIAguinho.svg?v=1.0.1",
+  "./assets/logo-thIAguinho.svg?v=1.0.1",
+  "./assets/mascote-thIAguinho.webp?v=1.0.1"
 ];
 
 self.addEventListener("install",event=>{
