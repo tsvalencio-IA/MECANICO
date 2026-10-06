@@ -2,7 +2,9 @@
 import argparse, gzip, hashlib, json, re, shutil, subprocess, zipfile
 from pathlib import Path
 
-TEXT_EXT = {".txt",".md",".csv",".tsv",".json",".jsonl",".xml",".html",".htm",".ini",".cfg",".conf",".yaml",".yml",".log",".sql",".rtf"}
+TEXT_EXT = {".txt",".md",".csv",".tsv",".json",".jsonl",".xml",".html",".htm",".ini",".cfg",".conf",".yaml",".yml",".log",".sql",".rtf",".inf"}
+IMAGE_EXT = {".jpg",".jpeg",".png",".gif",".bmp",".tif",".tiff",".webp"}
+BINARY_TEXT_EXT = {".cxt",".cst",".dxr",".x32",".db",".jnt"}
 ARCHIVE_EXT = {".zip",".rar",".7z"}
 DTC_RE = re.compile(r"\b(?:P|B|C|U)\d{4}\b|\bDF\d{3,4}\b", re.I)
 MAX_TEXT_CHARS = 30_000_000
@@ -78,6 +80,45 @@ def clean_text(s):
     s=re.sub(r"\n{4,}","\n\n\n",s)
     return s.strip()
 
+def ocr_image(path):
+    from PIL import Image, ImageOps
+    import pytesseract
+    with Image.open(path) as im:
+        if getattr(im,"is_animated",False):
+            try: im.seek(0)
+            except Exception: pass
+        im=ImageOps.exif_transpose(im.convert("RGB"))
+        if max(im.size)>1800:
+            ratio=1800.0/max(im.size)
+            im=im.resize((max(1,int(im.width*ratio)),max(1,int(im.height*ratio))))
+        im=ImageOps.autocontrast(ImageOps.grayscale(im))
+        data=pytesseract.image_to_data(im,lang="por+eng",config="--psm 11",output_type=pytesseract.Output.DICT)
+    words=[]; confs=[]
+    for txt,cf in zip(data.get("text",[]),data.get("conf",[])):
+        txt=(txt or "").strip()
+        try: cf=float(cf)
+        except Exception: cf=-1
+        if txt:
+            words.append(txt)
+            if cf>=0: confs.append(cf)
+    text=clean_text(" ".join(words))[:MAX_TEXT_CHARS]
+    confidence=(sum(confs)/len(confs)/100.0) if confs else 0.0
+    return text,max(0.0,min(1.0,confidence))
+
+def legacy_doc_text(path):
+    try:
+        p=subprocess.run(["antiword",str(path)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=120,check=False)
+        return clean_text(decode_bytes(p.stdout))[:MAX_TEXT_CHARS]
+    except Exception:
+        return ""
+
+def binary_strings_text(path):
+    try:
+        p=subprocess.run(["strings","-a","-n","5",str(path)],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,timeout=180,check=False)
+        return clean_text(decode_bytes(p.stdout[:50_000_000]))[:MAX_TEXT_CHARS]
+    except Exception:
+        return ""
+
 def pdf_text(path):
     from pypdf import PdfReader
     r=PdfReader(str(path), strict=False)
@@ -133,18 +174,25 @@ def html_text(path):
 def extract_text(path):
     ext=path.suffix.lower()
     if ext==".pdf":
-        return "pages", list(pdf_text(path))
+        return "pages", list(pdf_text(path)), "pdf_text", 1.0, "source_extracted"
+    if ext in IMAGE_EXT:
+        t,conf=ocr_image(path)
+        return "text", t, "ocr_tesseract", conf, "ocr_unverified"
     if ext==".docx":
-        return "text", docx_text(path)
+        return "text", docx_text(path), "docx_text", 1.0, "source_extracted"
+    if ext==".doc":
+        return "text", legacy_doc_text(path), "antiword", 1.0, "source_extracted"
     if ext==".pptx":
-        return "text", pptx_text(path)
+        return "text", pptx_text(path), "pptx_text", 1.0, "source_extracted"
     if ext in {".xlsx",".xlsm"}:
-        return "text", xlsx_text(path)
+        return "text", xlsx_text(path), "xlsx_text", 1.0, "source_extracted"
     if ext in {".html",".htm"}:
-        return "text", html_text(path)
+        return "text", html_text(path), "html_text", 1.0, "source_extracted"
     if ext in TEXT_EXT:
-        return "text", clean_text(decode_bytes(path.read_bytes()[:50_000_000]))[:MAX_TEXT_CHARS]
-    return "none", None
+        return "text", clean_text(decode_bytes(path.read_bytes()[:50_000_000]))[:MAX_TEXT_CHARS], "text_decode", 1.0, "source_extracted"
+    if ext in BINARY_TEXT_EXT:
+        return "text", binary_strings_text(path), "binary_strings", 0.25, "unverified_strings"
+    return "none", None, "none", 0.0, "metadata_only"
 
 def chunks(text):
     if not text:
@@ -219,7 +267,7 @@ def main():
     catalog=[]
     dtc_index={}
     ext_stats={}
-    extractor_stats={"indexed_files":0,"indexed_chunks":0,"unreadable_files":0}
+    extractor_stats={"total_files":len(files),"indexed_files":0,"indexed_chunks":0,"unreadable_files":0,"ocr_files":0,"metadata_only_files":0,"unverified_string_files":0}
     shards=Shards(out/"brain")
 
     for n,p in enumerate(files,1):
@@ -234,23 +282,29 @@ def main():
         payload=None
         err=None
         try:
-            kind,payload=extract_text(p)
+            kind,payload,method,confidence,truth_status=extract_text(p)
         except Exception as e:
             err=str(e)
             extractor_stats["unreadable_files"]+=1
         meta["indexed"]=bool(payload)
+        meta["method"]=method
+        meta["confidence"]=round(float(confidence or 0),4)
+        meta["truth_status"]=truth_status
         if err:
             meta["extract_error"]=err[:500]
         catalog.append(meta)
 
         records=[]
+        if method=="ocr_tesseract" and payload: extractor_stats["ocr_files"]+=1
+        if truth_status=="unverified_strings" and payload: extractor_stats["unverified_string_files"]+=1
+        if not payload: extractor_stats["metadata_only_files"]+=1
         if kind=="pages" and payload:
             for pg in payload:
                 for ci,ch in enumerate(chunks(pg["text"])):
-                    records.append({"path":rel,"page":pg["page"],"chunk":ci,"text":ch})
+                    records.append({"path":rel,"page":pg["page"],"chunk":ci,"text":ch,"method":method,"confidence":confidence,"truth_status":truth_status})
         elif kind=="text" and payload:
             for ci,ch in enumerate(chunks(payload)):
-                records.append({"path":rel,"chunk":ci,"text":ch})
+                records.append({"path":rel,"chunk":ci,"text":ch,"method":method,"confidence":confidence,"truth_status":truth_status})
 
         if records:
             extractor_stats["indexed_files"]+=1
@@ -269,12 +323,17 @@ def main():
             print(f"indexed {n}/{len(files)} files",flush=True)
 
     shards.close()
+    report["schema_version"]=2
     report["extractor"]=extractor_stats
+    report["truth_policy"]={"source_extracted":"texto extraido diretamente sem correcao semantica","ocr_unverified":"OCR da imagem, nunca promovido sozinho a fato exato","unverified_strings":"strings recuperadas de binario proprietario, nunca usadas sozinhas como fato exato","metadata_only":"arquivo catalogado por caminho/hash/tamanho sem texto extraido"}
     report["extensions"]=ext_stats
     report["shards"]=shards.manifest
 
     (out/"manifest.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     with gzip.open(out/"catalog.jsonl.gz","wt",encoding="utf-8",compresslevel=6) as f:
+        for row in catalog:
+            f.write(json.dumps(row,ensure_ascii=False,separators=(",",":"))+"\n")
+    with gzip.open(out/"source-records.jsonl.gz","wt",encoding="utf-8",compresslevel=6) as f:
         for row in catalog:
             f.write(json.dumps(row,ensure_ascii=False,separators=(",",":"))+"\n")
     (out/"dtc-index.json").write_text(json.dumps(dtc_index,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
