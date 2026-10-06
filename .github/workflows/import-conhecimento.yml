@@ -62,15 +62,20 @@ jobs:
           test -s /tmp/thiaguinho-brain/manifest.json
           test -s /tmp/thiaguinho-brain/catalog.jsonl.gz
           test -s /tmp/thiaguinho-brain/dtc-index.json
+          test -s /tmp/thiaguinho-brain/source-records.jsonl.gz
           test -d /tmp/thiaguinho-brain/brain
           python - <<'PY'
           import json
           p="/tmp/thiaguinho-brain/manifest.json"
           m=json.load(open(p,encoding="utf-8"))
+          assert m["schema_version"] == 2
           assert m["extracted_files"] > 0
           assert m["zip_entries"] > 0
           assert m["archive_bytes"] > 2_000_000_000
-          print("IMPORT OK", m["zip_entries"], "zip entries;", m["extracted_files"], "extracted files;", m["extractor"])
+          assert m["extractor"]["total_files"] == m["extracted_files"]
+          assert m["extractor"]["indexed_files"] > 0
+          assert "truth_policy" in m
+          print("IMPORT V2 OK", m["zip_entries"], "zip entries;", m["extracted_files"], "files;", m["extractor"])
           PY
 
       - name: Package every extracted source file for GitHub Release
