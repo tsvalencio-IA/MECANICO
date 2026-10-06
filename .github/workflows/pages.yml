@@ -28,7 +28,7 @@ jobs:
       - name: Validate manifest
         run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest ok')"
       - name: Verify critical assets
-        run: test -f index.html && test -f css/app.css && test -f js/firebase.js && test -f js/media.js && test -f database.rules.json && test -f assets/icon.svg && test -f assets/logo.svg && test -f assets/mascote.svg
+        run: test -f index.html && test -f css/app.css && test -f js/firebase.js && test -f js/media.js && test -f database.rules.json && test -f assets/icon.svg && test -f assets/logo-thIAguinho.webp && test -f assets/mascote-thIAguinho.webp
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site

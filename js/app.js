@@ -240,7 +240,7 @@
       var el=document.createElement("div");
       el.className="msg "+role;
       var b=document.createElement("b");
-      b.textContent=role==="bot"?"Thiaguinho":"Você";
+      b.textContent=role==="bot"?"thIAguinho":"Você";
       var p=document.createElement("p");
       p.textContent=text;
       p.style.whiteSpace="pre-line";
@@ -267,10 +267,10 @@
         return "Estou pronto. Me diga o carro e o defeito. Se tiver DTC, tensão, pressão, temperatura ou algo já trocado, mande junto.";
       }
       if(n.indexOf("quem e voce")>=0 || n.indexOf("quem é você")>=0 || n.indexOf("seu nome")>=0){
-        return "Sou o Thiaguinho, mascote técnico da thIAguinho Soluções Automotiva. Minha função é organizar o diagnóstico por evidências: fonte, hipótese, teste e confirmação.";
+        return "Sou o thIAguinho, IA mecânico da thIAguinho Soluções Automotiva. Minha função é organizar o diagnóstico por evidências: fonte, hipótese, teste e confirmação.";
       }
       if(n.indexOf("o que sabe")>=0 || n.indexOf("base")>=0 || n.indexOf("fontes")>=0 || n.indexOf("conhecimento")>=0){
-        return "Meu conhecimento técnico fica no cérebro interno. Na tela eu mostro apenas o diagnóstico, os testes e a conclusão — sem expor nomes de arquivos ou bases.";
+        return "Meu conhecimento técnico fica no cérebro interno. Na tela eu mostro apenas o diagnóstico, os testes e a conclusão — sem expor nomes de conteúdo técnico interno.";
       }
 
       var codes=uniq((q.toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[]));
