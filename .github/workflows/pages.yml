@@ -61,7 +61,7 @@ jobs:
           grep -q "signInAnonymously" js/firebase.js
           grep -q "mecanico-b222e-default-rtdb" js/firebase.js
           grep -q "SKIP_WAITING" js/app.js
-          grep -q "thiaguinho-auto-v1.2.1" sw.js
+          grep -q "thiaguinho-auto-v1.2.2" sw.js
           grep -q "Fotos e vídeos são analisados temporariamente" index.html
           ! grep -q "AUTODATA 3.45.rar" index.html
           ! grep -q "SIMPLO-2019.rar" index.html

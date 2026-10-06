@@ -1001,11 +1001,11 @@ body{
 }
 
 
-/* v1.2.1 — avatar único e confiável para cabeçalho e mensagens */
+/* v1.2.2 — avatar único e confiável para cabeçalho e mensagens */
 .avatar-wrap,
 .message-avatar{
   background-color:#0a1827;
-  background-image:url("../assets/mascote-thIAguinho-avatar.png?v=1.2.1");
+  background-image:url("../assets/mascote-thIAguinho-avatar.png?v=1.2.2");
   background-repeat:no-repeat;
   background-position:center 22%;
   background-size:cover;
@@ -1013,4 +1013,19 @@ body{
 .avatar-wrap img,
 .message-avatar img{
   display:none!important;
+}
+
+
+/* v1.2.2 — gestos móveis e escala estável */
+@media(max-width:760px){
+  html,body,.app-shell,.chat-card,.messages{
+    touch-action:pan-y!important;
+  }
+  .messages{
+    overflow:visible!important;
+    -webkit-overflow-scrolling:auto!important;
+  }
+  .bubble,.test-box{
+    max-width:100%!important;
+  }
 }

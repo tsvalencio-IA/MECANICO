@@ -1,18 +1,18 @@
-// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.2.1";
+// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.2.2";
 const STATIC=[
   "./",
-  "./index.html?v=1.2.1",
-  "./css/app.css?v=1.2.1",
-  "./js/app.js?v=1.2.1",
-  "./js/firebase.js?v=1.2.1",
-  "./js/media.js?v=1.2.1",
-  "./data/knowledge.js?v=1.2.1",
-  "./manifest.webmanifest?v=1.2.1",
-  "./assets/icon-thIAguinho.svg?v=1.2.1",
-  "./assets/logo-thIAguinho.svg?v=1.2.1",
-  "./assets/mascote-thIAguinho.webp?v=1.2.1",
-  "./assets/mascote-thIAguinho-hero.png?v=1.2.1",
-  "./assets/mascote-thIAguinho-avatar.png?v=1.2.1"
+  "./index.html?v=1.2.2",
+  "./css/app.css?v=1.2.2",
+  "./js/app.js?v=1.2.2",
+  "./js/firebase.js?v=1.2.2",
+  "./js/media.js?v=1.2.2",
+  "./data/knowledge.js?v=1.2.2",
+  "./manifest.webmanifest?v=1.2.2",
+  "./assets/icon-thIAguinho.svg?v=1.2.2",
+  "./assets/logo-thIAguinho.svg?v=1.2.2",
+  "./assets/mascote-thIAguinho.webp?v=1.2.2",
+  "./assets/mascote-thIAguinho-hero.png?v=1.2.2",
+  "./assets/mascote-thIAguinho-avatar.png?v=1.2.2"
 ];
 
 self.addEventListener("install",event=>{

@@ -694,7 +694,7 @@
   }
 
   function initPwa(){
-    var BUILD="1.2.1";
+    var BUILD="1.2.2";
     window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
     $("installBtn").addEventListener("click",function(){
       if(!state.deferredInstall)return;
