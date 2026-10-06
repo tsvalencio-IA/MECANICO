@@ -35,21 +35,18 @@
       api.db = firebase.database();
 
       api.auth.onAuthStateChanged(function(user){
-        if(user){
-          api.uid = user.uid;
-          api.online = true;
-          window.dispatchEvent(new CustomEvent("oracle:firebase-ready",{detail:{uid:user.uid}}));
-          resolve(api);
-          return;
-        }
-        api.auth.signInAnonymously().catch(function(err){
-          console.error("[Firebase] Falha no login anônimo:",err);
-          api.online = false;
-          resolve(api);
-        });
+        if(!user) return;
+        api.uid = user.uid;
+        api.online = true;
+        window.dispatchEvent(new CustomEvent("oracle:firebase-ready",{detail:{uid:user.uid}}));
+        resolve(api);
       });
 
-      if(!api.auth.currentUser){
+      if(api.auth.currentUser){
+        api.uid = api.auth.currentUser.uid;
+        api.online = true;
+        resolve(api);
+      }else{
         api.auth.signInAnonymously().catch(function(err){
           console.error("[Firebase] Falha no login anônimo:",err);
           api.online = false;
