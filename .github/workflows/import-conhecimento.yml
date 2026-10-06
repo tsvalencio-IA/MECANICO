@@ -18,7 +18,7 @@ concurrency:
 jobs:
   import:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     env:
       DRIVE_FILE_ID: "1NNzN0Zhw-G8IiTkveWFU4N-uLk4Hq5jD"
       RELEASE_TAG: "knowledge-v1"
@@ -34,9 +34,9 @@ jobs:
       - name: Install import tools
         run: |
           python -m pip install --upgrade pip
-          python -m pip install gdown pypdf python-docx openpyxl python-pptx beautifulsoup4
+          python -m pip install gdown pypdf python-docx openpyxl python-pptx beautifulsoup4 pillow pytesseract pymupdf
           sudo apt-get update -qq
-          sudo apt-get install -y -qq p7zip-full zstd
+          sudo apt-get install -y -qq p7zip-full zstd tesseract-ocr tesseract-ocr-por tesseract-ocr-eng antiword binutils
           gh --version
           7z | head -n 3
 
