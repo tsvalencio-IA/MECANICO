@@ -144,10 +144,36 @@
   }
 
   function saveCase(c,top,hypotheses){
-    var history=loadHistory();
-    var item={id:c.id,createdAt:c.createdAt,vehicle:[c.brand,c.model,c.year,c.engine].filter(Boolean).join(" "),symptoms:c.symptoms,dtcs:c.dtcs,top:hypotheses[0]?hypotheses[0].name:"Triagem",sourceIds:uniq([].concat.apply([],top.map(function(x){return x.rule.sourceIds||[];})))};
+    var item={
+      id:c.id,
+      createdAt:c.createdAt,
+      vehicle:[c.brand,c.model,c.year,c.engine].filter(Boolean).join(" "),
+      vehicleData:{
+        brand:c.brand,model:c.model,year:c.year,engine:c.engine,
+        transmission:c.transmission,mileage:c.mileage
+      },
+      symptoms:c.symptoms,
+      measurements:c.measurements,
+      dtcs:c.dtcs,
+      top:hypotheses[0]?hypotheses[0].name:"Triagem",
+      mediaAnalysis:(c.mediaAnalysis||[]).map(function(m){
+        return {type:m.type,text:(m.text||"").slice(0,4000),codes:m.codes||[]};
+      })
+    };
+
+    var history=loadHistory().filter(function(x){return x.id!==item.id;});
     history.unshift(item);history=history.slice(0,40);
-    localStorage.setItem("oracle_cases",JSON.stringify(history));renderHistory();
+    localStorage.setItem("oracle_cases",JSON.stringify(history));
+    renderHistory(history);
+
+    if(window.ORACLE_FIREBASE){
+      ORACLE_FIREBASE.saveCase(item).then(function(){
+        toast("Histórico salvo no Realtime");
+      }).catch(function(err){
+        console.warn("[Firebase] salvamento:",err);
+        toast("Salvo localmente; Realtime indisponível");
+      });
+    }
   }
   function loadHistory(){try{return JSON.parse(localStorage.getItem("oracle_cases")||"[]");}catch(e){return[];}}
   function renderHistory(){
