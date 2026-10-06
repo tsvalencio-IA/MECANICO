@@ -280,6 +280,9 @@ def main():
         meta={"path":rel,"size":size,"ext":ext,"sha256":sha256_file(p)}
         kind="none"
         payload=None
+        method="none"
+        confidence=0.0
+        truth_status="metadata_only"
         err=None
         try:
             kind,payload,method,confidence,truth_status=extract_text(p)
