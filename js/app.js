@@ -305,6 +305,13 @@
       bubble.appendChild(fsec);
     }
 
+    if(diag.remoteEvidence && diag.remoteEvidence.length){
+      var rsec=document.createElement("div");rsec.className="answer-section";
+      rsec.innerHTML='<span class="answer-title">Base técnica interna relacionada</span><ul>'+
+        diag.remoteEvidence.slice(0,3).map(function(e){return '<li>'+esc(e.snippet)+'</li>';}).join("")+'</ul>';
+      bubble.appendChild(rsec);
+    }
+
     if(diag.hypotheses.length){
       var hsec=document.createElement("div");hsec.className="answer-section";
       hsec.innerHTML='<span class="answer-title">Prioridades agora</span><ul>'+
@@ -385,28 +392,42 @@
     recordMessage("user",text);
     $("chatInput").value=""; autoResize();
 
-    var typing=appendTextMessage("bot","Analisando",{typing:true});
-    setTimeout(function(){
-      typing.remove();
-
+    var typing=appendTextMessage("bot","Consultando a base técnica interna",{typing:true});
+    setTimeout(async function(){
       if(isGreeting(text)){
+        typing.remove();
         var greeting="Estou pronto. Me diga o veículo e o defeito. Se tiver código, tensão, pressão, temperatura ou algo já trocado, mande junto.";
         appendTextMessage("bot",greeting);recordMessage("bot",greeting);persistSession();return;
       }
 
       if(norm(text).indexOf("quem e voce")>=0 || norm(text).indexOf("seu nome")>=0){
-        var who="Sou o thIAguinho, IA Mecânico da thIAguinho Soluções Automotiva. Organizo o diagnóstico por evidências e não condeno peça sem teste.";
+        typing.remove();
+        var who="Sou o thIAguinho, IA Mecânico da thIAguinho Soluções Automotiva. Cruzo o contexto do veículo com a base técnica interna e organizo o diagnóstico por evidências, sem condenar peça sem teste.";
         appendTextMessage("bot",who);recordMessage("bot",who);persistSession();return;
       }
 
       var diag=buildDiagnosis(text);
+      if(window.ORACLE_REMOTE_KNOWLEDGE){
+        try{
+          var hits=await ORACLE_REMOTE_KNOWLEDGE.search(text,state.vehicle,6);
+          if(hits && hits.length){
+            diag.remoteEvidence=hits;
+            diag.evidence="base técnica interna + "+diag.evidence;
+            if(diag.ruleId==="baseline") diag.title="Diagnóstico orientado pela base técnica interna";
+          }
+        }catch(err){
+          console.warn("[Knowledge search]",err);
+        }
+      }
+
+      typing.remove();
       appendDiagnosis(diag);
 
       var summary=diag.title;
       if(diag.tests[0]) summary+=" | Próximo: "+diag.tests[0].title;
-      recordMessage("bot",summary,{diagnosis:diag.ruleId});
+      recordMessage("bot",summary,{diagnosis:diag.ruleId,knowledgeHits:diag.remoteEvidence?diag.remoteEvidence.length:0});
       persistSession();
-    },options.immediate?20:260);
+    },options.immediate?20:180);
   }
 
   function buildSessionPayload(){
@@ -761,4 +782,5 @@
   initPwa();
   updateVehicleUI();
   autoResize();
+  if(window.ORACLE_REMOTE_KNOWLEDGE) ORACLE_REMOTE_KNOWLEDGE.prefetch();
 })();

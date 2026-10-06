@@ -29,6 +29,7 @@ jobs:
           node --check js/app.js
           node --check js/firebase.js
           node --check js/media.js
+          node --check js/knowledge-remote.js
           node --check data/knowledge.js
           node --check sw.js
 
@@ -54,6 +55,7 @@ jobs:
         run: |
           test -f index.html
           test -f css/app.css
+          test -f js/knowledge-remote.js
           test -f assets/logo-thIAguinho.svg
           test -f assets/icon-thIAguinho.svg
           test -f assets/mascote-thIAguinho.webp && test -f assets/mascote-thIAguinho-hero.webp && test -f assets/mascote-thIAguinho-avatar.webp && test -f assets/mascote-thIAguinho-hero.png && test -f assets/mascote-thIAguinho-avatar.png

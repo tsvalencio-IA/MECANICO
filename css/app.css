@@ -1001,7 +1001,7 @@ body{
 }
 
 
-/* v1.2.2 — avatar único e confiável para cabeçalho e mensagens */
+/* v1.3.0 — avatar único e confiável para cabeçalho e mensagens */
 .avatar-wrap,
 .message-avatar{
   background-color:#0a1827;
@@ -1016,7 +1016,7 @@ body{
 }
 
 
-/* v1.2.2 — gestos móveis e escala estável */
+/* v1.3.0 — gestos móveis e escala estável */
 @media(max-width:760px){
   html,body,.app-shell,.chat-card,.messages{
     touch-action:pan-y!important;
