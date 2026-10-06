@@ -83,9 +83,15 @@
   function scoreRule(rule,c){
     var score=0, reasons=[];
     var b=norm(c.brand),m=norm(c.model),e=norm(c.engine),text=norm(c.symptoms+" "+c.measurements),allDtcs=expandDtcs(c.dtcs);
-    if(rule.brands.length && rule.brands.some(function(x){return b.indexOf(norm(x))>=0;})){score+=14;reasons.push("marca");}
-    if(rule.models.length && rule.models.some(function(x){return m.indexOf(norm(x))>=0;})){score+=20;reasons.push("modelo");}
-    if(rule.engines.length && rule.engines.some(function(x){return e.indexOf(norm(x))>=0;})){score+=16;reasons.push("motor");}
+    var brandMatch=rule.brands.length && rule.brands.some(function(x){return b.indexOf(norm(x))>=0;});
+    var modelMatch=rule.models.length && rule.models.some(function(x){return m.indexOf(norm(x))>=0;});
+    var engineMatch=rule.engines.length && rule.engines.some(function(x){return e.indexOf(norm(x))>=0;});
+    if(rule.brands.length && b && !brandMatch) return {rule:rule,score:-999,reasons:["marca incompatível"]};
+    if(rule.models.length && m && !modelMatch) return {rule:rule,score:-999,reasons:["modelo incompatível"]};
+    if(rule.engines.length && e && !engineMatch) return {rule:rule,score:-999,reasons:["motor incompatível"]};
+    if(brandMatch){score+=14;reasons.push("marca");}
+    if(modelMatch){score+=20;reasons.push("modelo");}
+    if(engineMatch){score+=16;reasons.push("motor");}
     var dtcHits=(rule.dtcs||[]).filter(function(x){return allDtcs.indexOf(x.toUpperCase())>=0;});
     if(dtcHits.length){score+=Math.min(42,26+(dtcHits.length-1)*8);reasons.push("DTC "+dtcHits.join("/"));}
     var keyHits=(rule.keywords||[]).filter(function(k){return text.indexOf(norm(k))>=0;});
@@ -197,7 +203,7 @@
     document.querySelectorAll(".hypothesis").forEach(function(el){lines.push("- "+el.innerText.replace(/\n/g," — "));});
     if(state.testLog.length){lines.push("");lines.push("TESTES REGISTRADOS:");state.testLog.forEach(function(x){lines.push("- "+x);});}
     lines.push("");lines.push("Aviso: diagnóstico deve ser confirmado por testes e documentação aplicável.");
-    lines.push("Powered by thIAguinho Soluções Digitais");
+    lines.push("Powered by thIAguinho Soluções Automotiva");
     return lines.join("\n");
   }
 
@@ -211,6 +217,148 @@
   window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
   $("installBtn").addEventListener("click",function(){if(state.deferredInstall){state.deferredInstall.prompt();state.deferredInstall=null;$("installBtn").hidden=true;}});
 
+  function initTheme(){
+    var btn=$("themeBtn"), meta=$("themeColorMeta");
+    if(!btn) return;
+    var media=window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+    var mode=localStorage.getItem("oracle_theme") || "auto";
+    function resolved(){ return mode==="auto" ? (media && media.matches ? "dark" : "light") : mode; }
+    function paint(){
+      var r=resolved();
+      document.documentElement.dataset.theme=r;
+      btn.innerHTML=(mode==="auto"?"◐ <span>Auto</span>":mode==="light"?"☀ <span>Claro</span>":"☾ <span>Escuro</span>");
+      btn.title="Tema: "+(mode==="auto"?"automático":mode==="light"?"claro":"escuro");
+      btn.setAttribute("aria-label",btn.title+". Toque para alternar.");
+      if(meta) meta.setAttribute("content",r==="light"?"#f2f7fb":"#07111f");
+    }
+    btn.addEventListener("click",function(){
+      mode=mode==="auto"?"light":mode==="light"?"dark":"auto";
+      localStorage.setItem("oracle_theme",mode); paint(); toast("Tema "+(mode==="auto"?"automático":mode));
+    });
+    if(media){
+      var onChange=function(){if(mode==="auto")paint();};
+      if(media.addEventListener) media.addEventListener("change",onChange); else if(media.addListener) media.addListener(onChange);
+    }
+    paint();
+  }
+
+  function initMascot(){
+    var panel=$("mascotPanel"), fab=$("mascotFab"), close=$("closeMascotBtn"), form=$("mascotForm"), input=$("mascotInput"), messages=$("mascotMessages"), hero=$("heroAskBtn"), speak=$("speakLastBtn");
+    if(!panel || !fab || !form || !input || !messages) return;
+    var lastBot="";
+
+    function openPanel(){
+      panel.hidden=false;
+      fab.setAttribute("aria-expanded","true");
+      setTimeout(function(){input.focus();},80);
+    }
+    function closePanel(){
+      panel.hidden=true;
+      fab.setAttribute("aria-expanded","false");
+      if(window.speechSynthesis) window.speechSynthesis.cancel();
+      document.body.classList.remove("mascot-talking");
+    }
+    function appendMessage(role,text){
+      var el=document.createElement("div");
+      el.className="msg "+role;
+      var b=document.createElement("b");
+      b.textContent=role==="bot"?"Thiabot":"Você";
+      var p=document.createElement("p");
+      p.textContent=text;
+      p.style.whiteSpace="pre-line";
+      el.appendChild(b);el.appendChild(p);messages.appendChild(el);
+      messages.scrollTop=messages.scrollHeight;
+      if(role==="bot") lastBot=text;
+      return el;
+    }
+    function findDtcInfo(codes){
+      var hits=[];
+      Object.keys(KB.dtcs||{}).forEach(function(code){
+        var item=KB.dtcs[code], aliases=(item.aliases||[]).map(function(x){return x.toUpperCase();});
+        if(codes.indexOf(code)>=0 || aliases.some(function(a){return codes.indexOf(a)>=0;})){
+          hits.push({code:code,label:item.label,source:item.source,aliases:item.aliases||[]});
+        }
+      });
+      return hits;
+    }
+    function assistantAnswer(question){
+      var q=String(question||"").trim();
+      var n=norm(q);
+      if(!q) return "Escreva o sintoma, o DTC ou a medição que você quer investigar.";
+      if(/^(oi|ola|olá|e ai|eai|bom dia|boa tarde|boa noite)\b/.test(n)){
+        return "Estou pronto. Me diga o carro e o defeito. Se tiver DTC, tensão, pressão, temperatura ou algo já trocado, mande junto.";
+      }
+      if(n.indexOf("quem e voce")>=0 || n.indexOf("quem é você")>=0 || n.indexOf("seu nome")>=0){
+        return "Sou o Thiabot, mascote técnico da thIAguinho Soluções Automotiva. Minha função é organizar o diagnóstico por evidências: fonte, hipótese, teste e confirmação.";
+      }
+      if(n.indexOf("o que sabe")>=0 || n.indexOf("base")>=0 || n.indexOf("fontes")>=0 || n.indexOf("conhecimento")>=0){
+        var indexed=KB.sources.filter(function(s){return s.state==="indexed";});
+        var registered=KB.sources.filter(function(s){return s.state==="registered";});
+        return "Hoje tenho "+indexed.length+" fontes indexadas entrando no raciocínio e "+registered.length+" acervos grandes registrados aguardando extração. Eu não trato arquivo apenas registrado como se já tivesse sido lido.";
+      }
+
+      var codes=uniq((q.toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[]));
+      var cse=getCase();
+      cse.symptoms=[cse.symptoms,q].filter(Boolean).join(" ");
+      cse.dtcs=uniq(cse.dtcs.concat(codes));
+      var ranked=analyze(cse);
+      var top=ranked[0] && ranked[0].rule;
+      var dtcHits=findDtcInfo(cse.dtcs);
+      var out=[];
+
+      if(dtcHits.length){
+        out.push(dtcHits.slice(0,3).map(function(d){
+          var s=sourceById(d.source);
+          return d.code+" — "+d.label+(d.aliases.length?" (equivalência: "+d.aliases.join(", ")+")":"")+(s?"\nFonte: "+s.ref+" • "+s.title:"");
+        }).join("\n\n"));
+      }
+      if(top){
+        if(top.id==="baseline"){
+          out.push("Ainda não encontrei correspondência documental específica suficiente para esse conjunto. Não vou inventar uma peça.");
+          out.push("Primeiro passo: "+top.tests[0].procedure);
+        }else{
+          out.push("Caminho mais aderente agora: "+top.title+".");
+          if(top.hypotheses && top.hypotheses.length){
+            out.push("Prioridades:\n"+top.hypotheses.slice(0,3).map(function(h,i){return (i+1)+". "+h.name+" — "+h.why;}).join("\n"));
+          }
+          if(top.tests && top.tests.length){
+            out.push("Próximo teste: "+top.tests[0].title+"\n"+top.tests[0].procedure);
+          }
+          var srcs=(top.sourceIds||[]).map(sourceById).filter(Boolean);
+          if(srcs.length) out.push("Fontes usadas: "+srcs.map(function(s){return s.ref+" ("+s.title+")";}).join(" • "));
+        }
+      }
+      out.push("Antes de condenar componente, confirme alimentação, aterramento e sinal quando aplicável.");
+      return out.join("\n\n");
+    }
+    function speakText(text){
+      if(!("speechSynthesis" in window) || !text){toast("Leitura por voz não disponível");return;}
+      window.speechSynthesis.cancel();
+      var u=new SpeechSynthesisUtterance(text);
+      u.lang="pt-BR";u.rate=.98;u.pitch=1.02;
+      u.onstart=function(){document.body.classList.add("mascot-talking");};
+      u.onend=u.onerror=function(){document.body.classList.remove("mascot-talking");};
+      window.speechSynthesis.speak(u);
+    }
+
+    fab.addEventListener("click",function(){panel.hidden?openPanel():closePanel();});
+    if(close) close.addEventListener("click",closePanel);
+    if(hero) hero.addEventListener("click",openPanel);
+    if(speak) speak.addEventListener("click",function(){speakText(lastBot);});
+    form.addEventListener("submit",function(e){
+      e.preventDefault();
+      var q=input.value.trim();if(!q)return;
+      appendMessage("user",q);input.value="";
+      var thinking=appendMessage("bot","Analisando");
+      thinking.classList.add("thinking");
+      setTimeout(function(){
+        thinking.remove();
+        appendMessage("bot",assistantAnswer(q));
+      },260);
+    });
+    fab.setAttribute("aria-expanded","false");
+  }
+
   if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});}
-  initTabs();initInventory();renderHistory();
+  initTheme();initTabs();initInventory();renderHistory();initMascot();
 })();

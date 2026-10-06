@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#07111f">
-  <meta name="description" content="Oráculo Automotivo — IA Mecânico baseada em evidências, testes e documentação técnica.">
+  <meta id="themeColorMeta" name="theme-color" content="#07111f">
+  <meta name="description" content="thIAguinho Soluções Automotiva — Oráculo Automotivo com IA Mecânico baseada em evidências, testes e documentação técnica.">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" href="./assets/oracle.svg" type="image/svg+xml">
+  <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./css/app.css">
-  <title>Oráculo Automotivo</title>
+  <title>thIAguinho Soluções Automotiva • Oráculo Automotivo</title>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -16,13 +16,14 @@
 
   <header class="topbar">
     <div class="brand">
-      <img src="./assets/oracle.svg" alt="" class="brand-mark">
-      <div>
-        <strong>ORÁCULO AUTOMOTIVO</strong>
-        <span>IA MECÂNICO • diagnóstico por evidências</span>
+      <img src="./assets/logo.svg" alt="thIAguinho Soluções Automotiva" class="brand-logo">
+      <div class="brand-mobile">
+        <strong>thIAguinho Soluções Automotiva</strong>
+        <span>ORÁCULO AUTOMOTIVO • IA MECÂNICO</span>
       </div>
     </div>
     <div class="top-actions">
+      <button id="themeBtn" class="ghost small theme-btn" type="button" aria-label="Alternar tema" title="Tema automático">◐ <span>Auto</span></button>
       <button id="installBtn" class="ghost small" hidden>Instalar</button>
       <div class="live-pill"><i></i><span id="engineStatus">motor local ativo</span></div>
     </div>
@@ -35,10 +36,20 @@
         <h1>Não adivinha. <span>Testa.</span></h1>
         <p>O sistema cruza veículo, sintoma, DTC, medições e documentação técnica. Cada conclusão mostra de onde veio e qual teste deve vir antes de condenar uma peça.</p>
       </div>
-      <div class="hero-meter">
-        <span>Biblioteca registrada</span>
-        <strong id="libraryCount">0 fontes</strong>
-        <small id="libraryWeight">carregando inventário...</small>
+      <div class="hero-side">
+        <div class="mascot-card" id="heroMascotCard">
+          <img src="./assets/mascote.svg" alt="Mascote robô mecânico da thIAguinho Soluções Automotiva" class="mascot-hero">
+          <div>
+            <span class="mascot-kicker">THIABOT • MECÂNICO VIRTUAL</span>
+            <strong>Me diga o sintoma. Eu organizo os testes.</strong>
+            <button type="button" id="heroAskBtn" class="ghost small">Conversar com o Thiabot</button>
+          </div>
+        </div>
+        <div class="hero-meter">
+          <span>Biblioteca registrada</span>
+          <strong id="libraryCount">0 fontes</strong>
+          <small id="libraryWeight">carregando inventário...</small>
+        </div>
       </div>
     </section>
 
@@ -201,9 +212,36 @@
     </section>
   </main>
 
+  <aside class="mascot-assistant" id="mascotAssistant" aria-live="polite">
+    <button id="mascotFab" class="mascot-fab" type="button" aria-label="Abrir Thiabot">
+      <img src="./assets/mascote.svg" alt="">
+      <span class="assistant-pulse"></span>
+    </button>
+    <section id="mascotPanel" class="mascot-panel" hidden>
+      <header class="mascot-panel-head">
+        <div class="mascot-id">
+          <img src="./assets/mascote.svg" alt="">
+          <div><strong>Thiabot</strong><span>Assistente da thIAguinho Soluções Automotiva</span></div>
+        </div>
+        <div class="mascot-head-actions">
+          <button id="speakLastBtn" type="button" class="icon-btn" title="Ouvir última resposta" aria-label="Ouvir última resposta">🔊</button>
+          <button id="closeMascotBtn" type="button" class="icon-btn" title="Fechar" aria-label="Fechar assistente">×</button>
+        </div>
+      </header>
+      <div id="mascotMessages" class="mascot-messages">
+        <div class="msg bot"><b>Thiabot</b><p>Me passe veículo, sintoma, código de falha ou medição. Eu cruzo isso com o que já está indexado e separo hipótese de evidência.</p></div>
+      </div>
+      <form id="mascotForm" class="mascot-form">
+        <input id="mascotInput" autocomplete="off" placeholder="Ex.: Duster 1.6 falha P0301..." aria-label="Pergunta para o Thiabot">
+        <button type="submit" class="primary mascot-send" aria-label="Enviar pergunta">➜</button>
+      </form>
+      <div class="assistant-note">Motor local v0.2 • responde apenas com a base indexada e heurísticas declaradas.</div>
+    </section>
+  </aside>
+
   <footer>
-    <span>ORÁCULO AUTOMOTIVO • v0.1</span>
-    <strong>Powered by thIAguinho Soluções Digitais</strong>
+    <span>ORÁCULO AUTOMOTIVO • v0.2</span>
+    <strong>Powered by thIAguinho Soluções Automotiva</strong>
   </footer>
 
   <script src="./data/knowledge.js"></script>

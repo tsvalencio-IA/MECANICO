@@ -1,7 +1,7 @@
 {
-  "name":"Oráculo Automotivo",
-  "short_name":"Oráculo Auto",
-  "description":"IA Mecânico baseada em evidências, testes e documentação técnica.",
+  "name":"thIAguinho Soluções Automotiva — Oráculo Automotivo",
+  "short_name":"thIAguinho Auto",
+  "description":"Oráculo Automotivo com IA Mecânico baseada em evidências, testes e documentação técnica.",
   "start_url":"./",
   "scope":"./",
   "display":"standalone",
@@ -9,6 +9,6 @@
   "theme_color":"#07111f",
   "lang":"pt-BR",
   "icons":[
-    {"src":"./assets/oracle.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+    {"src":"./assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
   ]
 }

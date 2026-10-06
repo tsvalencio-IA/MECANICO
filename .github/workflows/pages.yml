@@ -1,4 +1,4 @@
-name: Deploy Oráculo Automotivo
+name: Deploy thIAguinho Soluções Automotiva
 
 on:
   push:
@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  validate-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -23,6 +23,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Validate JavaScript
+        run: node --check js/app.js && node --check data/knowledge.js
+      - name: Validate manifest
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest ok')"
+      - name: Verify critical assets
+        run: test -f index.html && test -f css/app.css && test -f assets/icon.svg && test -f assets/logo.svg && test -f assets/mascote.svg
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static site

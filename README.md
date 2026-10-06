@@ -1,29 +1,27 @@
-# ORÁCULO AUTOMOTIVO — IA MECÂNICO
+# thIAguinho Soluções Automotiva — ORÁCULO AUTOMOTIVO
 
 Sistema de diagnóstico automotivo orientado por evidências.
 
 > **Não adivinha. Testa.**
 
-## O que já existe
+## v0.2
 
-- PWA mobile-first para uso em oficina;
-- triagem por veículo, sintomas, DTCs e medições;
-- motor local de ranking técnico;
-- próximos testes guiados com registro do resultado;
-- fontes rastreáveis;
-- biblioteca técnica com status real: **indexada** x **apenas registrada**;
-- histórico local de casos;
-- funcionamento offline dos arquivos estáticos;
-- deploy automático por GitHub Pages.
+- nova identidade **thIAguinho Soluções Automotiva**;
+- logotipo automotivo próprio;
+- ícone PWA com engrenagem + ferramenta;
+- **Thiabot**, mascote robô mecânico inspirado na identidade visual da empresa;
+- mascote animado e assistente técnico local que responde usando a base já indexada;
+- leitura por voz da última resposta quando o navegador suporta Web Speech;
+- tema **automático / claro / escuro**, com preferência persistida no aparelho;
+- responsividade adaptativa para celular, tablet e desktop;
+- mantém triagem por veículo, sintomas, DTCs, medições, próximos testes, fontes e histórico.
 
 ## Base técnica inicial
-
-A primeira versão usa conhecimento derivado dos materiais fornecidos ao projeto:
 
 - **Dacia-Duster-Renault-Duster_2009-2017.pdf** — 2.372 páginas;
 - **2011-RENAULT DUSTER 1.6 16V.pdf** — esquema de injeção Valeo V42;
 - **[LEXUS]_Esquemas_electricos_Lexus_2002_a_2005.pdf** — EWD;
-- **PLATAFORMA+AUTO+DATA (1).pdf** — classificado corretamente como página de acesso, não como base técnica.
+- **PLATAFORMA+AUTO+DATA (1).pdf** — classificado como página de acesso, não como base técnica.
 
 Arquivos grandes registrados para ingestão posterior:
 
@@ -32,7 +30,7 @@ Arquivos grandes registrados para ingestão posterior:
 - ePER-CatalogoPartes.rar
 - AUTODATA 3.45.rar
 
-O sistema **não finge** que um arquivo compactado já foi lido. Ele só vira conhecimento após extração e indexação.
+O sistema **não finge** que um arquivo compactado já foi lido. Ele só vira conhecimento depois de extração e indexação.
 
 ## Arquitetura
 
@@ -44,7 +42,7 @@ O sistema **não finge** que um arquivo compactado já foi lido. Ele só vira co
             ↓
     índice de conhecimento
             ↓
-    motor de diagnóstico
+    Oráculo / Thiabot
             ↓
     teste → resultado → reavaliação
             ↓
@@ -52,22 +50,10 @@ O sistema **não finge** que um arquivo compactado já foi lido. Ele só vira co
 
 ## Publicação
 
-O workflow .github/workflows/pages.yml publica o projeto no GitHub Pages a cada push na main.
-
-Se o Pages ainda não estiver ativado:
-
-**Settings → Pages → Build and deployment → Source → GitHub Actions**
-
-Depois, o endereço esperado é:
+GitHub Pages:
 
 https://tsvalencio-ia.github.io/MECANICO/
 
-## Próxima fase
-
-A próxima evolução não é “colocar PDFs no prompt”. É construir o indexador dos acervos grandes, preservar diagramas/páginas e conectar histórico real de oficina.
-
-Detalhes: docs/INGESTAO.md
-
 ---
 
-**Powered by thIAguinho Soluções Digitais**
+**Powered by thIAguinho Soluções Automotiva**

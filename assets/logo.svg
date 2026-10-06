@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 160" role="img" aria-label="thIAguinho Soluções Automotiva">
+<defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#35d6ff"/><stop offset="1" stop-color="#47e0a5"/></linearGradient></defs>
+<g transform="translate(8 8)">
+  <rect x="0" y="0" width="144" height="144" rx="34" fill="#07111f"/>
+  <circle cx="72" cy="72" r="43" fill="none" stroke="url(#g)" stroke-width="12"/>
+  <path d="M72 14v16M72 114v16M14 72h16M114 72h16M31 31l12 12M101 101l12 12M113 31l-12 12M43 101l-12 12" stroke="#35d6ff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M49 49c13 0 23 10 23 23 0 5-2 10-5 14l36 36c6 6 15 6 21 0 6-6 6-15 0-21L88 65c4-4 5-9 5-14 0-13-10-23-23-23-4 0-8 1-12 3l15 15-16 16-15-15c-2 4-3 8-3 12 0 1 0 3 1 4z" fill="#edf5ff"/>
+</g>
+<text x="178" y="76" font-family="Arial,sans-serif" font-size="51" font-weight="800" fill="#edf5ff">th<tspan fill="#35d6ff">IA</tspan>guinho</text>
+<text x="180" y="112" font-family="Arial,sans-serif" font-size="26" font-weight="700" fill="url(#g)">Soluções Automotiva</text>
+<text x="180" y="139" font-family="Arial,sans-serif" font-size="14" font-weight="700" fill="#8fa4bc" letter-spacing="2">DIAGNÓSTICO • TECNOLOGIA • REPARAÇÃO</text>
+</svg>

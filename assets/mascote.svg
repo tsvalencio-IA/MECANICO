@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 640" role="img" aria-labelledby="t d">
+<title id="t">Mascote robô thIAguinho Soluções Automotiva</title>
+<desc id="d">Robô mecânico simpático com óculos, barba metálica, uniforme azul e gesto de positivo.</desc>
+<defs>
+  <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f3f8fd"/><stop offset=".45" stop-color="#b9c9d8"/><stop offset="1" stop-color="#73879b"/></linearGradient>
+  <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#153b62"/><stop offset="1" stop-color="#071a2d"/></linearGradient>
+  <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#35d6ff"/><stop offset="1" stop-color="#47e0a5"/></linearGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-opacity=".24"/></filter>
+</defs>
+<style>
+  .bob{transform-origin:260px 330px;animation:bob 3.6s ease-in-out infinite}
+  .thumb{transform-origin:102px 340px;animation:thumb 2.8s ease-in-out infinite}
+  .eye{animation:blink 4.8s infinite;transform-origin:center}
+  .ant{animation:pulse 1.8s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-.4deg)}50%{transform:translateY(-9px) rotate(.5deg)}}
+  @keyframes thumb{0%,78%,100%{transform:rotate(0)}84%{transform:rotate(-9deg)}90%{transform:rotate(6deg)}}
+  @keyframes blink{0%,45%,48%,100%{transform:scaleY(1)}46%,47%{transform:scaleY(.08)}}
+  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+</style>
+<ellipse cx="270" cy="594" rx="150" ry="25" fill="#06101d" opacity=".18"/>
+<g class="bob" filter="url(#shadow)">
+  <path d="M245 65V35" stroke="#6f8496" stroke-width="14" stroke-linecap="round"/>
+  <circle class="ant" cx="245" cy="27" r="14" fill="#35d6ff"/>
+  <path d="M130 133c6-71 62-104 132-104 75 0 131 39 135 113l-8 104c-5 72-62 115-130 115-73 0-127-43-133-115z" fill="url(#metal)" stroke="#50677c" stroke-width="8"/>
+  <path d="M143 201c8 99 56 145 118 145s111-47 120-145c-29 14-59 22-91 22-58 0-96-13-147-22z" fill="#8ea1b2" opacity=".45"/>
+  <path d="M149 142c28-37 62-55 111-55 51 0 87 20 113 59" fill="none" stroke="#1a222a" stroke-width="22" stroke-linecap="round"/>
+  <rect x="151" y="145" width="96" height="68" rx="24" fill="none" stroke="#111922" stroke-width="12"/>
+  <rect x="272" y="145" width="96" height="68" rx="24" fill="none" stroke="#111922" stroke-width="12"/>
+  <path d="M247 171h25" stroke="#111922" stroke-width="10" stroke-linecap="round"/>
+  <circle class="eye" cx="205" cy="179" r="10" fill="#0a1826"/><circle class="eye" cx="318" cy="179" r="10" fill="#0a1826"/>
+  <circle cx="201" cy="174" r="3.5" fill="#35d6ff"/><circle cx="314" cy="174" r="3.5" fill="#35d6ff"/>
+  <path d="M225 225c9 7 22 11 37 11 14 0 26-4 35-11" fill="none" stroke="#364958" stroke-width="8" stroke-linecap="round"/>
+  <path d="M174 229c7 72 42 101 89 101 44 0 79-28 86-97-19 11-31 14-46 18-10 31-70 31-82 0-18-3-31-8-47-22z" fill="#1a232c"/>
+  <path d="M223 278c22 14 53 14 77 0" stroke="#b8c9d8" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="127" cy="206" r="25" fill="#8ca2b4"/><circle cx="396" cy="206" r="25" fill="#8ca2b4"/>
+  <rect x="216" y="339" width="92" height="55" rx="20" fill="#8398aa" stroke="#52697d" stroke-width="7"/>
+  <path d="M129 388c0-48 48-77 104-77h55c62 0 108 33 108 83v143c0 27-20 49-48 49H178c-28 0-49-22-49-49z" fill="url(#navy)" stroke="#0a243d" stroke-width="8"/>
+  <path d="M262 319v269" stroke="#1e4d77" stroke-width="5" opacity=".7"/>
+  <path d="M210 329l52 34 51-34" fill="none" stroke="#315e87" stroke-width="8"/>
+  <g transform="translate(286 407)">
+    <circle cx="30" cy="22" r="20" fill="none" stroke="url(#cyan)" stroke-width="7"/>
+    <path d="M30 0v11M30 33v11M8 22H-3M63 22H52M14 6l8 8M46 38l8 8M46 6l-8 8M14 38l-8 8" stroke="#47e0a5" stroke-width="5" stroke-linecap="round"/>
+    <path d="M24 26 43 7" stroke="#35d6ff" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <text x="284" y="470" fill="#e7f6ff" font-family="Arial,sans-serif" font-size="18" font-weight="700">thIAguinho</text>
+  <text x="284" y="491" fill="#7fdff4" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1">SOLUÇÕES AUTOMOTIVA</text>
+  <g class="thumb">
+    <path d="M132 386c-32-5-54-1-72 20-21 25-23 60-5 82 16 19 42 25 64 12 19-11 30-33 27-58l-2-18c-2-15-3-25-12-38z" fill="url(#metal)" stroke="#50677c" stroke-width="8"/>
+    <path d="M81 418c-9-28-4-54 10-77 9-15 18-25 30-18 14 8 7 29 2 43l-8 22c20-4 43-3 56 10 10 10 9 26-1 36-17 17-62 19-79 10-6-3-8-14-10-26z" fill="#aebdca" stroke="#50677c" stroke-width="7"/>
+  </g>
+  <path d="M393 391c36 15 53 45 53 84v65c0 26-18 45-42 45-24 0-42-18-42-43V441c0-25 10-42 31-50z" fill="url(#metal)" stroke="#50677c" stroke-width="8"/>
+  <rect x="184" y="573" width="63" height="42" rx="14" fill="#1e3349"/><rect x="278" y="573" width="63" height="42" rx="14" fill="#1e3349"/>
+</g>
+</svg>
