@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07111f">
+  <meta name="description" content="Oráculo Automotivo — IA Mecânico baseada em evidências, testes e documentação técnica.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/oracle.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./css/app.css">
+  <title>Oráculo Automotivo</title>
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="./assets/oracle.svg" alt="" class="brand-mark">
+      <div>
+        <strong>ORÁCULO AUTOMOTIVO</strong>
+        <span>IA MECÂNICO • diagnóstico por evidências</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="installBtn" class="ghost small" hidden>Instalar</button>
+      <div class="live-pill"><i></i><span id="engineStatus">motor local ativo</span></div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">MODO OFICINA</div>
+        <h1>Não adivinha. <span>Testa.</span></h1>
+        <p>O sistema cruza veículo, sintoma, DTC, medições e documentação técnica. Cada conclusão mostra de onde veio e qual teste deve vir antes de condenar uma peça.</p>
+      </div>
+      <div class="hero-meter">
+        <span>Biblioteca registrada</span>
+        <strong id="libraryCount">0 fontes</strong>
+        <small id="libraryWeight">carregando inventário...</small>
+      </div>
+    </section>
+
+    <nav class="tabs" aria-label="Navegação principal">
+      <button class="tab active" data-tab="diagnostico">Diagnóstico</button>
+      <button class="tab" data-tab="conhecimento">Conhecimento</button>
+      <button class="tab" data-tab="historico">Histórico</button>
+    </nav>
+
+    <section id="diagnostico" class="panel tab-panel active">
+      <div class="safety-strip">
+        <span class="shield">✓</span>
+        <div><strong>Regra do Oráculo:</strong> peça não é condenada por “parecer”. Primeiro: alimentação, aterramento, sinal, teste dirigido e confirmação.</div>
+      </div>
+
+      <form id="diagnosisForm" class="diagnosis-form">
+        <div class="section-head">
+          <div>
+            <span class="step">01</span>
+            <h2>Identifique o carro</h2>
+          </div>
+          <button type="button" id="resetBtn" class="ghost small">Novo caso</button>
+        </div>
+
+        <div class="grid vehicle-grid">
+          <label>Marca
+            <input id="brand" autocomplete="off" placeholder="Ex.: Renault">
+          </label>
+          <label>Modelo
+            <input id="model" autocomplete="off" placeholder="Ex.: Duster">
+          </label>
+          <label>Ano
+            <input id="year" inputmode="numeric" placeholder="Ex.: 2011">
+          </label>
+          <label>Motor
+            <input id="engine" autocomplete="off" placeholder="Ex.: 1.6 16V K4M">
+          </label>
+          <label>Câmbio
+            <input id="transmission" autocomplete="off" placeholder="Manual / Automático">
+          </label>
+          <label>Quilometragem
+            <input id="mileage" inputmode="numeric" placeholder="Ex.: 145000">
+          </label>
+        </div>
+
+        <div class="section-head compact">
+          <div>
+            <span class="step">02</span>
+            <h2>O que o carro está fazendo?</h2>
+          </div>
+        </div>
+
+        <label class="wide">Sintomas / histórico
+          <textarea id="symptoms" rows="5" placeholder="Conte como mecânico: quando acontece, frio/quente, marcha lenta/carga, o que foi trocado, o que já foi medido..."></textarea>
+        </label>
+
+        <div class="grid evidence-grid">
+          <label>DTCs / códigos
+            <input id="dtcs" autocomplete="off" placeholder="Ex.: P0301, DF059, P0420">
+          </label>
+          <label>Medições já feitas
+            <input id="measurements" autocomplete="off" placeholder="Ex.: combustível 3,5 bar; carga 14,1 V">
+          </label>
+        </div>
+
+        <div class="action-row">
+          <button class="primary" type="submit">
+            <span>ANALISAR COMO MECÂNICO</span>
+            <b>→</b>
+          </button>
+          <span class="microcopy">Resultado = aderência técnica, não “chute de IA”.</span>
+        </div>
+      </form>
+
+      <section id="results" class="results" hidden>
+        <div class="result-header">
+          <div>
+            <div class="eyebrow">RACIOCÍNIO TÉCNICO</div>
+            <h2 id="resultTitle">Diagnóstico priorizado</h2>
+          </div>
+          <button id="copyReport" class="ghost small">Copiar laudo</button>
+        </div>
+
+        <div id="vehicleFingerprint" class="fingerprint"></div>
+
+        <div class="result-grid">
+          <div class="result-main">
+            <article class="card verdict-card">
+              <div class="card-title">
+                <span>Hipóteses priorizadas</span>
+                <small>ordenadas por aderência às evidências</small>
+              </div>
+              <div id="hypotheses"></div>
+            </article>
+
+            <article class="card test-card">
+              <div class="card-title">
+                <span>Próximo teste</span>
+                <small>responda o resultado e o Oráculo recalcula o caminho</small>
+              </div>
+              <div id="nextTest"></div>
+            </article>
+          </div>
+
+          <aside class="result-side">
+            <article class="card">
+              <div class="card-title"><span>Fontes usadas</span><small>rastreabilidade</small></div>
+              <div id="usedSources" class="source-mini-list"></div>
+            </article>
+            <article class="card">
+              <div class="card-title"><span>Alertas</span><small>antes de trocar peça</small></div>
+              <div id="warnings" class="warning-list"></div>
+            </article>
+          </aside>
+        </div>
+      </section>
+    </section>
+
+    <section id="conhecimento" class="panel tab-panel">
+      <div class="section-head">
+        <div>
+          <span class="step">KB</span>
+          <h2>Cérebro técnico</h2>
+        </div>
+        <div class="kb-stats" id="kbStats"></div>
+      </div>
+      <p class="panel-intro">Fontes documentais indexadas entram como evidência. Arquivos gigantes ainda não extraídos aparecem como “registrados”, nunca como conhecimento já lido.</p>
+      <div class="kb-toolbar">
+        <input id="kbSearch" placeholder="Buscar DTC, componente, modelo, sistema, fonte...">
+        <select id="kbFilter">
+          <option value="all">Todas</option>
+          <option value="indexed">Indexadas</option>
+          <option value="registered">Registradas</option>
+        </select>
+      </div>
+      <div id="sourceCards" class="source-cards"></div>
+      <div class="card architecture-card">
+        <div class="card-title"><span>Como o cérebro decide</span><small>pipeline de evidência</small></div>
+        <div class="pipeline">
+          <div><b>1</b><span>Veículo</span></div><i>→</i>
+          <div><b>2</b><span>Sintoma</span></div><i>→</i>
+          <div><b>3</b><span>DTC</span></div><i>→</i>
+          <div><b>4</b><span>Fonte</span></div><i>→</i>
+          <div><b>5</b><span>Teste</span></div><i>→</i>
+          <div><b>6</b><span>Confirmação</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="historico" class="panel tab-panel">
+      <div class="section-head">
+        <div>
+          <span class="step">OS</span>
+          <h2>Casos diagnosticados</h2>
+        </div>
+        <button id="clearHistory" class="ghost small danger">Limpar local</button>
+      </div>
+      <p class="panel-intro">Os casos ficam salvos neste navegador por enquanto. A estrutura já está pronta para futura sincronização com Firestore.</p>
+      <div id="historyList" class="history-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>ORÁCULO AUTOMOTIVO • v0.1</span>
+    <strong>Powered by thIAguinho Soluções Digitais</strong>
+  </footer>
+
+  <script src="./data/knowledge.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>
