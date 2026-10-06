@@ -1,0 +1,299 @@
+#!/usr/bin/env python3
+import argparse, gzip, hashlib, json, re, shutil, subprocess, zipfile
+from pathlib import Path
+
+TEXT_EXT = {".txt",".md",".csv",".tsv",".json",".jsonl",".xml",".html",".htm",".ini",".cfg",".conf",".yaml",".yml",".log",".sql",".rtf"}
+ARCHIVE_EXT = {".zip",".rar",".7z"}
+DTC_RE = re.compile(r"\b(?:P|B|C|U)\d{4}\b|\bDF\d{3,4}\b", re.I)
+MAX_TEXT_CHARS = 30_000_000
+CHUNK_CHARS = 6000
+OVERLAP = 350
+SHARD_TARGET = 18_000_000
+
+def sha256_file(p):
+    h=hashlib.sha256()
+    with p.open("rb") as f:
+        for b in iter(lambda:f.read(1024*1024), b""):
+            h.update(b)
+    return h.hexdigest()
+
+def safe_dest(root, name):
+    root=root.resolve()
+    dest=(root / name).resolve()
+    if root != dest and root not in dest.parents:
+        raise ValueError("path traversal: "+name)
+    return dest
+
+def extract_zip(src, dst, report):
+    dst.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(src) as z:
+        for info in z.infolist():
+            name=info.filename.replace("\\","/")
+            if not name or name.endswith("/"):
+                continue
+            mode=(info.external_attr >> 16) & 0xF000
+            if mode == 0xA000:
+                report["extract_errors"].append({"file":name,"error":"symlink skipped"})
+                continue
+            try:
+                out=safe_dest(dst,name)
+            except Exception as e:
+                report["extract_errors"].append({"file":name,"error":str(e)})
+                continue
+            out.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                with z.open(info) as fi, out.open("wb") as fo:
+                    shutil.copyfileobj(fi,fo,1024*1024)
+            except Exception as e:
+                report["extract_errors"].append({"file":name,"error":str(e)})
+
+def extract_nested(root, report, max_depth=2):
+    seen=set()
+    for _depth in range(max_depth):
+        archives=[p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in ARCHIVE_EXT and p not in seen]
+        if not archives:
+            break
+        for p in archives:
+            seen.add(p)
+            rel=p.relative_to(root).as_posix()
+            out=root / "__nested__" / re.sub(r"[^A-Za-z0-9._-]+","_",rel)[:180]
+            out.mkdir(parents=True,exist_ok=True)
+            try:
+                subprocess.run(["7z","x","-y",str(p),"-o"+str(out)],check=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,timeout=1800)
+                report["nested_archives"].append({"path":rel,"status":"extracted","to":out.relative_to(root).as_posix()})
+            except Exception as e:
+                report["nested_archives"].append({"path":rel,"status":"failed","error":str(e)})
+
+def decode_bytes(data):
+    for enc in ("utf-8","utf-8-sig","cp1252","latin1"):
+        try:
+            return data.decode(enc)
+        except Exception:
+            pass
+    return data.decode("utf-8","ignore")
+
+def clean_text(s):
+    s=s.replace("\x00"," ")
+    s=re.sub(r"[ \t]+"," ",s)
+    s=re.sub(r"\n{4,}","\n\n\n",s)
+    return s.strip()
+
+def pdf_text(path):
+    from pypdf import PdfReader
+    r=PdfReader(str(path), strict=False)
+    for i,page in enumerate(r.pages,1):
+        try:
+            t=clean_text(page.extract_text() or "")
+        except Exception:
+            t=""
+        if t:
+            yield {"page":i,"text":t[:MAX_TEXT_CHARS]}
+
+def docx_text(path):
+    from docx import Document
+    d=Document(str(path))
+    parts=[p.text for p in d.paragraphs if p.text]
+    for table in d.tables:
+        for row in table.rows:
+            parts.append(" | ".join(cell.text for cell in row.cells))
+    return clean_text("\n".join(parts))[:MAX_TEXT_CHARS]
+
+def pptx_text(path):
+    from pptx import Presentation
+    prs=Presentation(str(path))
+    parts=[]
+    for si,slide in enumerate(prs.slides,1):
+        for shape in slide.shapes:
+            if hasattr(shape,"text") and shape.text:
+                parts.append(f"[slide {si}] "+shape.text)
+    return clean_text("\n".join(parts))[:MAX_TEXT_CHARS]
+
+def xlsx_text(path):
+    import openpyxl
+    wb=openpyxl.load_workbook(str(path),read_only=True,data_only=True)
+    out=[]
+    used=0
+    for ws in wb.worksheets:
+        out.append(f"[sheet {ws.title}]")
+        for row in ws.iter_rows(values_only=True):
+            line=" | ".join("" if v is None else str(v) for v in row)
+            if line.strip():
+                out.append(line)
+                used += len(line)+1
+                if used>=MAX_TEXT_CHARS:
+                    return clean_text("\n".join(out))[:MAX_TEXT_CHARS]
+    return clean_text("\n".join(out))[:MAX_TEXT_CHARS]
+
+def html_text(path):
+    from bs4 import BeautifulSoup
+    data=path.read_bytes()[:50_000_000]
+    soup=BeautifulSoup(decode_bytes(data),"html.parser")
+    return clean_text(soup.get_text("\n"))[:MAX_TEXT_CHARS]
+
+def extract_text(path):
+    ext=path.suffix.lower()
+    if ext==".pdf":
+        return "pages", list(pdf_text(path))
+    if ext==".docx":
+        return "text", docx_text(path)
+    if ext==".pptx":
+        return "text", pptx_text(path)
+    if ext in {".xlsx",".xlsm"}:
+        return "text", xlsx_text(path)
+    if ext in {".html",".htm"}:
+        return "text", html_text(path)
+    if ext in TEXT_EXT:
+        return "text", clean_text(decode_bytes(path.read_bytes()[:50_000_000]))[:MAX_TEXT_CHARS]
+    return "none", None
+
+def chunks(text):
+    if not text:
+        return
+    n=len(text)
+    i=0
+    while i<n:
+        end=min(n,i+CHUNK_CHARS)
+        yield text[i:end]
+        if end==n:
+            break
+        i=max(i+1,end-OVERLAP)
+
+class Shards:
+    def __init__(self,outdir):
+        self.outdir=outdir
+        outdir.mkdir(parents=True,exist_ok=True)
+        self.idx=0
+        self.bytes=0
+        self.fp=None
+        self.path=None
+        self.manifest=[]
+    def rotate(self):
+        if self.fp:
+            self.fp.close()
+            self.manifest[-1]["bytes"]=self.path.stat().st_size
+        self.path=self.outdir/f"shard-{self.idx:04d}.jsonl.gz"
+        self.fp=gzip.open(self.path,"wt",encoding="utf-8",compresslevel=6)
+        self.manifest.append({"file":self.path.name,"records":0,"bytes":0})
+        self.idx+=1
+        self.bytes=0
+    def add(self,obj):
+        line=json.dumps(obj,ensure_ascii=False,separators=(",",":"))+"\n"
+        if self.fp is None or self.bytes+len(line)>SHARD_TARGET:
+            self.rotate()
+        self.fp.write(line)
+        self.bytes+=len(line)
+        self.manifest[-1]["records"]+=1
+    def close(self):
+        if self.fp:
+            self.fp.close()
+            self.manifest[-1]["bytes"]=self.path.stat().st_size
+            self.fp=None
+
+def main():
+    ap=argparse.ArgumentParser()
+    ap.add_argument("--archive",required=True)
+    ap.add_argument("--extract-dir",required=True)
+    ap.add_argument("--out",required=True)
+    ap.add_argument("--nested-depth",type=int,default=2)
+    args=ap.parse_args()
+    archive=Path(args.archive)
+    root=Path(args.extract_dir)
+    out=Path(args.out)
+    out.mkdir(parents=True,exist_ok=True)
+    report={"archive":archive.name,"archive_bytes":archive.stat().st_size,"extract_errors":[],"nested_archives":[]}
+    report["archive_sha256"]=sha256_file(archive)
+
+    with zipfile.ZipFile(archive) as z:
+        infos=[i for i in z.infolist() if not i.is_dir()]
+        report["zip_entries"]=len(infos)
+        report["zip_uncompressed_bytes"]=sum(i.file_size for i in infos)
+        report["zip_largest_entry_bytes"]=max((i.file_size for i in infos),default=0)
+
+    extract_zip(archive,root,report)
+    extract_nested(root,report,args.nested_depth)
+
+    files=[p for p in root.rglob("*") if p.is_file()]
+    report["extracted_files"]=len(files)
+    report["extracted_bytes"]=sum(p.stat().st_size for p in files)
+
+    catalog=[]
+    dtc_index={}
+    ext_stats={}
+    extractor_stats={"indexed_files":0,"indexed_chunks":0,"unreadable_files":0}
+    shards=Shards(out/"brain")
+
+    for n,p in enumerate(files,1):
+        rel=p.relative_to(root).as_posix()
+        size=p.stat().st_size
+        ext=p.suffix.lower() or "(none)"
+        ext_stats.setdefault(ext,{"files":0,"bytes":0})
+        ext_stats[ext]["files"]+=1
+        ext_stats[ext]["bytes"]+=size
+        meta={"path":rel,"size":size,"ext":ext,"sha256":sha256_file(p)}
+        kind="none"
+        payload=None
+        err=None
+        try:
+            kind,payload=extract_text(p)
+        except Exception as e:
+            err=str(e)
+            extractor_stats["unreadable_files"]+=1
+        meta["indexed"]=bool(payload)
+        if err:
+            meta["extract_error"]=err[:500]
+        catalog.append(meta)
+
+        records=[]
+        if kind=="pages" and payload:
+            for pg in payload:
+                for ci,ch in enumerate(chunks(pg["text"])):
+                    records.append({"path":rel,"page":pg["page"],"chunk":ci,"text":ch})
+        elif kind=="text" and payload:
+            for ci,ch in enumerate(chunks(payload)):
+                records.append({"path":rel,"chunk":ci,"text":ch})
+
+        if records:
+            extractor_stats["indexed_files"]+=1
+
+        for rec in records:
+            rec["sha256"]=meta["sha256"]
+            shards.add(rec)
+            extractor_stats["indexed_chunks"]+=1
+            for code in DTC_RE.findall(rec["text"]):
+                code=code.upper()
+                bucket=dtc_index.setdefault(code,[])
+                if len(bucket)<250 and rel not in bucket:
+                    bucket.append(rel)
+
+        if n%100==0:
+            print(f"indexed {n}/{len(files)} files",flush=True)
+
+    shards.close()
+    report["extractor"]=extractor_stats
+    report["extensions"]=ext_stats
+    report["shards"]=shards.manifest
+
+    (out/"manifest.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+    with gzip.open(out/"catalog.jsonl.gz","wt",encoding="utf-8",compresslevel=6) as f:
+        for row in catalog:
+            f.write(json.dumps(row,ensure_ascii=False,separators=(",",":"))+"\n")
+    (out/"dtc-index.json").write_text(json.dumps(dtc_index,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+    (out/"README.md").write_text(
+        "# thIAguinho Knowledge Branch\n\n"
+        "Indice tecnico gerado automaticamente a partir do acervo CONHECIMENTO.ZIP.\n"
+        "Os arquivos-fonte extraidos sao preservados em partes compactadas na Release knowledge-v1.\n"
+        "O branch knowledge guarda o catalogo e os shards textuais pesquisaveis.\n",
+        encoding="utf-8"
+    )
+
+    print(json.dumps({
+        "archive_bytes":report["archive_bytes"],
+        "zip_entries":report["zip_entries"],
+        "zip_uncompressed_bytes":report["zip_uncompressed_bytes"],
+        "extracted_files":report["extracted_files"],
+        "extracted_bytes":report["extracted_bytes"],
+        "extractor":report["extractor"]
+    },indent=2))
+
+if __name__=="__main__":
+    main()

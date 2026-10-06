@@ -1,0 +1,118 @@
+name: Import CONHECIMENTO knowledge
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/import-conhecimento.yml"
+      - "scripts/import_knowledge.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "knowledge-import"
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      DRIVE_FILE_ID: "1NNzN0Zhw-G8IiTkveWFU4N-uLk4Hq5jD"
+      RELEASE_TAG: "knowledge-v1"
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout importer
+        uses: actions/checkout@v6
+
+      - name: Free runner disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc || true
+          sudo apt-get clean
+          df -h
+
+      - name: Install import tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install gdown pypdf python-docx openpyxl python-pptx beautifulsoup4
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq p7zip-full zstd
+          gh --version
+          7z | head -n 3
+
+      - name: Download CONHECIMENTO.ZIP from Drive
+        run: |
+          mkdir -p /tmp/thiaguinho-import
+          gdown --id "$DRIVE_FILE_ID" -O /tmp/thiaguinho-import/CONHECIMENTO.ZIP
+          test -s /tmp/thiaguinho-import/CONHECIMENTO.ZIP
+          ls -lh /tmp/thiaguinho-import/CONHECIMENTO.ZIP
+          sha256sum /tmp/thiaguinho-import/CONHECIMENTO.ZIP
+          df -h
+
+      - name: Extract and build searchable brain
+        run: |
+          mkdir -p /tmp/thiaguinho-source /tmp/thiaguinho-brain
+          python scripts/import_knowledge.py             --archive /tmp/thiaguinho-import/CONHECIMENTO.ZIP             --extract-dir /tmp/thiaguinho-source             --out /tmp/thiaguinho-brain             --nested-depth 2
+          cat /tmp/thiaguinho-brain/manifest.json
+          du -sh /tmp/thiaguinho-source /tmp/thiaguinho-brain
+          df -h
+
+      - name: Validate generated knowledge
+        run: |
+          test -s /tmp/thiaguinho-brain/manifest.json
+          test -s /tmp/thiaguinho-brain/catalog.jsonl.gz
+          test -s /tmp/thiaguinho-brain/dtc-index.json
+          test -d /tmp/thiaguinho-brain/brain
+          python - <<'PY'
+          import json
+          p="/tmp/thiaguinho-brain/manifest.json"
+          m=json.load(open(p,encoding="utf-8"))
+          assert m["extracted_files"] > 0
+          assert m["zip_entries"] > 0
+          assert m["archive_bytes"] > 2_000_000_000
+          print("IMPORT OK", m["zip_entries"], "zip entries;", m["extracted_files"], "extracted files;", m["extractor"])
+          PY
+
+      - name: Package every extracted source file for GitHub Release
+        run: |
+          rm -f /tmp/thiaguinho-import/CONHECIMENTO.ZIP
+          mkdir -p /tmp/thiaguinho-release
+          cp /tmp/thiaguinho-brain/manifest.json /tmp/thiaguinho-release/knowledge-manifest.json
+          cp /tmp/thiaguinho-brain/dtc-index.json /tmp/thiaguinho-release/dtc-index.json
+          tar -C /tmp/thiaguinho-source -cf - .             | zstd -10 -T0             | split -b 1800M -d -a 3 - /tmp/thiaguinho-release/knowledge-source.tar.zst.part-
+          ls -lh /tmp/thiaguinho-release
+          df -h
+
+      - name: Publish raw extracted knowledge in GitHub Release
+        run: |
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
+          gh release create "$RELEASE_TAG" /tmp/thiaguinho-release/*             --title "thIAguinho - CONHECIMENTO importado"             --notes "Acervo CONHECIMENTO.ZIP extraido automaticamente. Os arquivos-fonte completos estao preservados em partes tar.zst; manifest e indice de DTC acompanham a release."
+
+      - name: Publish searchable knowledge branch
+        run: |
+          rm -rf /tmp/knowledge-branch
+          mkdir -p /tmp/knowledge-branch
+          cp -a /tmp/thiaguinho-brain/. /tmp/knowledge-branch/
+          cd /tmp/knowledge-branch
+          git init
+          git checkout -b knowledge
+          git config user.name "thIAguinho Knowledge Bot"
+          git config user.email "actions@github.com"
+          gh auth setup-git
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git add .
+          git commit -m "knowledge: import CONHECIMENTO.ZIP"
+          git push origin HEAD:knowledge --force
+          git rev-parse HEAD
+
+      - name: Final report
+        run: |
+          echo "Knowledge branch:"
+          echo "https://github.com/${GITHUB_REPOSITORY}/tree/knowledge"
+          echo "Release:"
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$RELEASE_TAG"
+          du -sh /tmp/thiaguinho-brain
+          df -h
