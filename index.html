@@ -25,7 +25,7 @@
     <div class="top-actions">
       <button id="themeBtn" class="ghost small theme-btn" type="button" aria-label="Alternar tema" title="Tema automático">◐ <span>Auto</span></button>
       <button id="installBtn" class="ghost small" hidden>Instalar</button>
-      <div class="live-pill"><i></i><span id="engineStatus">motor local ativo</span></div>
+      <div class="live-pill" id="cloudStatus"><i></i><span id="engineStatus">conectando histórico...</span></div>
     </div>
   </header>
 
@@ -34,28 +34,22 @@
       <div>
         <div class="eyebrow">MODO OFICINA</div>
         <h1>Não adivinha. <span>Testa.</span></h1>
-        <p>O sistema cruza veículo, sintoma, DTC, medições e documentação técnica. Cada conclusão mostra de onde veio e qual teste deve vir antes de condenar uma peça.</p>
+        <p>Conte o defeito como você contaria para outro mecânico. O Thiaguinho cruza sintomas, códigos, medições e o conhecimento técnico interno para indicar o próximo teste.</p>
       </div>
       <div class="hero-side">
         <div class="mascot-card" id="heroMascotCard">
-          <img src="./assets/mascote.svg" alt="Mascote robô mecânico da thIAguinho Soluções Automotiva" class="mascot-hero">
+          <img src="./assets/mascote.svg" alt="Thiaguinho, assistente mecânico virtual" class="mascot-hero">
           <div>
-            <span class="mascot-kicker">THIABOT • MECÂNICO VIRTUAL</span>
-            <strong>Me diga o sintoma. Eu organizo os testes.</strong>
-            <button type="button" id="heroAskBtn" class="ghost small">Conversar com o Thiabot</button>
+            <span class="mascot-kicker">THIAGUINHO • IA MECÂNICO</span>
+            <strong>Me mostre o defeito. Eu te guio no diagnóstico.</strong>
+            <button type="button" id="heroAskBtn" class="ghost small">Falar com o Thiaguinho</button>
           </div>
-        </div>
-        <div class="hero-meter">
-          <span>Biblioteca registrada</span>
-          <strong id="libraryCount">0 fontes</strong>
-          <small id="libraryWeight">carregando inventário...</small>
         </div>
       </div>
     </section>
 
     <nav class="tabs" aria-label="Navegação principal">
       <button class="tab active" data-tab="diagnostico">Diagnóstico</button>
-      <button class="tab" data-tab="conhecimento">Conhecimento</button>
       <button class="tab" data-tab="historico">Histórico</button>
     </nav>
 
@@ -115,6 +109,16 @@
           </label>
         </div>
 
+        <section class="media-capture">
+          <div class="media-copy">
+            <strong>Foto ou vídeo do scanner</strong>
+            <span>A mídia é analisada temporariamente neste aparelho e não é enviada ao Firebase.</span>
+          </div>
+          <label class="media-button" for="mediaInput">📷 Selecionar foto/vídeo</label>
+          <input id="mediaInput" type="file" accept="image/*,video/*" multiple hidden>
+          <div id="mediaQueue" class="media-queue"></div>
+        </section>
+
         <div class="action-row">
           <button class="primary" type="submit">
             <span>ANALISAR COMO MECÂNICO</span>
@@ -156,10 +160,6 @@
 
           <aside class="result-side">
             <article class="card">
-              <div class="card-title"><span>Fontes usadas</span><small>rastreabilidade</small></div>
-              <div id="usedSources" class="source-mini-list"></div>
-            </article>
-            <article class="card">
               <div class="card-title"><span>Alertas</span><small>antes de trocar peça</small></div>
               <div id="warnings" class="warning-list"></div>
             </article>
@@ -168,52 +168,21 @@
       </section>
     </section>
 
-    <section id="conhecimento" class="panel tab-panel">
-      <div class="section-head">
-        <div>
-          <span class="step">KB</span>
-          <h2>Cérebro técnico</h2>
-        </div>
-        <div class="kb-stats" id="kbStats"></div>
-      </div>
-      <p class="panel-intro">Fontes documentais indexadas entram como evidência. Arquivos gigantes ainda não extraídos aparecem como “registrados”, nunca como conhecimento já lido.</p>
-      <div class="kb-toolbar">
-        <input id="kbSearch" placeholder="Buscar DTC, componente, modelo, sistema, fonte...">
-        <select id="kbFilter">
-          <option value="all">Todas</option>
-          <option value="indexed">Indexadas</option>
-          <option value="registered">Registradas</option>
-        </select>
-      </div>
-      <div id="sourceCards" class="source-cards"></div>
-      <div class="card architecture-card">
-        <div class="card-title"><span>Como o cérebro decide</span><small>pipeline de evidência</small></div>
-        <div class="pipeline">
-          <div><b>1</b><span>Veículo</span></div><i>→</i>
-          <div><b>2</b><span>Sintoma</span></div><i>→</i>
-          <div><b>3</b><span>DTC</span></div><i>→</i>
-          <div><b>4</b><span>Fonte</span></div><i>→</i>
-          <div><b>5</b><span>Teste</span></div><i>→</i>
-          <div><b>6</b><span>Confirmação</span></div>
-        </div>
-      </div>
-    </section>
-
     <section id="historico" class="panel tab-panel">
       <div class="section-head">
         <div>
           <span class="step">OS</span>
           <h2>Casos diagnosticados</h2>
         </div>
-        <button id="clearHistory" class="ghost small danger">Limpar local</button>
+        <button id="clearHistory" class="ghost small danger">Limpar histórico</button>
       </div>
-      <p class="panel-intro">Os casos ficam salvos neste navegador por enquanto. A estrutura já está pronta para futura sincronização com Firestore.</p>
+      <p class="panel-intro">Histórico salvo no Realtime Database pelo acesso anônimo deste aparelho. Fotos e vídeos não são armazenados.</p>
       <div id="historyList" class="history-list"></div>
     </section>
   </main>
 
   <aside class="mascot-assistant" id="mascotAssistant" aria-live="polite">
-    <button id="mascotFab" class="mascot-fab" type="button" aria-label="Abrir Thiabot">
+    <button id="mascotFab" class="mascot-fab" type="button" aria-label="Abrir Thiaguinho">
       <img src="./assets/mascote.svg" alt="">
       <span class="assistant-pulse"></span>
     </button>
@@ -221,7 +190,7 @@
       <header class="mascot-panel-head">
         <div class="mascot-id">
           <img src="./assets/mascote.svg" alt="">
-          <div><strong>Thiabot</strong><span>Assistente da thIAguinho Soluções Automotiva</span></div>
+          <div><strong>Thiaguinho</strong><span>Assistente da thIAguinho Soluções Automotiva</span></div>
         </div>
         <div class="mascot-head-actions">
           <button id="speakLastBtn" type="button" class="icon-btn" title="Ouvir última resposta" aria-label="Ouvir última resposta">🔊</button>
@@ -229,13 +198,13 @@
         </div>
       </header>
       <div id="mascotMessages" class="mascot-messages">
-        <div class="msg bot"><b>Thiabot</b><p>Me passe veículo, sintoma, código de falha ou medição. Eu cruzo isso com o que já está indexado e separo hipótese de evidência.</p></div>
+        <div class="msg bot"><b>Thiaguinho</b><p>Me passe veículo, sintoma, código de falha ou medição. Eu cruzo isso com o que já está indexado e separo hipótese de evidência.</p></div>
       </div>
       <form id="mascotForm" class="mascot-form">
-        <input id="mascotInput" autocomplete="off" placeholder="Ex.: Duster 1.6 falha P0301..." aria-label="Pergunta para o Thiabot">
+        <input id="mascotInput" autocomplete="off" placeholder="Ex.: Duster 1.6 falha P0301..." aria-label="Pergunta para o Thiaguinho">
         <button type="submit" class="primary mascot-send" aria-label="Enviar pergunta">➜</button>
       </form>
-      <div class="assistant-note">Motor local v0.2 • responde apenas com a base indexada e heurísticas declaradas.</div>
+      <div class="assistant-note">IA Mecânico • conhecimento técnico interno • histórico no Realtime Database.</div>
     </section>
   </aside>
 
@@ -244,7 +213,13 @@
     <strong>Powered by thIAguinho Soluções Automotiva</strong>
   </footer>
 
+  <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
   <script src="./data/knowledge.js"></script>
+  <script src="./js/firebase.js"></script>
+  <script src="./js/media.js"></script>
   <script src="./js/app.js"></script>
 </body>
 </html>

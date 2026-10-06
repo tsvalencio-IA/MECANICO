@@ -110,3 +110,19 @@ body.mascot-talking .mascot-fab{animation:talkBob .7s ease-in-out infinite alter
 }
 
 html[data-theme="light"] .brand-logo{filter:brightness(.42) saturate(1.35) contrast(1.08)}
+
+/* v0.3 — interface enxuta, mídia temporária e histórico Realtime Database */
+.hero{grid-template-columns:minmax(0,1fr) minmax(260px,360px)}
+.hero-side{width:100%}
+.mascot-card{min-height:170px}
+.media-capture{margin-top:14px;border:1px dashed var(--line);border-radius:16px;padding:14px;background:rgba(53,214,255,.035);display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+.media-copy strong{display:block;font-size:.82rem}.media-copy span{display:block;color:var(--muted);font-size:.68rem;line-height:1.45;margin-top:4px}
+.media-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:10px 13px;border-radius:12px;border:1px solid var(--line);background:var(--surface-soft);color:var(--text);cursor:pointer;font-size:.75rem;font-weight:850}
+.media-queue{grid-column:1/-1;display:grid;gap:8px}
+.media-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 11px;border-radius:12px;background:var(--surface-strong);border:1px solid var(--line)}
+.media-item>div{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}.media-item strong{font-size:.72rem}.media-item small{font-size:.64rem;color:var(--muted)}.media-item span{font-size:.62rem;color:var(--cyan);font-weight:900}
+.media-item button{border:0;background:transparent;color:var(--muted);font-size:1.1rem;cursor:pointer}
+.result-grid{grid-template-columns:minmax(0,1.8fr) minmax(260px,.62fr)}
+#cloudStatus i{background:var(--green)}
+@media(max-width:840px){.hero{grid-template-columns:1fr}.hero-side{max-width:none}.result-grid{grid-template-columns:1fr}}
+@media(max-width:560px){.media-capture{grid-template-columns:1fr}.media-button{width:100%}.mascot-card{min-height:138px}}

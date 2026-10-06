@@ -1,7 +1,7 @@
 (function(){
   "use strict";
   var KB = window.ORACLE_KNOWLEDGE || {sources:[],rules:[],dtcs:{},philosophy:[]};
-  var state = {ranked:[], tests:[], testIndex:0, testLog:[], currentCase:null, deferredInstall:null};
+  var state = {ranked:[], tests:[], testIndex:0, testLog:[], currentCase:null, deferredInstall:null, mediaAnalyses:[], cloudHistory:null};
 
   function $(id){ return document.getElementById(id); }
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[c];});}
@@ -28,33 +28,10 @@
     });
   }
 
-  function initInventory(){
-    var indexed=KB.sources.filter(function(s){return s.state==="indexed";}).length;
-    var registered=KB.sources.filter(function(s){return s.state==="registered";}).length;
-    $("libraryCount").textContent=KB.sources.length+" fontes";
-    $("libraryWeight").textContent=indexed+" indexadas • "+registered+" aguardando extração";
-    $("kbStats").textContent=indexed+" indexadas / "+registered+" registradas";
-    renderSources();
-  }
-
-  function renderSources(){
-    var q=norm($("kbSearch").value);
-    var filter=$("kbFilter").value;
-    var items=KB.sources.filter(function(s){
-      if(filter!=="all" && s.state!==filter) return false;
-      var hay=norm([s.title,s.type,s.ref,s.notes,(s.vehicles||[]).join(" "),(s.systems||[]).join(" ")].join(" "));
-      return !q || hay.indexOf(q)>=0 || words(q).every(function(w){return hay.indexOf(w)>=0;});
-    });
-    $("sourceCards").innerHTML=items.map(function(s){
-      var meta=[];
-      if(s.pages) meta.push(s.pages+" páginas");
-      if(s.size) meta.push(s.size);
-      if(s.ref) meta.push(s.ref);
-      return '<article class="source-card"><div class="source-top"><div><h3>'+esc(s.title)+'</h3><div class="source-type">'+esc(s.type)+'</div></div><span class="badge '+s.state+'">'+(s.state==="indexed"?"INDEXADA":"REGISTRADA")+'</span></div><p>'+esc(s.notes)+'</p><div class="source-meta">'+meta.map(function(m){return "<span>"+esc(m)+"</span>";}).join("")+'</div></article>';
-    }).join("") || '<div class="empty">Nenhuma fonte encontrada.</div>';
-  }
-
   function getCase(){
+    var mediaText=state.mediaAnalyses.map(function(x){return x.text||"";}).join("\n").trim();
+    var mediaCodes=window.ORACLE_MEDIA ? ORACLE_MEDIA.detectCodes(mediaText) : [];
+    var manualCodes=uniq(($("dtcs").value.toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[]));
     return {
       id:"CASE-"+Date.now(),
       createdAt:now(),
@@ -65,8 +42,9 @@
       transmission:$("transmission").value.trim(),
       mileage:$("mileage").value.trim(),
       symptoms:$("symptoms").value.trim(),
-      dtcs:uniq(($("dtcs").value.toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[])),
-      measurements:$("measurements").value.trim()
+      dtcs:uniq(manualCodes.concat(mediaCodes)),
+      measurements:[$("measurements").value.trim(),mediaText ? "Leitura visual temporária do scanner: "+mediaText : ""].filter(Boolean).join("\n"),
+      mediaAnalysis:state.mediaAnalyses.map(function(x){return {type:x.kind,text:(x.text||"").slice(0,4000),codes:x.codes||[]};})
     };
   }
 
@@ -139,12 +117,6 @@
     top.forEach(function(item){ (item.rule.tests||[]).forEach(function(t){if(!state.tests.some(function(x){return x.id===t.id;}))state.tests.push(t);}); });
     renderNextTest();
 
-    var sourceIds=uniq([].concat.apply([],top.map(function(x){return x.rule.sourceIds||[];})));
-    var sources=sourceIds.map(sourceById).filter(Boolean);
-    $("usedSources").innerHTML=sources.length?sources.map(function(s){
-      return '<div class="source-mini"><strong>'+esc(s.title)+'</strong><small>'+esc(s.ref+" • "+s.type)+'</small></div>';
-    }).join(""):'<div class="source-mini"><strong>Heurística de triagem</strong><small>Sem fonte documental específica selecionada.</small></div>';
-
     var warns=uniq([].concat.apply([],top.map(function(x){return x.rule.warnings||[];})));
     $("warnings").innerHTML=warns.concat(["Confiança exibida = aderência das evidências; não é probabilidade estatística de defeito."]).map(function(w){return "<div>⚠ "+esc(w)+"</div>";}).join("");
     $("results").hidden=false;$("results").scrollIntoView({behavior:"smooth",block:"start"});
@@ -186,7 +158,8 @@
   }
 
   function resetForm(){
-    $("diagnosisForm").reset();$("results").hidden=true;state.currentCase=null;state.ranked=[];state.tests=[];state.testLog=[];
+    $("diagnosisForm").reset();$("results").hidden=true;state.currentCase=null;state.ranked=[];state.tests=[];state.testLog=[];state.mediaAnalyses=[];
+    var q=$("mediaQueue"); if(q) q.innerHTML="";
     window.scrollTo({top:0,behavior:"smooth"});
   }
 
@@ -209,9 +182,14 @@
 
   $("diagnosisForm").addEventListener("submit",function(e){e.preventDefault();var c=getCase();renderDiagnosis(c,analyze(c));});
   $("resetBtn").addEventListener("click",resetForm);
-  $("kbSearch").addEventListener("input",renderSources);
-  $("kbFilter").addEventListener("change",renderSources);
-  $("clearHistory").addEventListener("click",function(){localStorage.removeItem("oracle_cases");renderHistory();toast("Histórico local limpo");});
+  if($("clearHistory")) $("clearHistory").addEventListener("click",function(){
+    localStorage.removeItem("oracle_cases");
+    state.cloudHistory=[];
+    renderHistory([]);
+    if(window.ORACLE_FIREBASE){
+      ORACLE_FIREBASE.clearCases().then(function(){toast("Histórico apagado");}).catch(function(){toast("Histórico local apagado");});
+    }else toast("Histórico local apagado");
+  });
   $("copyReport").addEventListener("click",function(){navigator.clipboard.writeText(makeReport()).then(function(){toast("Laudo copiado");});});
 
   window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
@@ -262,7 +240,7 @@
       var el=document.createElement("div");
       el.className="msg "+role;
       var b=document.createElement("b");
-      b.textContent=role==="bot"?"Thiabot":"Você";
+      b.textContent=role==="bot"?"Thiaguinho":"Você";
       var p=document.createElement("p");
       p.textContent=text;
       p.style.whiteSpace="pre-line";
@@ -289,12 +267,10 @@
         return "Estou pronto. Me diga o carro e o defeito. Se tiver DTC, tensão, pressão, temperatura ou algo já trocado, mande junto.";
       }
       if(n.indexOf("quem e voce")>=0 || n.indexOf("quem é você")>=0 || n.indexOf("seu nome")>=0){
-        return "Sou o Thiabot, mascote técnico da thIAguinho Soluções Automotiva. Minha função é organizar o diagnóstico por evidências: fonte, hipótese, teste e confirmação.";
+        return "Sou o Thiaguinho, mascote técnico da thIAguinho Soluções Automotiva. Minha função é organizar o diagnóstico por evidências: fonte, hipótese, teste e confirmação.";
       }
       if(n.indexOf("o que sabe")>=0 || n.indexOf("base")>=0 || n.indexOf("fontes")>=0 || n.indexOf("conhecimento")>=0){
-        var indexed=KB.sources.filter(function(s){return s.state==="indexed";});
-        var registered=KB.sources.filter(function(s){return s.state==="registered";});
-        return "Hoje tenho "+indexed.length+" fontes indexadas entrando no raciocínio e "+registered.length+" acervos grandes registrados aguardando extração. Eu não trato arquivo apenas registrado como se já tivesse sido lido.";
+        return "Meu conhecimento técnico fica no cérebro interno. Na tela eu mostro apenas o diagnóstico, os testes e a conclusão — sem expor nomes de arquivos ou bases.";
       }
 
       var codes=uniq((q.toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[]));
@@ -308,8 +284,7 @@
 
       if(dtcHits.length){
         out.push(dtcHits.slice(0,3).map(function(d){
-          var s=sourceById(d.source);
-          return d.code+" — "+d.label+(d.aliases.length?" (equivalência: "+d.aliases.join(", ")+")":"")+(s?"\nFonte: "+s.ref+" • "+s.title:"");
+          return d.code+" — "+d.label+(d.aliases.length?" (equivalência: "+d.aliases.join(", ")+")":"");
         }).join("\n\n"));
       }
       if(top){
@@ -324,8 +299,7 @@
           if(top.tests && top.tests.length){
             out.push("Próximo teste: "+top.tests[0].title+"\n"+top.tests[0].procedure);
           }
-          var srcs=(top.sourceIds||[]).map(sourceById).filter(Boolean);
-          if(srcs.length) out.push("Fontes usadas: "+srcs.map(function(s){return s.ref+" ("+s.title+")";}).join(" • "));
+          if(top.sourceIds && top.sourceIds.length) out.push("Base técnica interna consultada.");
         }
       }
       out.push("Antes de condenar componente, confirme alimentação, aterramento e sinal quando aplicável.");
@@ -359,6 +333,69 @@
     fab.setAttribute("aria-expanded","false");
   }
 
+  function initFirebaseHistory(){
+    var status=$("engineStatus");
+    if(!window.ORACLE_FIREBASE){
+      if(status) status.textContent="histórico local";
+      return;
+    }
+    ORACLE_FIREBASE.ready.then(function(api){
+      if(status) status.textContent=api.uid?"histórico online":"histórico local";
+      if(!api.uid) return;
+      api.watchCases(function(rows){
+        state.cloudHistory=rows;
+        localStorage.setItem("oracle_cases",JSON.stringify(rows.slice(0,40)));
+        renderHistory(rows);
+      });
+    });
+    window.addEventListener("oracle:firebase-ready",function(){
+      if(status) status.textContent="histórico online";
+    });
+  }
+
+  function initMediaAnalysis(){
+    var input=$("mediaInput"), queue=$("mediaQueue");
+    if(!input || !queue) return;
+
+    function render(){
+      queue.innerHTML=state.mediaAnalyses.map(function(x,i){
+        var codes=(x.codes||[]).length?'<span>'+esc(x.codes.join(", "))+'</span>':'';
+        return '<div class="media-item"><div><strong>'+(x.kind==="video"?"🎥 Vídeo":"📷 Foto")+'</strong><small>'+esc(x.status||"Analisado")+'</small>'+codes+'</div><button type="button" data-remove="'+i+'" aria-label="Remover">×</button></div>';
+      }).join("");
+      queue.querySelectorAll("[data-remove]").forEach(function(btn){
+        btn.addEventListener("click",function(){
+          state.mediaAnalyses.splice(Number(btn.dataset.remove),1); render();
+        });
+      });
+    }
+
+    input.addEventListener("change",async function(){
+      var files=Array.from(input.files||[]).slice(0,4);
+      input.value="";
+      for(var i=0;i<files.length;i++){
+        var file=files[i];
+        var placeholder={kind:(file.type||"").indexOf("video/")===0?"video":"foto",text:"",codes:[],status:"Preparando análise..."};
+        state.mediaAnalyses.push(placeholder); var idx=state.mediaAnalyses.length-1; render();
+        try{
+          if(!window.ORACLE_MEDIA) throw new Error("Motor visual indisponível");
+          var result=await ORACLE_MEDIA.analyzeFile(file,function(p){
+            state.mediaAnalyses[idx].status="Analisando "+p+"%"; render();
+          });
+          state.mediaAnalyses[idx]=Object.assign({},result,{status:result.text?"Texto do scanner extraído":"Nenhum texto legível encontrado"});
+          render();
+          if(result.codes && result.codes.length){
+            var current=$("dtcs").value.trim();
+            $("dtcs").value=uniq((current?current.split(/[ ,;]+/):[]).concat(result.codes)).filter(Boolean).join(", ");
+          }
+          toast(result.text?"Mídia analisada; arquivo descartado":"Mídia lida; sem texto legível");
+        }catch(err){
+          state.mediaAnalyses[idx].status="Falha na análise local";
+          render(); console.warn("[Mídia]",err); toast("Não consegui ler esta mídia");
+        }
+      }
+    });
+  }
+
   if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});}
-  initTheme();initTabs();initInventory();renderHistory();initMascot();
+  initTheme();initTabs();renderHistory();initMascot();initFirebaseHistory();initMediaAnalysis();
 })();
