@@ -63,7 +63,7 @@ jobs:
           grep -q "signInAnonymously" js/firebase.js
           grep -q "mecanico-b222e-default-rtdb" js/firebase.js
           grep -q "SKIP_WAITING" js/app.js
-          grep -q "thiaguinho-auto-v1.2.3" sw.js
+          grep -Eq 'const CACHE="thiaguinho-auto-v[0-9]+\.[0-9]+\.[0-9]+";' sw.js
           grep -q "Fotos e vídeos são analisados temporariamente" index.html
           grep -q "avatarCriticalStyle" index.html
           grep -q "data:image/webp;base64" css/app.css
