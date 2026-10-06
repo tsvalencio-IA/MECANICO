@@ -46,7 +46,7 @@ jobs:
       - name: Download CONHECIMENTO.ZIP from Drive
         run: |
           mkdir -p /tmp/thiaguinho-import
-          gdown --id "$DRIVE_FILE_ID" -O /tmp/thiaguinho-import/CONHECIMENTO.ZIP
+          gdown "$DRIVE_FILE_ID" -O /tmp/thiaguinho-import/CONHECIMENTO.ZIP
           test -s /tmp/thiaguinho-import/CONHECIMENTO.ZIP
           ls -lh /tmp/thiaguinho-import/CONHECIMENTO.ZIP
           sha256sum /tmp/thiaguinho-import/CONHECIMENTO.ZIP
