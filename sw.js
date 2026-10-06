@@ -1,18 +1,18 @@
-// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.2.2";
+// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.2.3";
 const STATIC=[
   "./",
-  "./index.html?v=1.2.2",
-  "./css/app.css?v=1.2.2",
-  "./js/app.js?v=1.2.2",
-  "./js/firebase.js?v=1.2.2",
-  "./js/media.js?v=1.2.2",
-  "./data/knowledge.js?v=1.2.2",
-  "./manifest.webmanifest?v=1.2.2",
-  "./assets/icon-thIAguinho.svg?v=1.2.2",
-  "./assets/logo-thIAguinho.svg?v=1.2.2",
-  "./assets/mascote-thIAguinho.webp?v=1.2.2",
-  "./assets/mascote-thIAguinho-hero.png?v=1.2.2",
-  "./assets/mascote-thIAguinho-avatar.png?v=1.2.2"
+  "./index.html?v=1.2.3",
+  "./css/app.css?v=1.2.3",
+  "./js/app.js?v=1.2.3",
+  "./js/firebase.js?v=1.2.3",
+  "./js/media.js?v=1.2.3",
+  "./data/knowledge.js?v=1.2.3",
+  "./manifest.webmanifest?v=1.2.3",
+  "./assets/icon-thIAguinho.svg?v=1.2.3",
+  "./assets/logo-thIAguinho.svg?v=1.2.3",
+  "./assets/mascote-thIAguinho.webp?v=1.2.3",
+  "./assets/mascote-thIAguinho-hero.png?v=1.2.3",
+  "./assets/mascote-thIAguinho-avatar.png?v=1.2.3"
 ];
 
 self.addEventListener("install",event=>{
@@ -32,9 +32,20 @@ self.addEventListener("fetch",event=>{
   const url=new URL(req.url);
   if(url.origin!==self.location.origin)return;
 
+  const criticalShell=/\/(?:index\.html|css\/app\.css|js\/app\.js)$/.test(url.pathname);
+  if(criticalShell){
+    event.respondWith(
+      fetch(req,{cache:"no-store"}).then(res=>{
+        if(res&&res.ok){const copy=res.clone();caches.open(CACHE).then(c=>c.put(req,copy));}
+        return res;
+      }).catch(()=>caches.match(req))
+    );
+    return;
+  }
+
   if(req.mode==="navigate"){
     event.respondWith(
-      fetch(req).then(res=>{
+      fetch(req,{cache:"no-store"}).then(res=>{
         const copy=res.clone();caches.open(CACHE).then(c=>c.put("./index.html",copy));return res;
       }).catch(()=>caches.match("./index.html"))
     );

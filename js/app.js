@@ -263,7 +263,7 @@
     var article=document.createElement("article");
     article.className="message "+role+(opts.typing?" typing":"");
     if(role==="bot"){
-      var av=document.createElement("div");av.className="message-avatar";
+      var av=document.createElement("div");av.className="message-avatar";av.setAttribute("aria-hidden","true");
       av.setAttribute("aria-hidden","true");
       article.appendChild(av);
     }
@@ -694,7 +694,7 @@
   }
 
   function initPwa(){
-    var BUILD="1.2.2";
+    var BUILD="1.2.3";
     window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
     $("installBtn").addEventListener("click",function(){
       if(!state.deferredInstall)return;
