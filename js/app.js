@@ -56,15 +56,27 @@
     if(typeof el.close==="function") el.close(); else el.removeAttribute("open");
   }
 
-  function expandDtcs(dtcs){
-    var out=(dtcs||[]).slice();
+  function contextHay(c){
+    return norm([c.brand,c.model,c.engine,c.transmission,c.question,c.mediaText].join(" "));
+  }
+
+  function scopeCompatible(scope,c){
+    if(!scope||!scope.length)return true;
+    var hay=contextHay(c);
+    return scope.some(function(token){return hay.indexOf(norm(token))>=0;});
+  }
+
+  function expandDtcs(dtcs,c){
+    var out=(dtcs||[]).map(function(x){return String(x).toUpperCase();});
     Object.keys(KB.dtcs||{}).forEach(function(code){
       var item=KB.dtcs[code]||{};
-      var aliases=item.aliases||[];
+      var aliases=(item.aliases||[]).map(function(x){return String(x).toUpperCase();});
+      var scoped=!item.scope||!item.scope.length||scopeCompatible(item.scope,c||{});
+      if(!scoped)return;
       if(out.indexOf(code)>=0) out=out.concat(aliases);
-      aliases.forEach(function(a){ if(out.indexOf(a)>=0) out.push(code); });
+      aliases.forEach(function(a){if(out.indexOf(a)>=0)out.push(code);});
     });
-    return uniq(out.map(function(x){return String(x).toUpperCase();}));
+    return uniq(out);
   }
 
   function matchesScope(list,value){
@@ -78,19 +90,28 @@
     var score=0, reasons=[];
     var b=norm(c.brand),m=norm(c.model),e=norm(c.engine);
     var text=norm([c.question,c.mediaText,c.testText,c.measurements].join(" "));
-    var allDtcs=expandDtcs(c.dtcs);
+    var hay=contextHay(c);
+    var allDtcs=expandDtcs(c.dtcs,c);
+
+    function listedInText(list){
+      return !!(list&&list.length&&list.some(function(x){return hay.indexOf(norm(x))>=0;}));
+    }
 
     if(rule.brands && rule.brands.length){
       if(b && !matchesScope(rule.brands,b)) return {rule:rule,score:-999,reasons:["marca incompatível"]};
-      if(matchesScope(rule.brands,b)){score+=15;reasons.push("marca");}
+      var brandHit=matchesScope(rule.brands,b)||listedInText(rule.brands);
+      if(brandHit){score+=15;reasons.push("marca");}
+      else if(!m && !(rule.models&&listedInText(rule.models))) return {rule:rule,score:-999,reasons:["marca não informada"]};
     }
     if(rule.models && rule.models.length){
       if(m && !matchesScope(rule.models,m)) return {rule:rule,score:-999,reasons:["modelo incompatível"]};
-      if(matchesScope(rule.models,m)){score+=22;reasons.push("modelo");}
+      var modelHit=matchesScope(rule.models,m)||listedInText(rule.models);
+      if(modelHit){score+=22;reasons.push("modelo");}
+      else if(rule.brands&&rule.brands.length&&!listedInText(rule.brands)&&!b) return {rule:rule,score:-999,reasons:["modelo não informado"]};
     }
     if(rule.engines && rule.engines.length){
       if(e && !matchesScope(rule.engines,e)) return {rule:rule,score:-999,reasons:["motor incompatível"]};
-      if(matchesScope(rule.engines,e)){score+=17;reasons.push("motor");}
+      if(matchesScope(rule.engines,e)||listedInText(rule.engines)){score+=17;reasons.push("motor");}
     }
 
     var dtcHits=(rule.dtcs||[]).filter(function(x){return allDtcs.indexOf(String(x).toUpperCase())>=0;});
@@ -103,18 +124,20 @@
   }
 
   function scoreFact(fact,c){
-    var score=0;
+    var score=0, scopeHay=contextHay(c);
+    function textHas(list){return !!(list&&list.some(function(x){return scopeHay.indexOf(norm(x))>=0;}));}
     if(fact.brands && fact.brands.length){
       if(c.brand && !matchesScope(fact.brands,c.brand)) return -999;
-      if(matchesScope(fact.brands,c.brand)) score+=12;
+      if(matchesScope(fact.brands,c.brand)||textHas(fact.brands)) score+=12;
+      else if(!c.model&&!textHas(fact.models||[])) return -999;
     }
     if(fact.models && fact.models.length){
       if(c.model && !matchesScope(fact.models,c.model)) return -999;
-      if(matchesScope(fact.models,c.model)) score+=16;
+      if(matchesScope(fact.models,c.model)||textHas(fact.models)) score+=16;
     }
     if(fact.engines && fact.engines.length){
       if(c.engine && !matchesScope(fact.engines,c.engine)) return -999;
-      if(matchesScope(fact.engines,c.engine)) score+=14;
+      if(matchesScope(fact.engines,c.engine)||textHas(fact.engines)) score+=14;
     }
     var hay=norm([c.question,c.mediaText,c.measurements,c.dtcs.join(" ")].join(" "));
     (fact.keywords||[]).forEach(function(k){if(hay.indexOf(norm(k))>=0)score+=9;});
@@ -172,13 +195,16 @@
 
     var top=ranked[0];
     var rule=top.rule;
-    var dtcExpanded=expandDtcs(c.dtcs);
+    var dtcExpanded=expandDtcs(c.dtcs,c);
     var dtcInfo=[];
     Object.keys(KB.dtcs||{}).forEach(function(code){
       var item=KB.dtcs[code]||{};
       var aliases=item.aliases||[];
-      if(dtcExpanded.indexOf(code)>=0 || aliases.some(function(a){return dtcExpanded.indexOf(a)>=0;})){
-        dtcInfo.push({code:code,label:item.label,aliases:aliases});
+      var direct=c.dtcs.indexOf(code)>=0;
+      var scoped=!item.scope||!item.scope.length||scopeCompatible(item.scope,c);
+      var aliasHit=scoped&&aliases.some(function(a){return dtcExpanded.indexOf(String(a).toUpperCase())>=0;});
+      if(direct||aliasHit){
+        dtcInfo.push({code:code,label:item.label,aliases:scoped?aliases:[]});
       }
     });
 

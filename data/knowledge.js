@@ -32,27 +32,126 @@ window.ORACLE_KNOWLEDGE = {
     "P0560": {label:"Tensão de alimentação da ECU",aliases:["DF047"],scope:["renault","duster"]},
     "P0627": {label:"Comando do relé da bomba de combustível",aliases:["DF085"],scope:["renault","duster"]},
 
-    "DF001": {label:"Circuito do sensor de temperatura do líquido de arrefecimento",scope:["renault","duster","v42"]},
-    "DF002": {label:"Circuito do sensor de temperatura do ar",scope:["renault","duster","v42"]},
-    "DF018": {label:"Comando do relé do eletroventilador em baixa velocidade",scope:["renault","duster","v42"]},
-    "DF026": {label:"Circuito de comando do injetor do cilindro 1",scope:["renault","duster","v42"]},
-    "DF027": {label:"Circuito de comando do injetor do cilindro 2",scope:["renault","duster","v42"]},
-    "DF028": {label:"Circuito de comando do injetor do cilindro 3",scope:["renault","duster","v42"]},
-    "DF029": {label:"Circuito de comando do injetor do cilindro 4",scope:["renault","duster","v42"]},
-    "DF038": {label:"Falha interna do computador de injeção",scope:["renault","duster","v42"]},
+    "DF001": {label:"Circuito do sensor de temperatura do líquido de arrefecimento",aliases:["P0115"],scope:["renault","duster","v42"]},
+    "DF002": {label:"Circuito do sensor de temperatura do ar",aliases:["P0095"],scope:["renault","duster","v42"]},
+    "DF018": {label:"Comando do relé do eletroventilador em baixa velocidade",aliases:["P0480"],scope:["renault","duster","v42"]},
+    "DF026": {label:"Circuito de comando do injetor do cilindro 1",aliases:["P0201"],scope:["renault","duster","v42"]},
+    "DF027": {label:"Circuito de comando do injetor do cilindro 2",aliases:["P0202"],scope:["renault","duster","v42"]},
+    "DF028": {label:"Circuito de comando do injetor do cilindro 3",aliases:["P0203"],scope:["renault","duster","v42"]},
+    "DF029": {label:"Circuito de comando do injetor do cilindro 4",aliases:["P0204"],scope:["renault","duster","v42"]},
+    "DF038": {label:"Falha interna do computador de injeção",aliases:["P0606"],scope:["renault","duster","v42"]},
     "DF047": {label:"Tensão de alimentação do computador",aliases:["P0560"],scope:["renault","duster","v42"]},
     "DF085": {label:"Circuito de comando do relé da bomba de combustível",aliases:["P0627"],scope:["renault","duster","v42"]},
-    "DF088": {label:"Circuito do sensor de detonação",scope:["renault","duster","v42"]},
+    "DF088": {label:"Circuito do sensor de detonação",aliases:["P0325"],scope:["renault","duster","v42"]},
     "DF342": {label:"Circuito da luz indicadora de avaria",scope:["renault","duster","v42"]},
-    "DF361": {label:"Circuito de bobina de ignição 1-4",scope:["renault","duster","v42"]},
-    "DF398": {label:"Correção / mistura - investigar pressão, entrada falsa de ar, vazamentos e vedação de injetor",scope:["renault","duster","v42"]},
-    "DF409": {label:"Circuito do sensor de nível de combustível",scope:["renault","duster","v42"]},
-    "DF457": {label:"Alvo do volante / referência de PMS",scope:["renault","duster","v42"]},
-    "DF974": {label:"Circuito do potenciômetro do pedal - pista 1",scope:["renault","duster","v42"]},
-    "DF975": {label:"Circuito do potenciômetro do pedal - pista 2",scope:["renault","duster","v42"]}
+    "DF361": {label:"Circuito de bobina de ignição 1-4",aliases:["P1351"],scope:["renault","duster","v42"]},
+    "DF398": {label:"Correção / mistura - investigar pressão, entrada falsa de ar, vazamentos e vedação de injetor",aliases:["P0170"],scope:["renault","duster","v42"]},
+    "DF409": {label:"Circuito do sensor de nível de combustível",aliases:["P0461"],scope:["renault","duster","v42"]},
+    "DF457": {label:"Alvo do volante / referência de PMS",aliases:["P0315"],scope:["renault","duster","v42"]},
+    "DF974": {label:"Circuito do potenciômetro do pedal - pista 1",aliases:["P0225"],scope:["renault","duster","v42"]},
+    "DF975": {label:"Circuito do potenciômetro do pedal - pista 2",aliases:["P2120"],scope:["renault","duster","v42"]}
+    ,"DF011": {label:"Tensão de alimentação dos sensores nº 1",aliases:["P0641"],scope:["renault","duster","v42"]}
+    ,"DF012": {label:"Tensão de alimentação dos sensores nº 2",aliases:["P0651"],scope:["renault","duster","v42"]}
+    ,"DF015": {label:"Circuito de comando do relé principal",aliases:["P0657"],scope:["renault","duster","v42"]}
+    ,"DF050": {label:"Circuito do interruptor do freio",aliases:["P0571"],scope:["renault","duster","v42"]}
+    ,"DF078": {label:"Circuito de comando da borboleta motorizada",aliases:["P2100"],scope:["renault","duster","v42"]}
+    ,"DF079": {label:"Controle automático da borboleta motorizada",aliases:["P2119"],scope:["renault","duster","v42"]}
+    ,"DF081": {label:"Circuito da válvula de purga do cânister",aliases:["P0443"],scope:["renault","duster","v42"]}
+    ,"DF082": {label:"Circuito do aquecedor da sonda lambda anterior",aliases:["P0135"],scope:["renault","duster","v42"]}
+    ,"DF083": {label:"Circuito do aquecedor da sonda lambda posterior",aliases:["P0141"],scope:["renault","duster","v42"]}
+    ,"DF101": {label:"Conexão multiplexada ESP",aliases:["C121"],scope:["renault","duster","v42"]}
+    ,"DF102": {label:"Sinal de potência disponível do alternador",aliases:["P2503"],scope:["renault","duster","v42"]}
+    ,"DF109": {label:"Falha de combustão com baixo nível de combustível",aliases:["P0313"],scope:["renault","duster","v42"]}
+    ,"DF362": {label:"Circuito das bobinas de ignição 2-3",aliases:["P1352"],scope:["renault","duster","v42"]}
+    ,"DF532": {label:"Sinal de carga do alternador",aliases:["P2502"],scope:["renault","duster","v42"]}
+    ,"DF556": {label:"Coerência entre posição do pedal e borboleta",aliases:["P2135"],scope:["renault","duster","v42"]}
+    ,"DF631": {label:"Sinal do interruptor da luz de freio",aliases:["P0703"],scope:["renault","duster","v42"]}
+    ,"DF648": {label:"Falha interna / processamento do computador",aliases:["P060B"],scope:["renault","duster","v42"]}
+    ,"DF721": {label:"Superaquecimento do motor",aliases:["P0217"],scope:["renault","duster","v42"]}
+    ,"DF884": {label:"Relé da bomba do circuito adicional de combustível",aliases:["P2632"],scope:["renault","duster","v42"]}
+    ,"DF887": {label:"Coerência entre freio e posição do acelerador",aliases:["P0226"],scope:["renault","duster","v42"]}
+    ,"DF894": {label:"Válvula solenoide do circuito adicional de combustível",aliases:["P1633"],scope:["renault","duster","v42"]}
+    ,"DF992": {label:"Circuito do relé do aquecedor adicional 1",aliases:["P1644"],scope:["renault","duster","v42"]}
+    ,"DF993": {label:"Circuito do relé do aquecedor adicional 2",aliases:["P1645"],scope:["renault","duster","v42"]}
+    ,"DF994": {label:"Circuito do relé do aquecedor adicional 3",aliases:["P1646"],scope:["renault","duster","v42"]}
+    ,"DF1015": {label:"Coerência do sinal do interruptor do freio",aliases:["P0504"],scope:["renault","duster","v42"]}
+    ,"DF1017": {label:"Falha de processamento do computador",aliases:["P061A"],scope:["renault","duster","v42"]}
+    ,"DF1058": {label:"Coerência da pressão de admissão",aliases:["P0106"],scope:["renault","duster","v42"]}
+    ,"DF1063": {label:"Conexão multiplexada ESP",aliases:["C415"],scope:["renault","duster","v42"]}
+    ,"DF1068": {label:"Tensão do sensor de pressão do refrigerante do A/C",aliases:["P0530"],scope:["renault","duster","v42"]}
+    ,"DF1072": {label:"Comando do relé do compressor do ar-condicionado",aliases:["P0645"],scope:["renault","duster","v42"]}
+    ,"DF1074": {label:"Posição incoerente da borboleta motorizada",aliases:["P0638"],scope:["renault","duster","v42"]}
+    ,"DF1355": {label:"Conexão multiplexada do regulador de torque",aliases:["P1656"],scope:["renault","duster","v42"]}
+  },
+
+  parameters: {
+    "PR002":"Carga do alternador",
+    "PR015":"Torque do motor",
+    "PR030":"Posição do pedal do acelerador",
+    "PR037":"Pressão do refrigerante do ar-condicionado",
+    "PR041":"Pressão de sobrealimentação",
+    "PR055":"Rotação do motor",
+    "PR059":"Temperatura do ar de admissão",
+    "PR064":"Temperatura do líquido de arrefecimento",
+    "PR071":"Tensão de alimentação do computador",
+    "PR084":"Tensão do sensor de temperatura do líquido",
+    "PR089":"Velocidade do veículo",
+    "PR097":"Valor programado do batente inferior da borboleta",
+    "PR098":"Tensão da sonda lambda anterior",
+    "PR099":"Tensão da sonda lambda posterior",
+    "PR102":"OCR da válvula de purga do cânister",
+    "PR118":"Posição medida da borboleta - pista 1",
+    "PR119":"Posição medida da borboleta - pista 2",
+    "PR138":"Correção de riqueza",
+    "PR139":"Adaptação de riqueza em funcionamento",
+    "PR147":"Tensão do potenciômetro do pedal - pista 1",
+    "PR148":"Tensão do potenciômetro do pedal - pista 2",
+    "PR215":"Tensão de alimentação de sensores nº 1",
+    "PR216":"Tensão de alimentação de sensores nº 2",
+    "PR312":"Vácuo do coletor de admissão",
+    "PR313":"Pressão linearizada do coletor",
+    "PR344":"Tensão do sensor de pressão",
+    "PR427":"Sinal médio de detonação",
+    "PR429":"Posição medida da borboleta",
+    "PR444":"Correção integral da marcha lenta",
+    "PR446":"Resistência do aquecedor da sonda O2 anterior",
+    "PR447":"Resistência do aquecedor da sonda O2 posterior",
+    "PR448":"Avanço de ignição",
+    "PR469":"Valor de detonação do cilindro 1",
+    "PR471":"Valor de detonação do cilindro 2",
+    "PR473":"Valor de detonação do cilindro 3",
+    "PR475":"Valor de detonação do cilindro 4",
+    "PR492":"Consigna de posição da borboleta motorizada",
+    "PR538":"Tensão medida da borboleta - pista 2",
+    "PR539":"Tensão medida da borboleta - pista 1",
+    "PR606":"Correção adaptativa da marcha lenta",
+    "PR624":"Offset de programação da regulação de riqueza",
+    "PR625":"Ganho de programação da regulação de riqueza",
+    "PR770":"Offset do comando de válvulas",
+    "PR814":"Número de resistências de aquecimento ativas",
+    "PR831":"Contador de falhas de combustão",
+    "PR832":"Contador de falhas de combustão",
+    "PR833":"Contador de falhas de combustão",
+    "PR834":"Contador de falhas de combustão",
+    "PR847":"Tensão do sensor de temperatura do ar de admissão",
+    "PR872":"Tensão do sensor de pressão do refrigerante",
+    "PR877":"Temperatura estimada do óleo do motor",
+    "PR887":"Valor programado de segurança da borboleta",
+    "PR931":"Pressão bruta de sobrealimentação",
+    "PR1026":"Contador de perda de sincronismo do virabrequim",
+    "PR1029":"Potência do alternador",
+    "PR1129":"Duração do contato de freio nº 1",
+    "PR1153":"Duração do contato de freio nº 2"
   },
 
   facts: [
+    {
+      id:"v42-refrigerant-pressure",
+      brands:["renault","dacia"],models:["duster"],engines:[],systems:["ar-condicionado","pressão"],
+      keywords:["pr037","refrigerante","ar condicionado","ar-condicionado","pressão a/c","pressao a/c"],
+      value:"No PR037 do V42, a pressão do refrigerante deve ficar entre 2 bar e 27 bar na condição de verificação indicada pelo procedimento.",
+      sourceIds:["duster-workshop"],documented:true
+    },
     {
       id:"k4m-injector-resistance",
       brands:["renault","dacia"],models:["duster"],engines:["k4m","1.6"],systems:["injeção","injetor"],

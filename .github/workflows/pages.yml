@@ -35,6 +35,21 @@ jobs:
       - name: Validate manifest
         run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest ok')"
 
+      - name: Knowledge smoke checks
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const ctx={window:{}};vm.createContext(ctx);
+          vm.runInContext(fs.readFileSync('data/knowledge.js','utf8'),ctx);
+          const kb=ctx.window.ORACLE_KNOWLEDGE;
+          if(!kb||kb.version!=='1.0.0') throw new Error('knowledge version');
+          if(!kb.dtcs.DF1355||!kb.dtcs.DF026) throw new Error('V42 DTC catalog incomplete');
+          if(!kb.parameters.PR037||!kb.parameters.PR1153) throw new Error('V42 parameter catalog incomplete');
+          if(!(kb.facts||[]).some(x=>x.id==='k4m-injector-resistance')) throw new Error('K4M injector fact missing');
+          if((kb.rules||[]).length<10) throw new Error('diagnostic rules unexpectedly small');
+          console.log('knowledge ok',Object.keys(kb.dtcs).length,'DTC entries',Object.keys(kb.parameters).length,'parameters',kb.rules.length,'rules');
+          NODE
+
       - name: Verify critical files and privacy architecture
         run: |
           test -f index.html
