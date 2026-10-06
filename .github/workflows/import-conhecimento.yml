@@ -78,22 +78,11 @@ jobs:
           print("IMPORT V2 OK", m["zip_entries"], "zip entries;", m["extracted_files"], "files;", m["extractor"])
           PY
 
-      - name: Package every extracted source file for GitHub Release
-        run: |
-          rm -f /tmp/thiaguinho-import/CONHECIMENTO.ZIP
-          mkdir -p /tmp/thiaguinho-release
-          cp /tmp/thiaguinho-brain/manifest.json /tmp/thiaguinho-release/knowledge-manifest.json
-          cp /tmp/thiaguinho-brain/dtc-index.json /tmp/thiaguinho-release/dtc-index.json
-          tar -C /tmp/thiaguinho-source -cf - .             | zstd -10 -T0             | split -b 1800M -d -a 3 - /tmp/thiaguinho-release/knowledge-source.tar.zst.part-
-          ls -lh /tmp/thiaguinho-release
-          df -h
-
-      - name: Publish raw extracted knowledge in GitHub Release
+      - name: Remove old raw-source GitHub Release
         run: |
           gh release delete "$RELEASE_TAG" --yes --cleanup-tag || true
-          gh release create "$RELEASE_TAG" /tmp/thiaguinho-release/*             --title "thIAguinho - CONHECIMENTO importado"             --notes "Acervo CONHECIMENTO.ZIP extraido automaticamente. Os arquivos-fonte completos estao preservados em partes tar.zst; manifest e indice de DTC acompanham a release."
 
-      - name: Publish searchable knowledge branch
+      - name: Publish JSON knowledge branch
         run: |
           rm -rf /tmp/knowledge-branch
           mkdir -p /tmp/knowledge-branch
@@ -106,7 +95,7 @@ jobs:
           gh auth setup-git
           git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           git add .
-          git commit -m "knowledge: import CONHECIMENTO.ZIP"
+          git commit -m "knowledge: JSON fiel do CONHECIMENTO.ZIP"
           git push origin HEAD:knowledge --force
           git rev-parse HEAD
 
@@ -114,7 +103,5 @@ jobs:
         run: |
           echo "Knowledge branch:"
           echo "https://github.com/${GITHUB_REPOSITORY}/tree/knowledge"
-          echo "Release:"
-          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/$RELEASE_TAG"
           du -sh /tmp/thiaguinho-brain
           df -h
