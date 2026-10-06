@@ -264,7 +264,7 @@
     article.className="message "+role+(opts.typing?" typing":"");
     if(role==="bot"){
       var av=document.createElement("div");av.className="message-avatar";
-      av.innerHTML='<img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt="">';
+      av.innerHTML='<img src="./assets/mascote-thIAguinho-avatar.webp?v=1.1.0" alt="">';
       article.appendChild(av);
     }
     var bubble=document.createElement("div");bubble.className="bubble";
@@ -279,7 +279,7 @@
   function appendDiagnosis(diag){
     var article=document.createElement("article");
     article.className="message bot";
-    article.innerHTML='<div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt=""></div>';
+    article.innerHTML='<div class="message-avatar"><img src="./assets/mascote-thIAguinho-avatar.webp?v=1.1.0" alt=""></div>';
     var bubble=document.createElement("div");bubble.className="bubble";
     bubble.innerHTML='<strong>th<span class="ia">IA</span>guinho</strong>';
 
@@ -497,7 +497,7 @@
   function startNewCase(){
     state.sessionId=newSessionId();state.createdAt=now();state.messages=[];state.mediaAnalyses=[];state.currentDiagnosis=null;
     state.activeTests=[];state.activeTestIndex=0;state.testResults=[];
-    $("messages").innerHTML='<article class="message bot welcome"><div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt=""></div><div class="bubble"><strong>th<span class="ia">IA</span>guinho</strong><p>Novo diagnóstico. Me diga o sintoma, DTC ou mande a tela do scanner.</p></div></article>';
+    $("messages").innerHTML='<article class="message bot welcome"><div class="message-avatar"><img src="./assets/mascote-thIAguinho-avatar.webp?v=1.1.0" alt=""></div><div class="bubble"><strong>th<span class="ia">IA</span>guinho</strong><p>Novo diagnóstico. Me diga o sintoma, DTC ou mande a tela do scanner.</p></div></article>';
     renderMediaQueue();$("chatInput").focus();toast("Novo diagnóstico");
   }
 
@@ -687,17 +687,68 @@
       btn.addEventListener("click",function(){handleQuestion(btn.dataset.prompt);});
     });
     $("newCaseBtn").addEventListener("click",startNewCase);
+    if($("startChatBtn")) $("startChatBtn").addEventListener("click",function(){
+      document.querySelector(".chat-card").scrollIntoView({behavior:"smooth",block:"start"});
+      setTimeout(function(){$("chatInput").focus();},420);
+    });
   }
 
   function initPwa(){
+    var BUILD="1.1.0";
     window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
     $("installBtn").addEventListener("click",function(){
       if(!state.deferredInstall)return;
       state.deferredInstall.prompt();state.deferredInstall=null;$("installBtn").hidden=true;
     });
-    if("serviceWorker" in navigator){
-      window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(err){console.warn("[SW]",err);});});
+
+    if(!("serviceWorker" in navigator)) return;
+
+    var refreshing=false,registration=null;
+    navigator.serviceWorker.addEventListener("controllerchange",function(){
+      if(refreshing)return;
+      refreshing=true;
+      // A nova versão já assumiu o PWA: recarrega uma única vez sem exigir reinstalação.
+      window.location.reload();
+    });
+
+    function activateWaiting(reg){
+      if(reg && reg.waiting) reg.waiting.postMessage({type:"SKIP_WAITING",build:BUILD});
     }
+
+    function watchRegistration(reg){
+      registration=reg;
+      activateWaiting(reg);
+      reg.addEventListener("updatefound",function(){
+        var worker=reg.installing;
+        if(!worker)return;
+        worker.addEventListener("statechange",function(){
+          if(worker.state==="installed" && navigator.serviceWorker.controller){
+            worker.postMessage({type:"SKIP_WAITING",build:BUILD});
+          }
+        });
+      });
+    }
+
+    async function checkUpdate(){
+      if(!registration)return;
+      try{
+        await registration.update();
+        activateWaiting(registration);
+      }catch(err){console.warn("[SW update]",err);}
+    }
+
+    window.addEventListener("load",async function(){
+      try{
+        var reg=await navigator.serviceWorker.register("./sw.js?v="+BUILD,{updateViaCache:"none"});
+        watchRegistration(reg);
+        await checkUpdate();
+      }catch(err){console.warn("[SW]",err);}
+    });
+
+    document.addEventListener("visibilitychange",function(){
+      if(document.visibilityState==="visible") checkUpdate();
+    });
+    window.addEventListener("focus",checkUpdate);
   }
 
   initTheme();

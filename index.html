@@ -7,9 +7,9 @@
   <meta name="description" content="thIAguinho Soluções Automotiva — IA Mecânico para diagnóstico automotivo orientado por evidências.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="./manifest.webmanifest?v=1.0.1">
-  <link rel="icon" href="./assets/icon-thIAguinho.svg?v=1.0.1" type="image/svg+xml">
-  <link rel="stylesheet" href="./css/app.css?v=1.0.1">
+  <link rel="manifest" href="./manifest.webmanifest?v=1.1.0">
+  <link rel="icon" href="./assets/icon-thIAguinho.svg?v=1.1.0" type="image/svg+xml">
+  <link rel="stylesheet" href="./css/app.css?v=1.1.0">
   <title>thIAguinho • IA Mecânico</title>
 </head>
 <body>
@@ -18,7 +18,7 @@
 
   <header class="topbar">
     <a class="brand" href="./" aria-label="thIAguinho Soluções Automotiva">
-      <img src="./assets/logo-thIAguinho.svg?v=1.0.1" alt="thIAguinho Soluções Automotiva" class="brand-logo">
+      <img src="./assets/logo-thIAguinho.svg?v=1.1.0" alt="thIAguinho Soluções Automotiva" class="brand-logo">
       <div class="brand-compact">
         <strong>th<span>IA</span>guinho</strong>
         <small>Soluções Automotiva</small>
@@ -36,11 +36,11 @@
   <main class="app-shell">
     <aside class="identity-panel">
       <div class="identity-logo">
-        <img src="./assets/logo-thIAguinho.svg?v=1.0.1" alt="thIAguinho Soluções Automotiva">
+        <img src="./assets/logo-thIAguinho.svg?v=1.1.0" alt="thIAguinho Soluções Automotiva">
       </div>
       <div class="mascot-stage" aria-hidden="true">
         <div class="mascot-glow"></div>
-        <img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt="" class="main-mascot">
+        <img src="./assets/mascote-thIAguinho-hero.webp?v=1.1.0" alt="thIAguinho, IA Mecânico da thIAguinho Soluções Automotiva" class="main-mascot" loading="eager" onerror="this.onerror=null;this.src='./assets/mascote-thIAguinho.webp?v=1.1.0'">
         <div class="scan-line"></div>
       </div>
       <div class="identity-copy">
@@ -48,14 +48,14 @@
         <h1>Seu parceiro de <span>diagnóstico.</span></h1>
         <p>Você conta o defeito. O <b>th<span class="ia">IA</span>guinho</b> organiza hipóteses, separa o que precisa ser medido e te guia no próximo teste.</p>
       </div>
-      <div class="privacy-chip">🔒 Fotos e vídeos são analisados temporariamente e não são armazenados.</div>
+      <button id="startChatBtn" class="hero-start-btn" type="button">Começar diagnóstico <span>➜</span></button><div class="privacy-chip">🔒 Fotos e vídeos são analisados temporariamente e não são armazenados.</div>
     </aside>
 
     <section class="chat-card" aria-label="Conversa com o thIAguinho">
       <header class="chat-head">
         <div class="assistant-id">
           <div class="avatar-wrap">
-            <img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt="thIAguinho">
+            <img src="./assets/mascote-thIAguinho-avatar.webp?v=1.1.0" alt="thIAguinho" loading="eager" onerror="this.onerror=null;this.src='./assets/mascote-thIAguinho.webp?v=1.1.0'">
             <span></span>
           </div>
           <div>
@@ -82,7 +82,7 @@
 
       <div id="messages" class="messages" aria-live="polite">
         <article class="message bot welcome">
-          <div class="message-avatar"><img src="./assets/mascote-thIAguinho.webp?v=1.0.1" alt=""></div>
+          <div class="message-avatar"><img src="./assets/mascote-thIAguinho-avatar.webp?v=1.1.0" alt="" loading="eager" onerror="this.onerror=null;this.src='./assets/mascote-thIAguinho.webp?v=1.1.0'"></div>
           <div class="bubble">
             <strong>th<span class="ia">IA</span>guinho</strong>
             <p>Me diga o que o carro está fazendo. Pode mandar o sintoma, DTC, medição ou uma foto/vídeo da tela do scanner. Eu vou separar hipótese de evidência e te passar o próximo teste.</p>
@@ -112,7 +112,7 @@
 
       <div class="composer-note">
         <span>Não adivinha. <b>Testa.</b></span>
-        <span>Histórico automático no Realtime Database</span>
+        <span>Histórico automático no Realtime Database • v1.1.0</span>
       </div>
     </section>
   </main>
@@ -169,9 +169,9 @@
   <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-database-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
-  <script src="./data/knowledge.js?v=1.0.1"></script>
-  <script src="./js/firebase.js?v=1.0.1"></script>
-  <script src="./js/media.js?v=1.0.1"></script>
-  <script src="./js/app.js?v=1.0.1"></script>
+  <script src="./data/knowledge.js?v=1.1.0"></script>
+  <script src="./js/firebase.js?v=1.1.0"></script>
+  <script src="./js/media.js?v=1.1.0"></script>
+  <script src="./js/app.js?v=1.1.0"></script>
 </body>
 </html>

@@ -1,16 +1,18 @@
-const CACHE="thiaguinho-auto-v1.0.1";
+const CACHE="thiaguinho-auto-v1.1.0";
 const STATIC=[
   "./",
-  "./index.html?v=1.0.1",
-  "./css/app.css?v=1.0.1",
-  "./js/app.js?v=1.0.1",
-  "./js/firebase.js?v=1.0.1",
-  "./js/media.js?v=1.0.1",
-  "./data/knowledge.js?v=1.0.1",
-  "./manifest.webmanifest?v=1.0.1",
-  "./assets/icon-thIAguinho.svg?v=1.0.1",
-  "./assets/logo-thIAguinho.svg?v=1.0.1",
-  "./assets/mascote-thIAguinho.webp?v=1.0.1"
+  "./index.html?v=1.1.0",
+  "./css/app.css?v=1.1.0",
+  "./js/app.js?v=1.1.0",
+  "./js/firebase.js?v=1.1.0",
+  "./js/media.js?v=1.1.0",
+  "./data/knowledge.js?v=1.1.0",
+  "./manifest.webmanifest?v=1.1.0",
+  "./assets/icon-thIAguinho.svg?v=1.1.0",
+  "./assets/logo-thIAguinho.svg?v=1.1.0",
+  "./assets/mascote-thIAguinho.webp?v=1.1.0",
+  "./assets/mascote-thIAguinho-hero.webp?v=1.1.0",
+  "./assets/mascote-thIAguinho-avatar.webp?v=1.1.0"
 ];
 
 self.addEventListener("install",event=>{
@@ -47,4 +49,8 @@ self.addEventListener("fetch",event=>{
       return res;
     }))
   );
+});
+
+self.addEventListener("message",event=>{
+  if(event.data && event.data.type==="SKIP_WAITING") self.skipWaiting();
 });

@@ -462,3 +462,154 @@ html[data-theme="light"] .bubble li{color:#60758c}
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
+
+/* v1.1.0 — mascote oficial visível, hero mobile e atualização sem reinstalação */
+.hero-start-btn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  border:1px solid rgba(49,215,255,.30);
+  background:linear-gradient(135deg,rgba(49,215,255,.14),rgba(91,124,255,.12));
+  color:var(--text);
+  border-radius:14px;
+  padding:12px 14px;
+  font-weight:900;
+  cursor:pointer;
+  margin:4px 0 0;
+}
+.hero-start-btn span{color:var(--cyan);font-size:1.15rem}
+.hero-start-btn:hover{border-color:var(--cyan)}
+
+.main-mascot{
+  width:min(94%,460px);
+  max-height:540px;
+  object-fit:cover;
+  object-position:center center;
+  border-radius:22px;
+  border:1px solid rgba(49,215,255,.16);
+  box-shadow:0 18px 42px rgba(0,0,0,.24);
+}
+.avatar-wrap img,
+.message-avatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center center;
+  transform:none;
+}
+.avatar-wrap,
+.message-avatar{background:#0a1827}
+.identity-panel .privacy-chip{margin-top:10px}
+
+@media(max-width:760px){
+  .app-shell{
+    width:100%;
+    margin:0;
+    display:block;
+  }
+
+  .identity-panel{
+    display:grid;
+    min-height:calc(100dvh - 60px);
+    padding:14px 14px 16px;
+    border:0;
+    border-radius:0;
+    box-shadow:none;
+    grid-template-rows:auto minmax(330px,1fr) auto auto auto;
+    background:
+      radial-gradient(circle at 50% 38%,rgba(49,215,255,.12),transparent 38%),
+      linear-gradient(180deg,#07111f,#0a1726);
+  }
+
+  html[data-theme="light"] .identity-panel{
+    background:
+      radial-gradient(circle at 50% 38%,rgba(8,125,165,.10),transparent 38%),
+      linear-gradient(180deg,#f7fbfe,#eef5fa);
+  }
+
+  .identity-logo{
+    display:block;
+    text-align:center;
+    padding-top:4px;
+  }
+  .identity-logo img{
+    width:min(92%,430px);
+    height:74px;
+    object-position:center;
+  }
+
+  .mascot-stage{
+    min-height:360px;
+    max-height:56dvh;
+    margin:6px 0;
+    border-radius:22px;
+  }
+
+  .main-mascot{
+    width:min(92vw,390px);
+    max-height:54dvh;
+    min-height:350px;
+    object-fit:cover;
+    object-position:center center;
+    border-radius:22px;
+  }
+
+  .identity-copy{
+    padding:4px 5px 8px;
+    text-align:center;
+  }
+  .identity-copy h1{
+    font-size:clamp(2rem,10vw,3rem);
+    margin:6px auto 9px;
+    max-width:430px;
+  }
+  .identity-copy p{
+    max-width:520px;
+    margin:0 auto;
+    font-size:.82rem;
+  }
+  .hero-start-btn{
+    max-width:520px;
+    margin:7px auto 0;
+  }
+  .privacy-chip{
+    max-width:520px;
+    margin:8px auto 0!important;
+    text-align:center;
+  }
+
+  .chat-card{
+    min-height:calc(100dvh - 60px);
+    height:auto;
+    max-height:none;
+    border-top:1px solid var(--line);
+    border-radius:0;
+    box-shadow:none;
+    background:var(--bg);
+  }
+
+  .assistant-id .avatar-wrap{
+    width:48px;
+    height:48px;
+  }
+
+  .message-avatar{
+    display:block;
+    width:34px;
+    height:34px;
+  }
+}
+
+@media(max-width:470px){
+  .identity-panel{grid-template-rows:auto minmax(315px,1fr) auto auto auto}
+  .mascot-stage{min-height:330px}
+  .main-mascot{
+    width:min(94vw,365px);
+    min-height:320px;
+    max-height:52dvh;
+  }
+  .message{max-width:96%}
+  .message-avatar{display:block}
+}
