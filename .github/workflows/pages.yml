@@ -29,7 +29,8 @@ jobs:
           node --check sw.js
           node --check sw-v132.js
           node --check sw-v133.js
-          node --check sw-v134.js\n          node --check functions/index.js
+          node --check sw-v134.js
+          node --check functions/index.js
 
       - name: Validate manifest
         run: |
@@ -64,7 +65,10 @@ jobs:
           test -f manifest-v134.json
           test -f sw-v134.js
           test -f css/app.css
-          test -f js/knowledge-remote.js\n          test -f functions/index.js\n          test -f functions/package.json\n          test -f firebase.json
+          test -f js/knowledge-remote.js
+          test -f functions/index.js
+          test -f functions/package.json
+          test -f firebase.json
           test -f assets/logo-thIAguinho.svg
           test -f assets/icon-thIAguinho.svg
           test -f assets/icon-192.png
