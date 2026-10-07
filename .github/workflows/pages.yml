@@ -38,7 +38,7 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const m=JSON.parse(fs.readFileSync('manifest-v133.json','utf8'));
-          if(m.id!=='/MECANICO/'||m.scope!=='/MECANICO/'||!m.start_url.startsWith('/MECANICO/')) throw new Error('manifest scope/start/id');
+          if(m.id!=='/MECANICO/app-v133.html'||m.scope!=='/MECANICO/'||!m.start_url.startsWith('/MECANICO/app-v133.html')) throw new Error('manifest scope/start/id');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='192x192')) throw new Error('192 PNG icon missing');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='512x512')) throw new Error('512 PNG icon missing');
           console.log('manifest v1.3.3 installable fields ok');
