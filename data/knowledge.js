@@ -11,7 +11,7 @@ window.ORACLE_KNOWLEDGE = {
 
   /* Registro interno. Não é exibido na interface. */
   archives: [
-    {id:"drive-conhecimento",title:"CONHECIMENTO.ZIP",driveId:"1NNzN0Zhw-G8IiTkveWFU4N-uLk4Hq5jD",sizeBytes:2890485781,state:"registered-not-indexed"},
+    {id:"drive-conhecimento",title:"CONHECIMENTO.ZIP",driveId:"1NNzN0Zhw-G8IiTkveWFU4N-uLk4Hq5jD",sizeBytes:2890485781,state:"indexed-v2-compact"},
     {id:"drive-simplo",title:"SIMPLO-2019.rar",driveId:"1yWwICYHH6AyaV2uAOyXYsahFt2Hj1mhV",sizeBytes:10602840126,state:"registered-not-indexed"},
     {id:"drive-eper",title:"ePER-CatalogoPartes.rar",driveId:"1o9Q54wG-DUKvSbxxcWmMgH1JvZM5khne",sizeBytes:6241352586,state:"registered-not-indexed"},
     {id:"drive-autodata",title:"AUTODATA 3.45.rar",driveId:"1bKeYQjmtpdqlGJXPiaGsqfLh6lScGM7b",sizeBytes:7763702640,state:"registered-not-indexed"}
