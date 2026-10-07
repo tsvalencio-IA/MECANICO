@@ -1,0 +1,45 @@
+name: Deploy Firebase Function
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-function:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate Firebase credentials secret
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_MECANICO_B222E }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "Secret FIREBASE_SERVICE_ACCOUNT_MECANICO_B222E is missing"
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-service-account.json"
+          node -e "JSON.parse(require('fs').readFileSync(process.env.RUNNER_TEMP + '/firebase-service-account.json','utf8')); console.log('Firebase credential JSON ok')"
+
+      - name: Install function dependencies
+        run: npm install --prefix functions
+
+      - name: Deploy knowledgeSearch
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          GOOGLE_CLOUD_PROJECT: mecanico-b222e
+          GCLOUD_PROJECT: mecanico-b222e
+        run: |
+          npx firebase-tools@14.19.1 deploy             --only functions:knowledgeSearch             --project mecanico-b222e             --non-interactive
+
+      - name: Remove temporary credential
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
