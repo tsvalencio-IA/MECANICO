@@ -1,20 +1,20 @@
-// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.3.4";
+// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.4.0";
 const STATIC=[
-  "./app-v134.html?v=1.3.4",
-  "./index.html?v=1.3.4",
-  "./css/app.css?v=1.3.4",
-  "./js/app.js?v=1.3.4",
-  "./js/firebase.js?v=1.3.4",
-  "./js/media.js?v=1.3.4",
-  "./data/knowledge.js?v=1.3.4",
-  "./manifest-v134.json?v=1.3.4",
-  "./assets/icon-thIAguinho.svg?v=1.3.4",
-  "./assets/icon-192.png?v=1.3.4",
-  "./assets/icon-512.png?v=1.3.4",
-  "./assets/logo-thIAguinho.svg?v=1.3.4",
-  "./assets/mascote-thIAguinho.webp?v=1.3.4",
-  "./assets/mascote-thIAguinho-hero.png?v=1.3.4",
-  "./assets/mascote-thIAguinho-avatar.png?v=1.3.4"
+  "./app-v134.html?v=1.4.0",
+  "./index.html?v=1.4.0",
+  "./css/app.css?v=1.4.0",
+  "./js/app.js?v=1.4.0",
+  "./js/firebase.js?v=1.4.0",
+  "./js/media.js?v=1.4.0",
+  "./data/knowledge.js?v=1.4.0",
+  "./manifest-v134.json?v=1.4.0",
+  "./assets/icon-thIAguinho.svg?v=1.4.0",
+  "./assets/icon-192.png?v=1.4.0",
+  "./assets/icon-512.png?v=1.4.0",
+  "./assets/logo-thIAguinho.svg?v=1.4.0",
+  "./assets/mascote-thIAguinho.webp?v=1.4.0",
+  "./assets/mascote-thIAguinho-hero.png?v=1.4.0",
+  "./assets/mascote-thIAguinho-avatar.png?v=1.4.0"
 ];
 
 self.addEventListener("install",event=>{
