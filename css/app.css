@@ -1060,3 +1060,4 @@ html[data-motion="off"] .main-mascot,html[data-motion="off"] .scan-line{animatio
 html[data-motion="on"] .main-mascot{animation:floatMascot 4s ease-in-out infinite!important}
 html[data-motion="on"] .scan-line{animation:scan 4.6s ease-in-out infinite!important}
 @media(max-width:760px){.top-actions{gap:5px}.top-actions .icon-btn{width:44px;height:44px}.setting-row{align-items:flex-start}.saved-vehicle{align-items:flex-start;flex-direction:column}.saved-vehicle-actions{width:100%}.saved-vehicle-actions button{flex:1}}
+\n.source-ref{display:block;margin-top:6px;font-size:.74rem;line-height:1.35;opacity:.72;word-break:break-word}\n
