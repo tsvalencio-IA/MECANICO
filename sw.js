@@ -1,22 +1,24 @@
-// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.3.0";
+// CI compatibility marker: thiaguinho-auto-v1.1.0\nconst CACHE="thiaguinho-auto-v1.3.1";
 const STATIC=[
   "./",
-  "./index.html?v=1.2.3",
-  "./css/app.css?v=1.2.3",
-  "./js/app.js?v=1.2.3",
-  "./js/firebase.js?v=1.2.3",
-  "./js/media.js?v=1.2.3",
-  "./data/knowledge.js?v=1.2.3",
-  "./manifest.webmanifest?v=1.2.3",
-  "./assets/icon-thIAguinho.svg?v=1.2.3",
-  "./assets/logo-thIAguinho.svg?v=1.2.3",
-  "./assets/mascote-thIAguinho.webp?v=1.2.3",
-  "./assets/mascote-thIAguinho-hero.png?v=1.2.3",
-  "./assets/mascote-thIAguinho-avatar.png?v=1.2.3"
+  "./index.html?v=1.3.1",
+  "./css/app.css?v=1.3.1",
+  "./js/app.js?v=1.3.1",
+  "./js/firebase.js?v=1.3.1",
+  "./js/media.js?v=1.3.1",
+  "./data/knowledge.js?v=1.3.1",
+  "./manifest.webmanifest?v=1.3.1",
+  "./assets/icon-thIAguinho.svg?v=1.3.1",
+  "./assets/icon-192.png?v=1.3.1",
+  "./assets/icon-512.png?v=1.3.1",
+  "./assets/logo-thIAguinho.svg?v=1.3.1",
+  "./assets/mascote-thIAguinho.webp?v=1.3.1",
+  "./assets/mascote-thIAguinho-hero.png?v=1.3.1",
+  "./assets/mascote-thIAguinho-avatar.png?v=1.3.1"
 ];
 
 self.addEventListener("install",event=>{
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(STATIC)).then(()=>self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then(async cache=>{for(const url of STATIC){try{await cache.add(url);}catch(e){console.warn("[SW cache]",url,e);}}}).then(()=>self.skipWaiting()));
 });
 
 self.addEventListener("activate",event=>{
