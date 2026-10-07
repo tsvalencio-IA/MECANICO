@@ -34,7 +34,15 @@ jobs:
           node --check sw.js
 
       - name: Validate manifest
-        run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest','utf8')); console.log('manifest ok')"
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const m=JSON.parse(fs.readFileSync('manifest.webmanifest','utf8'));
+          if(!m.id||!m.start_url||!m.scope) throw new Error('manifest navigation fields missing');
+          if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='192x192')) throw new Error('192 PNG icon missing');
+          if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='512x512')) throw new Error('512 PNG icon missing');
+          console.log('manifest installable fields ok');
+          NODE
 
       - name: Knowledge smoke checks
         run: |
@@ -58,6 +66,8 @@ jobs:
           test -f js/knowledge-remote.js
           test -f assets/logo-thIAguinho.svg
           test -f assets/icon-thIAguinho.svg
+          test -f assets/icon-192.png
+          test -f assets/icon-512.png
           test -f assets/mascote-thIAguinho.webp && test -f assets/mascote-thIAguinho-hero.webp && test -f assets/mascote-thIAguinho-avatar.webp && test -f assets/mascote-thIAguinho-hero.png && test -f assets/mascote-thIAguinho-avatar.png
           test -f database.rules.json
           grep -q "signInAnonymously" js/firebase.js
