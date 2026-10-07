@@ -1,15 +1,14 @@
 (function(){
   "use strict";
 
-  var BASE="https://raw.githubusercontent.com/tsvalencio-IA/MECANICO/knowledge/";
-  var manifest=null,dtcIndex=null,metaPromise=null;
+  var BASE="https://raw.githubusercontent.com/tsvalencio-IA/MECANICO/knowledge-compact/";
+  var manifest=null,manifestPromise=null,mapPromise=null;
+  var jsonCache=new Map();
   var queryCache=new Map();
-  var SEARCH_VERSION="1.5.0-stream";
+  var SEARCH_VERSION="2.0.0-compact";
 
   function norm(v){
-    return String(v||"")
-      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-      .toLowerCase();
+    return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   }
 
   function codesFrom(text){
@@ -17,213 +16,204 @@
   }
 
   function tokensFrom(text){
-    var stop=new Set(["para","com","sem","que","uma","uns","das","dos","de","da","do","em","no","na","nos","nas","por","pra","pro","carro","veiculo","veículo","motor","quero","como","qual","quais","esta","está"]);
-    return Array.from(new Set(norm(text).split(/[^a-z0-9]+/).filter(function(t){return t.length>=3&&!stop.has(t);}))).slice(0,28);
+    var stop=new Set(["para","com","sem","que","uma","uns","das","dos","de","da","do","em","no","na","nos","nas","por","pra","pro","carro","veiculo","veículo","motor","quero","como","qual","quais","esta","está","este","essa","esse","isso","aqui"]);
+    return Array.from(new Set(norm(text).match(/[a-z0-9][a-z0-9._-]{2,31}/g)||[]))
+      .filter(function(t){return !stop.has(t)&&!/^[0-9]+$/.test(t);})
+      .slice(0,18);
   }
 
-  async function fetchJson(path){
-    var r=await fetch(BASE+path,{cache:"default"});
-    if(!r.ok) throw new Error("knowledge "+path+" HTTP "+r.status);
-    return r.json();
+  function prefix(term){
+    var t=String(term||"").replace(/[^a-z0-9]/g,"");
+    if(t.length>=2) return t.slice(0,2);
+    if(t.length===1) return t+"0";
+    return "__";
   }
 
-  async function loadMeta(){
-    if(metaPromise) return metaPromise;
-    metaPromise=Promise.all([
-      fetchJson("manifest.json"),
-      fetchJson("dtc-index.json")
-    ]).then(function(v){
-      manifest=v[0];dtcIndex=v[1]||{};
-      window.dispatchEvent(new CustomEvent("oracle:knowledge-status",{detail:{
-        online:true,
-        mode:"stream",
-        version:SEARCH_VERSION,
-        files:manifest.extracted_files||0,
-        chunks:manifest.extractor&&manifest.extractor.indexed_chunks||0
-      }}));
-      return {manifest:manifest,dtcIndex:dtcIndex};
-    }).catch(function(err){
-      console.warn("[Knowledge meta]",err);
-      window.dispatchEvent(new CustomEvent("oracle:knowledge-status",{detail:{online:false,reason:String(err&&err.message||err)}}));
-      throw err;
+  async function fetchJson(path,noStore){
+    var key=path+"|"+(manifest&&manifest.source_archive_sha256||"");
+    if(!noStore&&jsonCache.has(key)) return jsonCache.get(key);
+    var url=BASE+path;
+    if(manifest&&manifest.source_archive_sha256) url+="?v="+manifest.source_archive_sha256.slice(0,12);
+    var p=fetch(url,{cache:noStore?"no-store":"force-cache"}).then(function(r){
+      if(!r.ok) throw new Error("compact knowledge "+path+" HTTP "+r.status);
+      return r.json();
     });
-    return metaPromise;
+    if(!noStore) jsonCache.set(key,p);
+    try{return await p;}catch(e){if(!noStore)jsonCache.delete(key);throw e;}
   }
 
-  function snippet(text,tokens,codes){
+  async function loadManifest(){
+    if(manifestPromise) return manifestPromise;
+    manifestPromise=fetch(BASE+"manifest.json?ts="+Date.now(),{cache:"no-store"})
+      .then(function(r){if(!r.ok)throw new Error("compact manifest HTTP "+r.status);return r.json();})
+      .then(function(m){
+        if(!m||m.mode!=="compact-lexical"||m.heavy_shards_required_by_client!==false) throw new Error("compact manifest inválido");
+        manifest=m;
+        window.dispatchEvent(new CustomEvent("oracle:knowledge-status",{detail:{
+          online:true,mode:"compact",version:SEARCH_VERSION,records:m.records||0,heavy:false
+        }}));
+        return m;
+      }).catch(function(err){
+        console.warn("[Compact knowledge]",err);
+        window.dispatchEvent(new CustomEvent("oracle:knowledge-status",{detail:{online:false,mode:"local-only",reason:String(err&&err.message||err)}}));
+        throw err;
+      });
+    return manifestPromise;
+  }
+
+  async function loadRecordMap(){
+    await loadManifest();
+    if(!mapPromise) mapPromise=fetchJson("record-map.json",false);
+    return mapPromise;
+  }
+
+  async function postingsForTerm(term){
+    await loadManifest();
+    try{
+      var file=await fetchJson("terms/"+prefix(term)+".json",false);
+      return file[term]||[];
+    }catch(e){
+      if(String(e&&e.message||e).indexOf("HTTP 404")>=0) return [];
+      throw e;
+    }
+  }
+
+  async function postingsForCode(code){
+    await loadManifest();
+    try{return await fetchJson("dtc/"+String(code).toUpperCase()+".json",false);}
+    catch(e){if(String(e&&e.message||e).indexOf("HTTP 404")>=0)return [];throw e;}
+  }
+
+  function addScores(map,ids,points){
+    (ids||[]).forEach(function(id){map.set(Number(id),(map.get(Number(id))||0)+points);});
+  }
+
+  function truthWeight(rec){
+    var s=rec.truth_status||"";
+    if(s==="source_extracted") return 20;
+    if(s==="ocr_unverified") return -4;
+    if(s==="unverified_strings") return -28;
+    return -12;
+  }
+
+  function snippet(text,needles){
     var raw=String(text||"").replace(/\s+/g," ").trim();
     if(!raw) return "";
     var n=norm(raw),pos=-1;
-    var needles=(codes||[]).concat(tokens||[]);
     for(var i=0;i<needles.length;i++){
       var p=n.indexOf(norm(needles[i]));
       if(p>=0&&(pos<0||p<pos)) pos=p;
     }
     if(pos<0) pos=0;
-    var start=Math.max(0,pos-150),end=Math.min(raw.length,start+430);
-    var s=raw.slice(start,end);
-    if(start>0) s="…"+s;
-    if(end<raw.length) s=s+"…";
-    return s;
+    var start=Math.max(0,pos-150),end=Math.min(raw.length,start+500);
+    return (start>0?"…":"")+raw.slice(start,end)+(end<raw.length?"…":"");
   }
 
-  function score(rec,tokens,codes,vehicleTokens,allowedPaths,questionNorm){
-    var text=norm(rec.text||""),path=norm(rec.path||"");
-    var s=0;
-    if(allowedPaths&&allowedPaths.size&&rec.path&&!allowedPaths.has(rec.path)){
-      s-=12;
-    }
-    if(questionNorm&&text.indexOf(questionNorm)>=0) s+=35;
-    codes.forEach(function(code){
-      var c=norm(code);
-      if(text.indexOf(c)>=0) s+=55;
-      if(path.indexOf(c)>=0) s+=15;
-    });
-    tokens.forEach(function(t){
-      if(text.indexOf(t)>=0) s+=5;
-      if(path.indexOf(t)>=0) s+=2;
-    });
-    vehicleTokens.forEach(function(t){
-      if(text.indexOf(t)>=0) s+=8;
-      if(path.indexOf(t)>=0) s+=7;
-    });
-    if(allowedPaths&&allowedPaths.has(rec.path)) s+=45;
-    if(/fio|pino|terminal|conector|esquema|eletric|chicote|cor\b/.test(questionNorm)&&
-       /fio|pino|terminal|conector|esquema|eletric|chicote|cor\b/.test(text)) s+=18;
-    if(/press|tens|resist|ohm|bar|psi|volt/.test(questionNorm)&&
-       /press|tens|resist|ohm|bar|psi|volt/.test(text)) s+=15;
-    return s;
-  }
-
-  function insertTop(top,item,max){
-    var inserted=false;
-    for(var i=0;i<top.length;i++){
-      if(item.score>top[i].score){
-        top.splice(i,0,item);inserted=true;break;
-      }
-    }
-    if(!inserted&&top.length<max) top.push(item);
-    if(top.length>max) top.length=max;
-  }
-
-  async function scanShard(path,ctx,top,max){
-    if(typeof DecompressionStream==="undefined"){
-      throw new Error("gzip browser support unavailable");
-    }
-    var r=await fetch(BASE+path,{cache:"force-cache"});
-    if(!r.ok) throw new Error("knowledge shard HTTP "+r.status);
-    if(!r.body) throw new Error("knowledge shard stream unavailable");
-
-    var stream=r.body.pipeThrough(new DecompressionStream("gzip"));
-    var reader=stream.getReader();
-    var decoder=new TextDecoder("utf-8");
-    var buffer="",processed=0;
-
-    function processLine(line){
-      line=line.trim();
-      if(!line) return;
-      var rec;
-      try{rec=JSON.parse(line);}catch(e){return;}
-      var sc=score(rec,ctx.tokens,ctx.codes,ctx.vehicleTokens,ctx.allowed,ctx.qn);
-      if(sc<=0) return;
-      insertTop(top,{rec:rec,score:sc},max);
-    }
-
-    while(true){
-      var part=await reader.read();
-      if(part.done) break;
-      buffer+=decoder.decode(part.value,{stream:true});
-      var idx;
-      while((idx=buffer.indexOf("\n"))>=0){
-        processLine(buffer.slice(0,idx));
-        buffer=buffer.slice(idx+1);
-        processed++;
-        if(processed%350===0){
-          await new Promise(function(resolve){setTimeout(resolve,0);});
-        }
-      }
-    }
-    buffer+=decoder.decode();
-    if(buffer.trim()) processLine(buffer);
+  function statusLabel(rec){
+    if(rec.truth_status==="source_extracted") return "Fonte extraída diretamente";
+    if(rec.truth_status==="ocr_unverified") return "OCR — conferir imagem/fonte";
+    if(rec.truth_status==="unverified_strings") return "Texto recuperado — não usar sozinho como valor exato";
+    return "Evidência não validada";
   }
 
   async function search(query,vehicle,limit){
-    limit=Math.max(1,Math.min(Number(limit)||5,8));
+    limit=Math.max(1,Math.min(Number(limit)||6,8));
     var vehicleText=vehicle&&typeof vehicle==="object"
       ? [vehicle.brand,vehicle.model,vehicle.year,vehicle.engine,vehicle.transmission].filter(Boolean).join(" ")
       : String(vehicle||"");
     var cacheKey=norm(String(query||"")+"|"+vehicleText+"|"+limit);
     if(queryCache.has(cacheKey)) return queryCache.get(cacheKey);
 
-    var meta=await loadMeta();
-    var q=String(query||"")+" "+vehicleText;
-    var tokens=tokensFrom(q);
+    var m;
+    try{m=await loadManifest();}catch(e){return [];}
+
+    var qTokens=tokensFrom(query);
     var vehicleTokens=tokensFrom(vehicleText);
-    var codes=codesFrom(q);
-    var allowed=null;
-    codes.forEach(function(code){
-      var paths=meta.dtcIndex[code]||[];
-      if(paths.length){
-        if(!allowed) allowed=new Set();
-        paths.forEach(function(p){allowed.add(p);});
-      }
-    });
+    var codes=codesFrom(String(query||"")+" "+vehicleText);
+    var scores=new Map();
 
-    var ctx={
-      tokens:tokens,
-      vehicleTokens:vehicleTokens,
-      codes:codes,
-      allowed:allowed,
-      qn:norm(String(query||"")).trim()
-    };
-    var top=[];
-    var shards=(meta.manifest.shards||[]).map(function(x){return "brain/"+x.file;});
-
-    window.dispatchEvent(new CustomEvent("oracle:knowledge-search",{detail:{state:"start",shards:shards.length}}));
+    window.dispatchEvent(new CustomEvent("oracle:knowledge-search",{detail:{state:"start",mode:"compact"}}));
     try{
-      for(var i=0;i<shards.length;i++){
-        await scanShard(shards[i],ctx,top,Math.max(24,limit*5));
-        window.dispatchEvent(new CustomEvent("oracle:knowledge-search",{detail:{state:"progress",done:i+1,total:shards.length}}));
-      }
-    }finally{
-      window.dispatchEvent(new CustomEvent("oracle:knowledge-search",{detail:{state:"end"}}));
-    }
+      var codeLists=await Promise.all(codes.map(postingsForCode));
+      codeLists.forEach(function(ids){addScores(scores,ids,95);});
 
-    var result=[],seen=new Set();
-    for(var j=0;j<top.length&&result.length<limit;j++){
-      var r=top[j].rec;
-      var key=(r.path||"")+"|"+(r.page||"")+"|"+(r.chunk||"");
-      if(seen.has(key)) continue;
-      seen.add(key);
-      result.push({
-        score:top[j].score,
-        page:r.page||null,
-        sourcePath:r.path||"",
-        snippet:snippet(r.text,tokens,codes),
-        extraction:r.extraction||r.kind||r.source_type||null
+      var terms=qTokens.slice(0,10);
+      var termLists=await Promise.all(terms.map(postingsForTerm));
+      termLists.forEach(function(ids,i){
+        var bonus=/[0-9]/.test(terms[i])?18:12;
+        addScores(scores,ids,bonus);
       });
-    }
 
-    queryCache.set(cacheKey,result);
-    if(queryCache.size>20){
-      var first=queryCache.keys().next().value;
-      queryCache.delete(first);
+      var vterms=vehicleTokens.slice(0,7);
+      var vehicleLists=await Promise.all(vterms.map(postingsForTerm));
+      vehicleLists.forEach(function(ids){addScores(scores,ids,18);});
+
+      if(!scores.size) return [];
+
+      var ranked=Array.from(scores.entries()).sort(function(a,b){return b[1]-a[1];}).slice(0,48);
+      var recordMap=await loadRecordMap();
+      var bucketScore=new Map();
+      ranked.forEach(function(x){
+        var b=Number(recordMap[x[0]]);
+        bucketScore.set(b,(bucketScore.get(b)||0)+x[1]);
+      });
+      var chosenBuckets=Array.from(bucketScore.entries()).sort(function(a,b){return b[1]-a[1];}).slice(0,7).map(function(x){return x[0];});
+      var bucketData=await Promise.all(chosenBuckets.map(function(b){return fetchJson("records/r"+String(b).padStart(2,"0")+".json",false);}));
+      var records={};
+      bucketData.forEach(function(obj){Object.keys(obj||{}).forEach(function(k){records[k]=obj[k];});});
+
+      var needles=codes.concat(qTokens).concat(vehicleTokens);
+      var detailed=[];
+      ranked.forEach(function(pair){
+        var rec=records[String(pair[0])];
+        if(!rec) return;
+        var text=norm((rec.text||"")+" "+(rec.path||""));
+        var s=pair[1]+truthWeight(rec);
+        qTokens.forEach(function(t){if(text.indexOf(t)>=0)s+=6;});
+        vehicleTokens.forEach(function(t){if(text.indexOf(t)>=0)s+=8;});
+        codes.forEach(function(c){if(text.indexOf(norm(c))>=0)s+=35;});
+        if(/press|tens|resist|ohm|bar|psi|volt|pino|fio|conector|torque/.test(norm(query))&&
+           /press|tens|resist|ohm|bar|psi|volt|pino|fio|conector|torque/.test(text)) s+=12;
+        detailed.push({rec:rec,score:s});
+      });
+      detailed.sort(function(a,b){return b.score-a.score;});
+
+      var out=[],seen=new Set();
+      for(var i=0;i<detailed.length&&out.length<limit;i++){
+        var rec=detailed[i].rec;
+        var key=(rec.path||"")+"|"+(rec.page||"")+"|"+(rec.chunk||"");
+        if(seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          score:detailed[i].score,
+          page:rec.page||null,
+          sourcePath:rec.path||"",
+          snippet:snippet(rec.text,needles),
+          extraction:rec.method||null,
+          truthStatus:rec.truth_status||"unknown",
+          confidence:Number(rec.confidence||0),
+          verified:rec.truth_status==="source_extracted",
+          statusLabel:statusLabel(rec),
+          sourceSha256:rec.sha256||""
+        });
+      }
+      queryCache.set(cacheKey,out);
+      if(queryCache.size>30) queryCache.delete(queryCache.keys().next().value);
+      return out;
+    }finally{
+      window.dispatchEvent(new CustomEvent("oracle:knowledge-search",{detail:{state:"end",mode:"compact"}}));
     }
-    return result;
   }
 
   function prefetch(){
-    if("requestIdleCallback" in window){
-      requestIdleCallback(function(){loadMeta().catch(function(){});},{timeout:5000});
-    }else{
-      setTimeout(function(){loadMeta().catch(function(){});},2500);
-    }
+    if("requestIdleCallback" in window) requestIdleCallback(function(){loadManifest().catch(function(){});},{timeout:4000});
+    else setTimeout(function(){loadManifest().catch(function(){});},2200);
   }
 
   window.ORACLE_REMOTE_KNOWLEDGE={
     search:search,
-    metadata:loadMeta,
+    metadata:loadManifest,
     prefetch:prefetch,
-    get status(){return {manifest:manifest,mode:"stream",version:SEARCH_VERSION,cachedQueries:queryCache.size};}
+    get status(){return {manifest:manifest,mode:"compact",version:SEARCH_VERSION,cachedFiles:jsonCache.size,cachedQueries:queryCache.size};}
   };
 })();
