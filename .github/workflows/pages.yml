@@ -77,16 +77,16 @@ jobs:
           grep -q "mecanico-b222e-default-rtdb" js/firebase.js
           grep -q "SKIP_WAITING" js/app.js
           grep -Eq 'const CACHE="thiaguinho-auto-v[0-9]+\.[0-9]+\.[0-9]+";' sw.js
-          grep -q "Fotos e vídeos são analisados temporariamente" index.html
-          grep -q "avatarCriticalStyle" index.html
-          grep -q "manifest-v133.json" index.html
-          grep -q "sw-v133.js" index.html
-          grep -q "js/knowledge-remote.js" index.html
+          grep -q "Fotos e vídeos são analisados temporariamente" app-v133.html
+          grep -q "avatarCriticalStyle" app-v133.html
+          grep -q "manifest-v133.json" app-v133.html
+          grep -q "sw-v133.js" app-v133.html
+          grep -q "js/knowledge-remote.js" app-v133.html
           grep -q "thiaguinho-auto-v1.3.3" sw-v133.js
           grep -q "data:image/webp;base64" css/app.css
-          ! grep -q "AUTODATA 3.45.rar" index.html
-          ! grep -q "SIMPLO-2019.rar" index.html
-          ! grep -q "CONHECIMENTO.ZIP" index.html
+          ! grep -q "AUTODATA 3.45.rar" app-v133.html
+          ! grep -q "SIMPLO-2019.rar" app-v133.html
+          ! grep -q "CONHECIMENTO.ZIP" app-v133.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
