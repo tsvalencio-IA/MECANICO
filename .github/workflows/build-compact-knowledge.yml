@@ -6,6 +6,9 @@ on:
     paths:
       - "scripts/build_compact_knowledge.py"
       - ".github/workflows/build-compact-knowledge.yml"
+  workflow_run:
+    workflows: ["Import CONHECIMENTO knowledge"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -17,6 +20,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
