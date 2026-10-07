@@ -313,8 +313,12 @@
 
     if(diag.remoteEvidence && diag.remoteEvidence.length){
       var rsec=document.createElement("div");rsec.className="answer-section";
-      rsec.innerHTML='<span class="answer-title">Base técnica interna relacionada</span><ul>'+
-        diag.remoteEvidence.slice(0,3).map(function(e){return '<li>'+esc(e.snippet)+'</li>';}).join("")+'</ul>';
+      rsec.innerHTML='<span class="answer-title">Evidências da base técnica</span><ul>'+
+        diag.remoteEvidence.slice(0,3).map(function(e){
+          var source=e.sourcePath?e.sourcePath.split("/").pop():"fonte interna";
+          var page=e.page?(" • pág. "+e.page):"";
+          return '<li>'+esc(e.snippet)+'<small class="source-ref">Fonte: '+esc(source+page)+'</small></li>';
+        }).join("")+'</ul>';
       bubble.appendChild(rsec);
     }
 
