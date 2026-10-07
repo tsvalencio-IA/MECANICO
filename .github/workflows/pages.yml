@@ -32,16 +32,18 @@ jobs:
           node --check js/knowledge-remote.js
           node --check data/knowledge.js
           node --check sw.js
+          node --check sw-v132.js
+          node --check sw-v134.js
 
       - name: Validate manifest
         run: |
           node - <<'NODE'
           const fs=require('fs');
-          const m=JSON.parse(fs.readFileSync('manifest-v133.json','utf8'));
-          if(m.id!=='/MECANICO/app-v133.html'||m.scope!=='/MECANICO/'||!m.start_url.startsWith('/MECANICO/app-v133.html')) throw new Error('manifest scope/start/id');
+          const m=JSON.parse(fs.readFileSync('manifest-v134.json','utf8'));
+          if(m.id!=='/MECANICO/app-v134.html'||m.scope!=='/MECANICO/'||!m.start_url.startsWith('/MECANICO/app-v134.html')) throw new Error('manifest scope/start/id');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='192x192')) throw new Error('192 PNG icon missing');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='512x512')) throw new Error('512 PNG icon missing');
-          console.log('manifest v1.3.3 installable fields ok');
+          console.log('manifest v1.3.4 installable fields ok');
           NODE
 
       - name: Knowledge smoke checks
@@ -62,9 +64,9 @@ jobs:
       - name: Verify critical files and privacy architecture
         run: |
           test -f index.html
-          test -f app-v133.html
-          test -f manifest-v133.json
-          test -f sw-v133.js
+          test -f app-v134.html
+          test -f manifest-v134.json
+          test -f sw-v134.js
           test -f css/app.css
           test -f js/knowledge-remote.js
           test -f assets/logo-thIAguinho.svg
@@ -76,17 +78,18 @@ jobs:
           grep -q "signInAnonymously" js/firebase.js
           grep -q "mecanico-b222e-default-rtdb" js/firebase.js
           grep -q "SKIP_WAITING" js/app.js
-          grep -Eq 'const CACHE="thiaguinho-auto-v[0-9]+\.[0-9]+\.[0-9]+";' sw.js
-          grep -q "Fotos e vídeos são analisados temporariamente" app-v133.html
-          grep -q "avatarCriticalStyle" app-v133.html
-          grep -q "manifest-v133.json" app-v133.html
-          grep -q "sw-v133.js" app-v133.html
-          grep -q "js/knowledge-remote.js" app-v133.html
-          grep -q "thiaguinho-auto-v1.3.3" sw-v133.js
+          grep -q 'const MIGRATION="1.3.4"' sw.js
+          grep -q 'const MIGRATION="1.3.4"' sw-v132.js
+          grep -q "Fotos e vídeos são analisados temporariamente" app-v134.html
+          grep -q "avatarCriticalStyle" app-v134.html
+          grep -q "manifest-v134.json" app-v134.html
+          grep -q "sw-v134.js" app-v134.html
+          grep -q "js/knowledge-remote.js" app-v134.html
+          grep -q "thiaguinho-auto-v1.3.4" sw-v134.js
           grep -q "data:image/webp;base64" css/app.css
-          ! grep -q "AUTODATA 3.45.rar" app-v133.html
-          ! grep -q "SIMPLO-2019.rar" app-v133.html
-          ! grep -q "CONHECIMENTO.ZIP" app-v133.html
+          ! grep -q "AUTODATA 3.45.rar" app-v134.html
+          ! grep -q "SIMPLO-2019.rar" app-v134.html
+          ! grep -q "CONHECIMENTO.ZIP" app-v134.html
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
