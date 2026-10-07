@@ -1,0 +1,141 @@
+{
+  "archive": "CONHECIMENTO.ZIP",
+  "archive_bytes": 2890485781,
+  "extract_errors": [],
+  "nested_archives": [
+    {
+      "path": "Treinamento/Manual de reparo Remofer.rar",
+      "status": "failed",
+      "error": "Command '['7z', 'x', '-y', '/tmp/thiaguinho-source/Treinamento/Manual de reparo Remofer.rar', '-o/tmp/thiaguinho-source/__nested__/Treinamento_Manual_de_reparo_Remofer.rar']' died with <Signals.SIGSEGV: 11>."
+    }
+  ],
+  "archive_sha256": "c2b9578a5134f030e0e2a71188aa54ea85dcdcb4a5743a979ef690035adefb35",
+  "zip_entries": 8556,
+  "zip_uncompressed_bytes": 3383041870,
+  "zip_largest_entry_bytes": 640880816,
+  "extracted_files": 8557,
+  "extracted_bytes": 3383041870,
+  "schema_version": 2,
+  "extractor": {
+    "total_files": 8557,
+    "indexed_files": 8009,
+    "indexed_chunks": 20736,
+    "unreadable_files": 24,
+    "ocr_files": 6862,
+    "metadata_only_files": 548,
+    "unverified_string_files": 91
+  },
+  "truth_policy": {
+    "source_extracted": "texto extraido diretamente sem correcao semantica",
+    "ocr_unverified": "OCR da imagem, nunca promovido sozinho a fato exato",
+    "unverified_strings": "strings recuperadas de binario proprietario, nunca usadas sozinhas como fato exato",
+    "metadata_only": "arquivo catalogado por caminho/hash/tamanho sem texto extraido"
+  },
+  "extensions": {
+    ".lnk": {
+      "files": 6,
+      "bytes": 7374
+    },
+    ".pdf": {
+      "files": 76,
+      "bytes": 1986718677
+    },
+    ".jnt": {
+      "files": 1,
+      "bytes": 4544
+    },
+    ".txt": {
+      "files": 5,
+      "bytes": 33734
+    },
+    ".rar": {
+      "files": 1,
+      "bytes": 163668198
+    },
+    ".cst": {
+      "files": 28,
+      "bytes": 963184
+    },
+    ".exe": {
+      "files": 2,
+      "bytes": 18414608
+    },
+    ".cxt": {
+      "files": 48,
+      "bytes": 729823366
+    },
+    ".ico": {
+      "files": 2,
+      "bytes": 7276
+    },
+    ".htm": {
+      "files": 981,
+      "bytes": 18881348
+    },
+    ".inf": {
+      "files": 2,
+      "bytes": 85
+    },
+    ".pdf#": {
+      "files": 1,
+      "bytes": 99
+    },
+    ".log": {
+      "files": 2,
+      "bytes": 836
+    },
+    ".dxr": {
+      "files": 8,
+      "bytes": 8443252
+    },
+    ".x32": {
+      "files": 4,
+      "bytes": 891904
+    },
+    ".ini": {
+      "files": 3,
+      "bytes": 400
+    },
+    ".db": {
+      "files": 3,
+      "bytes": 247808
+    },
+    ".html": {
+      "files": 1,
+      "bytes": 2574
+    },
+    ".jpg": {
+      "files": 7323,
+      "bytes": 451892071
+    },
+    ".4ef208c47e6f4146": {
+      "files": 1,
+      "bytes": 0
+    },
+    ".doc": {
+      "files": 18,
+      "bytes": 1458688
+    },
+    ".gif": {
+      "files": 41,
+      "bytes": 1581844
+    }
+  },
+  "shards": [
+    {
+      "file": "shard-0000.jsonl.gz",
+      "records": 9278,
+      "bytes": 4884090
+    },
+    {
+      "file": "shard-0001.jsonl.gz",
+      "records": 9924,
+      "bytes": 4999178
+    },
+    {
+      "file": "shard-0002.jsonl.gz",
+      "records": 1534,
+      "bytes": 3284594
+    }
+  ]
+}
