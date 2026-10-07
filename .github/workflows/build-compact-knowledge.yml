@@ -1,0 +1,74 @@
+name: Build compact automotive knowledge
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "scripts/build_compact_knowledge.py"
+      - ".github/workflows/build-compact-knowledge.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "compact-knowledge"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout application
+        uses: actions/checkout@v6
+        with:
+          path: app
+
+      - name: Checkout knowledge branch
+        uses: actions/checkout@v6
+        with:
+          ref: knowledge
+          path: knowledge
+
+      - name: Build compact index
+        run: |
+          rm -rf /tmp/thiaguinho-compact
+          mkdir -p /tmp/thiaguinho-compact
+          python app/scripts/build_compact_knowledge.py             --knowledge-dir knowledge             --out /tmp/thiaguinho-compact
+
+      - name: Validate compact index
+        run: |
+          test -s /tmp/thiaguinho-compact/manifest.json
+          test -s /tmp/thiaguinho-compact/record-map.json
+          test -d /tmp/thiaguinho-compact/records
+          test -d /tmp/thiaguinho-compact/terms
+          test -d /tmp/thiaguinho-compact/dtc
+          python - <<'PY'
+          import json
+          m=json.load(open("/tmp/thiaguinho-compact/manifest.json",encoding="utf-8"))
+          assert m["schema_version"] == 1
+          assert m["mode"] == "compact-lexical"
+          assert m["records"] > 1000
+          assert m["term_files"] > 10
+          assert m["terms"] > 1000
+          assert m["heavy_shards_required_by_client"] is False
+          print("COMPACT KNOWLEDGE OK",m)
+          PY
+          du -sh /tmp/thiaguinho-compact
+
+      - name: Publish knowledge-compact branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd /tmp/thiaguinho-compact
+          git init
+          git checkout -b knowledge-compact
+          git config user.name "thIAguinho Knowledge Bot"
+          git config user.email "actions@github.com"
+          gh auth setup-git
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git add .
+          git commit -m "knowledge: índice compacto auditável"
+          git push origin HEAD:knowledge-compact --force
+          git rev-parse HEAD
