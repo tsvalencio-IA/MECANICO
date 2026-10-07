@@ -1,4 +1,4 @@
-name: Validate and deploy thIAguinho
+name: Validate thIAguinho
 
 on:
   push:
@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: "pages"
@@ -16,9 +14,6 @@ concurrency:
 
 jobs:
   validate-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -93,14 +88,3 @@ jobs:
           ! grep -q "SIMPLO-2019.rar" app-v134.html
           ! grep -q "CONHECIMENTO.ZIP" app-v134.html
 
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload static site
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: "."
-
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
