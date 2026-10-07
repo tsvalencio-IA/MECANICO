@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "mode": "compact-lexical",
+  "source_archive": "CONHECIMENTO.ZIP",
+  "source_archive_sha256": "c2b9578a5134f030e0e2a71188aa54ea85dcdcb4a5743a979ef690035adefb35",
+  "source_schema_version": 2,
+  "records": 20736,
+  "record_buckets": 64,
+  "term_files": 1296,
+  "terms": 178244,
+  "dtcs": 228,
+  "text_preview_chars": 2600,
+  "truth_counts": {
+    "source_extracted": 9660,
+    "unverified_strings": 4214,
+    "ocr_unverified": 6862
+  },
+  "truth_policy": {
+    "source_extracted": "texto extraido diretamente sem correcao semantica",
+    "ocr_unverified": "OCR da imagem, nunca promovido sozinho a fato exato",
+    "unverified_strings": "strings recuperadas de binario proprietario, nunca usadas sozinhas como fato exato",
+    "metadata_only": "arquivo catalogado por caminho/hash/tamanho sem texto extraido"
+  },
+  "heavy_shards_required_by_client": false
+}
