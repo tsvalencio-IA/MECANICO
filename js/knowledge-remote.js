@@ -80,8 +80,17 @@
 
   async function postingsForCode(code){
     await loadManifest();
-    try{return await fetchJson("dtc/"+String(code).toUpperCase()+".json",false);}
-    catch(e){if(String(e&&e.message||e).indexOf("HTTP 404")>=0)return [];throw e;}
+    try{
+      var payload=await fetchJson("dtc/"+String(code).toUpperCase()+".json",false);
+      if(Array.isArray(payload)) return {ids:payload,direct:{}};
+      var rows=payload&&Array.isArray(payload.records)?payload.records:[];
+      var direct={};
+      var ids=rows.map(function(row){direct[String(row.id)]=row;return row.id;});
+      return {ids:ids,direct:direct};
+    }catch(e){
+      if(String(e&&e.message||e).indexOf("HTTP 404")>=0) return {ids:[],direct:{}};
+      throw e;
+    }
   }
 
   function addScores(map,ids,points){
@@ -131,11 +140,15 @@
     var vehicleTokens=tokensFrom(vehicleText);
     var codes=codesFrom(String(query||"")+" "+vehicleText);
     var scores=new Map();
+    var directEvidence={};
 
     window.dispatchEvent(new CustomEvent("oracle:knowledge-search",{detail:{state:"start",mode:"compact"}}));
     try{
       var codeLists=await Promise.all(codes.map(postingsForCode));
-      codeLists.forEach(function(ids){addScores(scores,ids,95);});
+      codeLists.forEach(function(pack){
+        addScores(scores,pack.ids,95);
+        Object.keys(pack.direct||{}).forEach(function(id){directEvidence[id]=pack.direct[id];});
+      });
 
       var terms=qTokens.slice(0,10);
       var termLists=await Promise.all(terms.map(postingsForTerm));
@@ -184,17 +197,19 @@
         var key=(rec.path||"")+"|"+(rec.page||"")+"|"+(rec.chunk||"");
         if(seen.has(key)) continue;
         seen.add(key);
+        var direct=directEvidence[String(rec.id)]||null;
+        var evidenceRec=direct||rec;
         out.push({
           score:detailed[i].score,
-          page:rec.page||null,
-          sourcePath:rec.path||"",
-          snippet:snippet(rec.text,needles),
-          extraction:rec.method||null,
-          truthStatus:rec.truth_status||"unknown",
-          confidence:Number(rec.confidence||0),
-          verified:rec.truth_status==="source_extracted",
-          statusLabel:statusLabel(rec),
-          sourceSha256:rec.sha256||""
+          page:evidenceRec.page||null,
+          sourcePath:evidenceRec.path||rec.path||"",
+          snippet:direct&&direct.snippet?direct.snippet:snippet(rec.text,needles),
+          extraction:evidenceRec.method||rec.method||null,
+          truthStatus:evidenceRec.truth_status||rec.truth_status||"unknown",
+          confidence:Number(evidenceRec.confidence||rec.confidence||0),
+          verified:(evidenceRec.truth_status||rec.truth_status)==="source_extracted",
+          statusLabel:statusLabel(evidenceRec),
+          sourceSha256:evidenceRec.sha256||rec.sha256||""
         });
       }
       queryCache.set(cacheKey,out);
