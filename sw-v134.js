@@ -6,6 +6,7 @@ const STATIC=[
   "./js/app.js?v=1.6.0",
   "./js/firebase.js?v=1.6.0",
   "./js/media.js?v=1.6.0",
+  "./js/knowledge-remote.js?v=1.6.0",
   "./data/knowledge.js?v=1.6.0",
   "./manifest-v134.json?v=1.6.0",
   "./assets/icon-thIAguinho.svg?v=1.6.0",
@@ -34,7 +35,7 @@ self.addEventListener("fetch",event=>{
   const url=new URL(req.url);
   if(url.origin!==self.location.origin)return;
 
-  const criticalShell=/\/(?:index\.html|css\/app\.css|js\/app\.js)$/.test(url.pathname);
+  const criticalShell=/\/(?:index\.html|app-v134\.html|css\/app\.css|js\/(?:app|knowledge-remote)\.js)$/.test(url.pathname);
   if(criticalShell){
     event.respondWith(
       fetch(req,{cache:"no-store"}).then(res=>{
