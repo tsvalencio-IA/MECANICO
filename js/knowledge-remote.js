@@ -22,6 +22,15 @@
       .slice(0,18);
   }
 
+  function identityTokensFrom(vehicle){
+    if(!vehicle||typeof vehicle!=="object") return [];
+    var raw=[vehicle.model,vehicle.brand,vehicle.engine].filter(Boolean).join(" ");
+    var stop=new Set(["motor","automatico","automático","manual","flex","gasolina","etanol","diesel"]);
+    return Array.from(new Set(norm(raw).match(/[a-z0-9][a-z0-9._-]{1,31}/g)||[]))
+      .filter(function(t){return !stop.has(t)&&!/^[0-9.]+$/.test(t);})
+      .slice(0,8);
+  }
+
   function prefix(term){
     var t=String(term||"").replace(/[^a-z0-9]/g,"");
     if(t.length>=2) return t.slice(0,2);
@@ -138,6 +147,7 @@
 
     var qTokens=tokensFrom(query);
     var vehicleTokens=tokensFrom(vehicleText);
+    var identityTokens=identityTokensFrom(vehicle);
     var codes=codesFrom(String(query||"")+" "+vehicleText);
     var scores=new Map();
     var directEvidence={};
@@ -181,6 +191,7 @@
         var rec=records[String(pair[0])];
         if(!rec) return;
         var text=norm((rec.text||"")+" "+(rec.path||""));
+        if(identityTokens.length && !identityTokens.some(function(t){return text.indexOf(t)>=0;})) return;
         var s=pair[1]+truthWeight(rec);
         qTokens.forEach(function(t){if(text.indexOf(t)>=0)s+=6;});
         vehicleTokens.forEach(function(t){if(text.indexOf(t)>=0)s+=8;});
