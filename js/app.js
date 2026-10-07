@@ -315,9 +315,10 @@
       var rsec=document.createElement("div");rsec.className="answer-section";
       rsec.innerHTML='<span class="answer-title">Evidências da base técnica</span><ul>'+
         diag.remoteEvidence.slice(0,3).map(function(e){
-          var source=e.sourcePath?e.sourcePath.split("/").pop():"fonte interna";
           var page=e.page?(" • pág. "+e.page):"";
-          return '<li>'+esc(e.snippet)+'<small class="source-ref">Fonte: '+esc(source+page)+'</small></li>';
+          var status=e.statusLabel||(e.verified?"Fonte extraída diretamente":"Evidência para conferência");
+          var mark=e.verified?"✓ ":"⚠ ";
+          return '<li>'+esc(e.snippet)+'<small class="source-ref">'+esc(mark+status+page)+'</small></li>';
         }).join("")+'</ul>';
       bubble.appendChild(rsec);
     }
@@ -422,8 +423,9 @@
           var hits=await ORACLE_REMOTE_KNOWLEDGE.search(text,state.vehicle,6);
           if(hits && hits.length){
             diag.remoteEvidence=hits;
-            diag.evidence="base técnica interna + "+diag.evidence;
-            if(diag.ruleId==="baseline") diag.title="Diagnóstico orientado pela base técnica interna";
+            var verifiedHits=hits.filter(function(x){return x.verified;}).length;
+            diag.evidence=(verifiedHits?"fonte documental recuperada + ":"evidência recuperada para conferência + ")+diag.evidence;
+            if(diag.ruleId==="baseline") diag.title=verifiedHits?"Diagnóstico orientado por fonte técnica":"Triagem orientada por evidências";
           }
         }catch(err){
           console.warn("[Knowledge search]",err);
