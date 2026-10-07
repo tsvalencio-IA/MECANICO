@@ -37,11 +37,11 @@ jobs:
         run: |
           node - <<'NODE'
           const fs=require('fs');
-          const m=JSON.parse(fs.readFileSync('manifest.webmanifest','utf8'));
-          if(!m.id||!m.start_url||!m.scope) throw new Error('manifest navigation fields missing');
+          const m=JSON.parse(fs.readFileSync('manifest-v132.json','utf8'));
+          if(m.id!=='/MECANICO/'||m.scope!=='/MECANICO/'||!m.start_url.startsWith('/MECANICO/')) throw new Error('manifest scope/start/id');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='192x192')) throw new Error('192 PNG icon missing');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='512x512')) throw new Error('512 PNG icon missing');
-          console.log('manifest installable fields ok');
+          console.log('manifest v1.3.2 installable fields ok');
           NODE
 
       - name: Knowledge smoke checks
@@ -62,6 +62,8 @@ jobs:
       - name: Verify critical files and privacy architecture
         run: |
           test -f index.html
+          test -f manifest-v132.json
+          test -f sw-v132.js
           test -f css/app.css
           test -f js/knowledge-remote.js
           test -f assets/logo-thIAguinho.svg
@@ -76,6 +78,10 @@ jobs:
           grep -Eq 'const CACHE="thiaguinho-auto-v[0-9]+\.[0-9]+\.[0-9]+";' sw.js
           grep -q "Fotos e vídeos são analisados temporariamente" index.html
           grep -q "avatarCriticalStyle" index.html
+          grep -q "manifest-v132.json" index.html
+          grep -q "sw-v132.js" index.html
+          grep -q "js/knowledge-remote.js" index.html
+          grep -q "thiaguinho-auto-v1.3.2" sw-v132.js
           grep -q "data:image/webp;base64" css/app.css
           ! grep -q "AUTODATA 3.45.rar" index.html
           ! grep -q "SIMPLO-2019.rar" index.html
