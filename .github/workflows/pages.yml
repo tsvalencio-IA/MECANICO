@@ -44,7 +44,7 @@ jobs:
           if(m.id!=='/MECANICO/app-v134.html'||m.scope!=='/MECANICO/'||!m.start_url.startsWith('/MECANICO/app-v134.html')) throw new Error('manifest scope/start/id');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='192x192')) throw new Error('192 PNG icon missing');
           if(!m.icons.some(i=>i.type==='image/png'&&i.sizes==='512x512')) throw new Error('512 PNG icon missing');
-          console.log('manifest v1.3.4 installable fields ok');
+          console.log('manifest v1.4.0 installable fields ok');
           NODE
 
       - name: Knowledge smoke checks
@@ -79,15 +79,15 @@ jobs:
           grep -q "signInAnonymously" js/firebase.js
           grep -q "mecanico-b222e-default-rtdb" js/firebase.js
           grep -q "SKIP_WAITING" js/app.js
-          grep -q 'const MIGRATION_VERSION="1.3.4"' sw.js
-          grep -q 'const MIGRATION_VERSION="1.3.4"' sw-v132.js
-          grep -q 'const MIGRATION_VERSION="1.3.4"' sw-v133.js
+          grep -q 'const MIGRATION_VERSION="1.4.0"' sw.js
+          grep -q 'const MIGRATION_VERSION="1.4.0"' sw-v132.js
+          grep -q 'const MIGRATION_VERSION="1.4.0"' sw-v133.js
           grep -q "Fotos e vídeos são analisados temporariamente" app-v134.html
           grep -q "avatarCriticalStyle" app-v134.html
           grep -q "manifest-v134.json" app-v134.html
           grep -q "sw-v134.js" app-v134.html
           grep -q "js/knowledge-remote.js" app-v134.html
-          grep -q "thiaguinho-auto-v1.3.4" sw-v134.js
+          grep -q "thiaguinho-auto-v1.4.0" sw-v134.js
           grep -q "data:image/webp;base64" css/app.css
           ! grep -q "AUTODATA 3.45.rar" app-v134.html
           ! grep -q "SIMPLO-2019.rar" app-v134.html
