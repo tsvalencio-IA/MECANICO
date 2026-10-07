@@ -14,7 +14,9 @@
     activeTestIndex: 0,
     testResults: [],
     deferredInstall: null,
-    recognition: null
+    recognition: null,
+    settings: loadJSON("thiaguinho_settings",{sound:true,autoSpeak:false,motion:true}),
+    lastBotText: ""
   };
 
   function $(id){ return document.getElementById(id); }
@@ -272,6 +274,10 @@
     var p=document.createElement("p");p.textContent=text;bubble.appendChild(p);
     article.appendChild(bubble);
     $("messages").appendChild(article);
+    if(role==="bot" && !opts.typing){
+      state.lastBotText=String(text||"");
+      if(state.settings.sound && state.settings.autoSpeak) speakText(state.lastBotText);
+    }
     scrollMessages();
     return article;
   }
@@ -522,23 +528,112 @@
     renderMediaQueue();$("chatInput").focus();toast("Novo diagnóstico");
   }
 
+  function speakText(text){
+    if(!state.settings.sound){toast("Som desativado nas configurações");return;}
+    if(!("speechSynthesis" in window) || !text){toast("Leitura por voz não disponível neste navegador");return;}
+    window.speechSynthesis.cancel();
+    var u=new SpeechSynthesisUtterance(String(text));
+    u.lang="pt-BR";u.rate=.98;u.pitch=1.02;
+    u.onstart=function(){document.body.classList.add("mascot-talking");};
+    u.onend=u.onerror=function(){document.body.classList.remove("mascot-talking");};
+    window.speechSynthesis.speak(u);
+  }
+
+  function applyMotionSetting(){
+    document.documentElement.dataset.motion=state.settings.motion===false?"off":"on";
+  }
+
+  function loadSavedVehicles(){ return loadJSON("thiaguinho_saved_vehicles",[]); }
+  function saveSavedVehicles(list){ saveJSON("thiaguinho_saved_vehicles",list||[]); }
+
+  function vehicleFromForm(){
+    var v={};
+    ["brand","model","year","engine","transmission","mileage"].forEach(function(k){v[k]=$(k).value.trim();});
+    return v;
+  }
+
+  function fillVehicleForm(v){
+    v=v||{};
+    ["brand","model","year","engine","transmission","mileage"].forEach(function(k){$(k).value=v[k]||"";});
+  }
+
+  function renderSavedVehicles(){
+    var box=$("savedVehiclesList"); if(!box)return;
+    var list=loadSavedVehicles();
+    if(!list.length){box.innerHTML='<div class="empty saved-empty">Nenhum veículo salvo.</div>';return;}
+    box.innerHTML=list.map(function(v,i){
+      var title=vehicleText(v)||("Veículo "+(i+1));
+      return '<article class="saved-vehicle"><div><strong>'+esc(title)+'</strong><small>'+esc(v.mileage?("KM "+v.mileage):"")+'</small></div><div class="saved-vehicle-actions"><button type="button" class="ghost-btn" data-use-vehicle="'+i+'">Usar</button><button type="button" class="ghost-btn danger" data-delete-vehicle="'+i+'">Excluir</button></div></article>';
+    }).join("");
+    box.querySelectorAll("[data-use-vehicle]").forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var v=loadSavedVehicles()[Number(btn.dataset.useVehicle)];
+        if(!v)return;fillVehicleForm(v);state.vehicle=Object.assign({},v);saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();toast("Veículo carregado");
+      });
+    });
+    box.querySelectorAll("[data-delete-vehicle]").forEach(function(btn){
+      btn.addEventListener("click",function(){
+        var list=loadSavedVehicles();list.splice(Number(btn.dataset.deleteVehicle),1);saveSavedVehicles(list);renderSavedVehicles();toast("Veículo excluído");
+      });
+    });
+  }
+
+  function saveCurrentVehicleProfile(){
+    var v=vehicleFromForm();
+    if(!vehicleText(v)){toast("Preencha ao menos marca ou modelo");return;}
+    var list=loadSavedVehicles();
+    var key=norm([v.brand,v.model,v.year,v.engine].join("|"));
+    var idx=list.findIndex(function(x){return norm([x.brand,x.model,x.year,x.engine].join("|"))===key;});
+    if(idx>=0) list[idx]=v; else list.unshift(v);
+    saveSavedVehicles(list.slice(0,30));renderSavedVehicles();toast(idx>=0?"Veículo atualizado":"Veículo salvo");
+  }
+
+  function initSettings(){
+    applyMotionSetting();
+    var open=function(){
+      $("soundEnabled").checked=state.settings.sound!==false;
+      $("autoSpeakEnabled").checked=!!state.settings.autoSpeak;
+      $("motionEnabled").checked=state.settings.motion!==false;
+      openDialog($("settingsDialog"));
+    };
+    if($("settingsBtn")) $("settingsBtn").addEventListener("click",open);
+    if($("closeSettingsBtn")) $("closeSettingsBtn").addEventListener("click",function(){closeDialog($("settingsDialog"));});
+    if($("soundBtn")) $("soundBtn").addEventListener("click",function(){speakText(state.lastBotText||"Estou pronto para diagnosticar.");});
+    if($("speakLastSettingsBtn")) $("speakLastSettingsBtn").addEventListener("click",function(){speakText(state.lastBotText||"Estou pronto para diagnosticar.");});
+
+    ["soundEnabled","autoSpeakEnabled","motionEnabled"].forEach(function(id){
+      if(!$(id))return;
+      $(id).addEventListener("change",function(){
+        state.settings.sound=$("soundEnabled").checked;
+        state.settings.autoSpeak=$("autoSpeakEnabled").checked;
+        state.settings.motion=$("motionEnabled").checked;
+        saveJSON("thiaguinho_settings",state.settings);applyMotionSetting();
+        if(!state.settings.sound && window.speechSynthesis) window.speechSynthesis.cancel();
+      });
+    });
+    if($("clearSavedVehiclesBtn")) $("clearSavedVehiclesBtn").addEventListener("click",function(){
+      if(!confirm("Apagar todos os veículos salvos?"))return;
+      saveSavedVehicles([]);renderSavedVehicles();toast("Veículos salvos apagados");
+    });
+  }
+
   function initVehicle(){
     updateVehicleUI();
-    var open=function(){updateVehicleUI();openDialog($("vehicleDialog"));};
+    var open=function(){updateVehicleUI();renderSavedVehicles();openDialog($("vehicleDialog"));};
     $("vehicleBtn").addEventListener("click",open);
     $("vehicleComposerBtn").addEventListener("click",open);
     $("saveVehicleBtn").addEventListener("click",function(e){
       e.preventDefault();
-      state.vehicle={};
-      ["brand","model","year","engine","transmission","mileage"].forEach(function(k){state.vehicle[k]=$(k).value.trim();});
+      state.vehicle=vehicleFromForm();
       saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();closeDialog($("vehicleDialog"));
       toast("Veículo aplicado");
       if(state.messages.length) persistSession();
     });
     $("clearVehicleBtn").addEventListener("click",function(){
-      state.vehicle={};saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();
-      ["brand","model","year","engine","transmission","mileage"].forEach(function(k){$(k).value="";});
+      state.vehicle={};saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();fillVehicleForm({});
     });
+    if($("saveVehicleProfileBtn")) $("saveVehicleProfileBtn").addEventListener("click",saveCurrentVehicleProfile);
+    renderSavedVehicles();
   }
 
   function initTheme(){
@@ -715,7 +810,7 @@
   }
 
   function initPwa(){
-    var BUILD="1.3.4";
+    var BUILD="1.4.0";
     window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
     $("installBtn").addEventListener("click",function(){
       if(!state.deferredInstall)return;
@@ -773,6 +868,7 @@
   }
 
   initTheme();
+  initSettings();
   initVehicle();
   initChat();
   initMedia();
