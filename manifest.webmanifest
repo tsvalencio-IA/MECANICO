@@ -1,14 +1,37 @@
 {
-  "name":"thIAguinho Soluções Automotiva — IA Mecânico",
-  "short_name":"thIAguinho",
-  "description":"IA Mecânico para diagnóstico automotivo orientado por evidências, testes e histórico automático.",
-  "start_url":"./",
-  "scope":"./",
-  "display":"standalone",
-  "background_color":"#07111f",
-  "theme_color":"#07111f",
-  "lang":"pt-BR",
-  "icons":[
-    {"src":"./assets/icon-thIAguinho.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  "id": "./",
+  "name": "thIAguinho Soluções Automotiva — IA Mecânico",
+  "short_name": "thIAguinho",
+  "description": "IA Mecânico para diagnóstico automotivo orientado por evidências, testes e histórico automático.",
+  "start_url": "./?pwa=1",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait-primary",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "./assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }
