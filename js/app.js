@@ -715,7 +715,7 @@
   }
 
   function initPwa(){
-    var BUILD="1.3.1";
+    var BUILD="1.3.2";
     window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
     $("installBtn").addEventListener("click",function(){
       if(!state.deferredInstall)return;
@@ -760,7 +760,7 @@
 
     window.addEventListener("load",async function(){
       try{
-        var reg=await navigator.serviceWorker.register("./sw.js?v="+BUILD,{updateViaCache:"none"});
+        var reg=await navigator.serviceWorker.register("./sw-v132.js?v="+BUILD,{scope:"./",updateViaCache:"none"});
         watchRegistration(reg);
         await checkUpdate();
       }catch(err){console.warn("[SW]",err);}

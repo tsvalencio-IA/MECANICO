@@ -7,10 +7,10 @@
   <meta name="description" content="thIAguinho Soluções Automotiva — IA Mecânico para diagnóstico automotivo orientado por evidências.">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="./manifest.webmanifest?v=1.3.1">
-  <link rel="icon" href="./assets/icon-thIAguinho.svg?v=1.3.1" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="./assets/icon-192.png?v=1.3.1">
-  <link rel="stylesheet" href="./css/app.css?v=1.3.1">
+  <link rel="manifest" href="./manifest-v132.json?v=1.3.2">
+  <link rel="icon" href="./assets/icon-thIAguinho.svg?v=1.3.2" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./assets/icon-192.png?v=1.3.2">
+  <link rel="stylesheet" href="./css/app.css?v=1.3.2">
   <title>thIAguinho • IA Mecânico</title>
 
   <style id="avatarCriticalStyle">
@@ -39,6 +39,16 @@
       }catch(e){}
     })();
   </script>
+  <script id="pwa-bootstrap-1.3.2">
+    (function(){
+      if(!("serviceWorker" in navigator)) return;
+      window.addEventListener("load",function(){
+        navigator.serviceWorker.register("./sw-v132.js?v=1.3.2",{scope:"./",updateViaCache:"none"})
+          .then(function(reg){reg.update().catch(function(){});})
+          .catch(function(err){console.warn("[PWA bootstrap]",err);});
+      });
+    })();
+  </script>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -46,7 +56,7 @@
 
   <header class="topbar">
     <a class="brand" href="./" aria-label="thIAguinho Soluções Automotiva">
-      <img src="./assets/logo-thIAguinho.svg?v=1.3.1" alt="thIAguinho Soluções Automotiva" class="brand-logo">
+      <img src="./assets/logo-thIAguinho.svg?v=1.3.2" alt="thIAguinho Soluções Automotiva" class="brand-logo">
       <div class="brand-compact">
         <strong>th<span>IA</span>guinho</strong>
         <small>Soluções Automotiva</small>
@@ -64,11 +74,11 @@
   <main class="app-shell">
     <aside class="identity-panel">
       <div class="identity-logo">
-        <img src="./assets/logo-thIAguinho.svg?v=1.3.1" alt="thIAguinho Soluções Automotiva">
+        <img src="./assets/logo-thIAguinho.svg?v=1.3.2" alt="thIAguinho Soluções Automotiva">
       </div>
       <div class="mascot-stage" aria-hidden="true">
         <div class="mascot-glow"></div>
-        <img src="./assets/mascote-thIAguinho-hero.png?v=1.3.1" alt="thIAguinho, IA Mecânico da thIAguinho Soluções Automotiva" class="main-mascot" loading="eager" onerror="this.onerror=null;this.src='./assets/icon-thIAguinho.svg?v=1.3.1'">
+        <img src="./assets/mascote-thIAguinho-hero.png?v=1.3.2" alt="thIAguinho, IA Mecânico da thIAguinho Soluções Automotiva" class="main-mascot" loading="eager" onerror="this.onerror=null;this.src='./assets/icon-thIAguinho.svg?v=1.3.2'">
         <div class="scan-line"></div>
       </div>
       <div class="identity-copy">
@@ -194,9 +204,10 @@
   <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-database-compat.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@6/dist/tesseract.min.js"></script>
-  <script src="./data/knowledge.js?v=1.3.1"></script>
-  <script src="./js/firebase.js?v=1.3.1"></script>
-  <script src="./js/media.js?v=1.3.1"></script>
-  <script src="./js/app.js?v=1.3.1"></script>
+  <script src="./data/knowledge.js?v=1.3.2"></script>
+  <script src="./js/firebase.js?v=1.3.2"></script>
+  <script src="./js/media.js?v=1.3.2"></script>
+  <script src="./js/knowledge-remote.js?v=1.3.2"></script>
+  <script src="./js/app.js?v=1.3.2"></script>
 </body>
 </html>
