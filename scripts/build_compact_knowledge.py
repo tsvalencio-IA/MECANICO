@@ -42,6 +42,15 @@ def read_records(knowledge):
 def record_bucket(path):
     return zlib.crc32(str(path or "").encode("utf-8")) % RECORD_BUCKETS
 
+def window_around(text,needle,width=950):
+    raw=" ".join(str(text or "").split())
+    if not raw: return ""
+    pos=norm(raw).find(norm(needle))
+    if pos<0: return raw[:width]
+    start=max(0,pos-width//3)
+    end=min(len(raw),start+width)
+    return ("…" if start else "")+raw[start:end]+("…" if end<len(raw) else "")
+
 def compact_record(idx,r):
     text=" ".join(str(r.get("text","")).split())
     truth=r.get("truth_status") or ("source_extracted" if (r.get("confidence") or 0)>=0.99 else "ocr_unverified")
@@ -86,7 +95,7 @@ def main():
 
     n=max(1,len(recs))
     postings=defaultdict(list)
-    dtc_postings=defaultdict(list)
+    dtc_entries=defaultdict(list)
     buckets=[{} for _ in range(RECORD_BUCKETS)]
     record_map=[0]*len(recs)
 
@@ -113,8 +122,19 @@ def main():
             arr=postings[t]
             if len(arr)<MAX_POSTINGS_PER_TERM: arr.append(idx)
         for code in codes:
-            arr=dtc_postings[code]
-            if len(arr)<500: arr.append(idx)
+            arr=dtc_entries[code]
+            if len(arr)<160:
+                arr.append({
+                    "id":idx,
+                    "path":r.get("path",""),
+                    "page":r.get("page"),
+                    "chunk":r.get("chunk"),
+                    "snippet":window_around(r.get("text",""),code),
+                    "method":r.get("method"),
+                    "confidence":round(float(r.get("confidence") or 0),4),
+                    "truth_status":r.get("truth_status") or "unknown",
+                    "sha256":r.get("sha256","")
+                })
 
         if idx and idx%2500==0:
             print("indexed",idx,"/",n,flush=True)
@@ -132,8 +152,9 @@ def main():
         (terms_dir/f"{pre}.json").write_text(json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
 
     dtc_dir=out/"dtc";dtc_dir.mkdir(exist_ok=True)
-    for code,ids in dtc_postings.items():
-        (dtc_dir/f"{code}.json").write_text(json.dumps(ids,separators=(",",":")),encoding="utf-8")
+    for code,rows in dtc_entries.items():
+        payload={"code":code,"records":rows}
+        (dtc_dir/f"{code}.json").write_text(json.dumps(payload,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
 
     truth_counts=Counter((r.get("truth_status") or "unknown") for r in recs)
     manifest={
@@ -146,7 +167,7 @@ def main():
         "record_buckets":RECORD_BUCKETS,
         "term_files":len(by_prefix),
         "terms":len(postings),
-        "dtcs":len(dtc_postings),
+        "dtcs":len(dtc_entries),
         "text_preview_chars":TEXT_PREVIEW,
         "truth_counts":dict(truth_counts),
         "truth_policy":source_manifest.get("truth_policy",{}),
