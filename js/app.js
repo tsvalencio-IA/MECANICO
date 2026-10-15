@@ -815,84 +815,121 @@
     });
   }
 
-  // SKIP_WAITING intentionally disabled during PWA recovery
+  // Instalação do PWA; o worker atual não intercepta requisições nem guarda o shell.
   function initPwa(){
     var BUILD="1.6.2";
     var btn=$("installBtn");
+    var prompting=false;
+    var installed=isStandalone();
 
     function isStandalone(){
-      return window.matchMedia && window.matchMedia("(display-mode: standalone)").matches ||
-             window.navigator.standalone===true;
+      return !!(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches ||
+                window.navigator.standalone===true);
     }
 
-    function showInstallHelp(){
+    function updateInstallUI(){
+      if(btn){
+        btn.hidden=false;
+        btn.disabled=prompting;
+        btn.title=installed?"thIAguinho instalado":"Instalar thIAguinho";
+        btn.setAttribute("aria-label",btn.title);
+        btn.setAttribute("aria-busy",String(prompting));
+      }
+      var action=$("installHelpBtn");
+      if(action){
+        action.disabled=prompting;
+        action.textContent=state.deferredInstall&&!installed?"Instalar agora":"Entendi";
+      }
       var hint=$("installHint");
       if(hint){
         var ua=navigator.userAgent||"";
-        if(/android/i.test(ua)){
+        var ios=/iphone|ipad|ipod/i.test(ua)||navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1;
+        if(state.deferredInstall&&!installed){
+          hint.textContent="A instalação está disponível. Toque em “Instalar agora” e confirme no navegador para adicionar o thIAguinho como aplicativo.";
+        }else if(ios){
+          hint.textContent="Toque em Compartilhar no navegador e depois em “Adicionar à Tela de Início”. Confirme em “Adicionar”.";
+        }else if(/android/i.test(ua)){
           hint.textContent="No navegador, abra o menu ⋮ e escolha “Instalar app” ou “Adicionar à tela inicial”.";
-        }else if(/iphone|ipad|ipod/i.test(ua)){
-          hint.textContent="No Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.";
+        }else if(/macintosh/i.test(ua)&&/safari/i.test(ua)&&!/chrome|chromium|crios|edg/i.test(ua)){
+          hint.textContent="No Safari do Mac, abra Arquivo > Adicionar ao Dock e confirme em “Adicionar”.";
         }else{
           hint.textContent="No Chrome ou Edge, use o ícone de instalar na barra de endereço ou o menu do navegador > Instalar thIAguinho.";
         }
       }
+    }
+
+    function showInstallHelp(){
+      updateInstallUI();
       if($("installDialog")) openDialog($("installDialog"));
       else toast("Use o menu do navegador para instalar o thIAguinho.");
     }
 
+    async function requestInstall(){
+      if(prompting) return;
+      if(installed||isStandalone()){
+        installed=true;
+        updateInstallUI();
+        toast("O thIAguinho já está instalado neste dispositivo");
+        return;
+      }
+      if(!state.deferredInstall){showInstallHelp();return;}
+
+      // Cada convite só pode ser usado uma vez, inclusive após cancelamento ou erro.
+      var invite=state.deferredInstall;
+      state.deferredInstall=null;
+      prompting=true;
+      updateInstallUI();
+      try{
+        var choice=await invite.prompt();
+        if(!choice||!choice.outcome) choice=await invite.userChoice;
+        if($("installDialog")) closeDialog($("installDialog"));
+        if(!installed){
+          toast(choice&&choice.outcome==="accepted"
+            ?"Instalação solicitada ao navegador"
+            :"Instalação cancelada. Você pode tentar novamente pelo menu do navegador.");
+        }
+      }catch(err){
+        console.warn("[PWA install]",err);
+        if(!installed) showInstallHelp();
+      }finally{
+        prompting=false;
+        updateInstallUI();
+      }
+    }
+
     window.addEventListener("beforeinstallprompt",function(e){
       e.preventDefault();
+      if(installed||isStandalone()) return;
       state.deferredInstall=e;
-      if(btn){
-        btn.hidden=false;
-        btn.title="Instalar thIAguinho";
-        btn.setAttribute("aria-label","Instalar thIAguinho");
-      }
+      updateInstallUI();
     });
 
     window.addEventListener("appinstalled",function(){
+      installed=true;
       state.deferredInstall=null;
-      if(btn) btn.title="thIAguinho instalado";
+      updateInstallUI();
       toast("thIAguinho instalado neste dispositivo");
       if($("installDialog")) closeDialog($("installDialog"));
     });
 
-    if(btn){
-      btn.hidden=false;
-      btn.addEventListener("click",async function(){
-        if(isStandalone()){
-          toast("O thIAguinho já está instalado neste dispositivo");
-          return;
-        }
-        if(state.deferredInstall){
-          try{
-            await state.deferredInstall.prompt();
-            var choice=await state.deferredInstall.userChoice;
-            if(choice && choice.outcome==="accepted") state.deferredInstall=null;
-            else showInstallHelp();
-          }catch(err){
-            console.warn("[PWA install]",err);
-            showInstallHelp();
-          }
-          return;
-        }
-        showInstallHelp();
-      });
-    }
-
+    if(btn) btn.addEventListener("click",requestInstall);
     if($("closeInstallBtn")) $("closeInstallBtn").addEventListener("click",function(){closeDialog($("installDialog"));});
-    if($("installHelpBtn")) $("installHelpBtn").addEventListener("click",function(){closeDialog($("installDialog"));});
+    if($("installHelpBtn")) $("installHelpBtn").addEventListener("click",function(){
+      if(state.deferredInstall&&!installed) return requestInstall();
+      closeDialog($("installDialog"));
+    });
+    updateInstallUI();
 
     if(!("serviceWorker" in navigator)) return;
-    window.addEventListener("load",async function(){
+    async function registerWorker(){
       try{
-        var reg=await navigator.serviceWorker.register("./sw-v134.js?v="+BUILD,{scope:"./",updateViaCache:"none"});
-        await reg.update();
+        await navigator.serviceWorker.register("./sw-v134.js?v="+BUILD,{scope:"./",updateViaCache:"none"});
       }catch(err){
         console.warn("[SW]",err);
       }
-    });
+    }
+    if(document.readyState==="complete") registerWorker();
+    else window.addEventListener("load",registerWorker,{once:true});
   }
 
   initTheme();

@@ -39,7 +39,7 @@
       }catch(e){}
     })();
   </script>
-  <!-- sw-v134.js disabled during recovery; network-only mode -->
+  <!-- Instalação e registro do sw-v134.js gerenciados em js/app.js. -->
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -178,11 +178,11 @@
     </form>
   </dialog>
 
-  <dialog id="installDialog" class="app-dialog install-dialog">
+  <dialog id="installDialog" class="app-dialog install-dialog" aria-labelledby="installTitle">
     <div class="dialog-head">
       <div>
         <span class="eyebrow">INSTALAR</span>
-        <h2>Instalar thIAguinho</h2>
+        <h2 id="installTitle">Instalar thIAguinho</h2>
       </div>
       <button id="closeInstallBtn" class="icon-btn" type="button" aria-label="Fechar">×</button>
     </div>
@@ -258,6 +258,6 @@
   <script src="./js/firebase.js?v=1.6.2"></script>
   <script src="./js/media.js?v=1.6.2"></script>
   <script src="./js/knowledge-remote.js?v=1.6.2"></script>
-  <script src="./js/app.js?v=1.6.2"></script>
+  <script src="./js/app.js?v=1.6.2&amp;install=2"></script>
 </body>
 </html>

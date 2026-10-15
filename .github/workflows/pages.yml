@@ -42,6 +42,9 @@ jobs:
           console.log('manifest v1.6.2 installable fields ok');
           NODE
 
+      - name: Verify PWA installation and recovery
+        run: node --test scripts/test_pwa.cjs
+
       - name: Knowledge smoke checks
         run: |
           node - <<'NODE'
@@ -73,14 +76,12 @@ jobs:
           test -f database.rules.json
           grep -q "signInAnonymously" js/firebase.js
           grep -q "mecanico-b222e-default-rtdb" js/firebase.js
-          grep -q "SKIP_WAITING" js/app.js
           grep -q 'const MIGRATION_VERSION="1.6.2"' sw.js
           grep -q 'const MIGRATION_VERSION="1.6.2"' sw-v132.js
           grep -q 'const MIGRATION_VERSION="1.6.2"' sw-v133.js
           grep -q "Fotos e vídeos são analisados temporariamente" app-v134.html
           grep -q "avatarCriticalStyle" app-v134.html
           grep -q "manifest-v134.json" app-v134.html
-          grep -q "sw-v134.js" app-v134.html
           grep -q 'id="installDialog"' app-v134.html
           grep -q 'id="installBtn"' app-v134.html
           grep -q 'BUILD="1.6.2"' js/app.js
