@@ -816,61 +816,25 @@
   }
 
   function initPwa(){
-    var BUILD="1.6.0";
-    window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();state.deferredInstall=e;$("installBtn").hidden=false;});
-    $("installBtn").addEventListener("click",function(){
-      if(!state.deferredInstall)return;
-      state.deferredInstall.prompt();state.deferredInstall=null;$("installBtn").hidden=true;
-    });
+    var BUILD="1.6.1";
+    if($("installBtn")) $("installBtn").hidden=true;
 
     if(!("serviceWorker" in navigator)) return;
 
-    var refreshing=false,registration=null;
-    navigator.serviceWorker.addEventListener("controllerchange",function(){
-      if(refreshing)return;
-      refreshing=true;
-      // A nova versão já assumiu o PWA: recarrega uma única vez sem exigir reinstalação.
-      window.location.reload();
-    });
-
-    function activateWaiting(reg){
-      if(reg && reg.waiting) reg.waiting.postMessage({type:"SKIP_WAITING",build:BUILD});
-    }
-
-    function watchRegistration(reg){
-      registration=reg;
-      activateWaiting(reg);
-      reg.addEventListener("updatefound",function(){
-        var worker=reg.installing;
-        if(!worker)return;
-        worker.addEventListener("statechange",function(){
-          if(worker.state==="installed" && navigator.serviceWorker.controller){
-            worker.postMessage({type:"SKIP_WAITING",build:BUILD});
-          }
-        });
-      });
-    }
-
-    async function checkUpdate(){
-      if(!registration)return;
-      try{
-        await registration.update();
-        activateWaiting(registration);
-      }catch(err){console.warn("[SW update]",err);}
-    }
-
     window.addEventListener("load",async function(){
       try{
-        var reg=await navigator.serviceWorker.register("./sw-v134.js?v="+BUILD,{scope:"./",updateViaCache:"none"});
-        watchRegistration(reg);
-        await checkUpdate();
-      }catch(err){console.warn("[SW]",err);}
+        var regs=await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(function(reg){
+          try{
+            var path=new URL(reg.scope).pathname;
+            if(path.indexOf("/MECANICO/")===0) return reg.unregister();
+          }catch(e){}
+          return Promise.resolve(false);
+        }));
+      }catch(err){
+        console.warn("[SW cleanup]",err);
+      }
     });
-
-    document.addEventListener("visibilitychange",function(){
-      if(document.visibilityState==="visible") checkUpdate();
-    });
-    window.addEventListener("focus",checkUpdate);
   }
 
   initTheme();
