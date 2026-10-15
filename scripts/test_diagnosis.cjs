@@ -134,6 +134,8 @@ test('a short explicit vehicle description in chat is used without making the us
   assert.equal(diag.context.model, 'duster');
   assert.equal(diag.context.engine, 'K4M');
   assert.equal(h.practicalAnswer(diag).needsVehicle, false);
+  assert.match(h.practicalAnswer(diag).text, /testador de centelha/);
+  assert.doesNotMatch(h.practicalAnswer(diag).text, /TEST 14|Prioridades agora/);
 });
 
 test('no-start triage first asks whether the engine turns, without pulling an unrelated manual', async () => {

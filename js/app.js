@@ -260,6 +260,14 @@
         if(!tests.some(function(x){return x.id===t.id;})) tests.push(t);
       });
     });
+    tests=tests.map(function(test){
+      if(test.id!=="k4m-coil-check") return test;
+      return Object.assign({},test,{
+        title:"Verificar a faísca da bobina",
+        procedure:"Confira o conector, a alimentação e o comando da bobina. Use um testador de centelha para verificar se há faísca.",
+        good:"centelha presente e alimentação/comando corretos"
+      });
+    });
 
     var warnings=uniq(rule.warnings||[]);
 
