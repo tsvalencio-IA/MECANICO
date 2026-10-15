@@ -5,14 +5,15 @@
   var manifest=null,manifestPromise=null,mapPromise=null;
   var jsonCache=new Map();
   var queryCache=new Map();
-  var SEARCH_VERSION="2.0.0-compact";
+  var SEARCH_VERSION="2.0.1-compact";
 
   function norm(v){
     return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
   }
 
   function codesFrom(text){
-    return Array.from(new Set((String(text||"").toUpperCase().match(/\b(?:P|B|C|U)\d{4}\b|\bDF\d{3,4}\b/g)||[])));
+    if(window.ORACLE_MEDIA) return window.ORACLE_MEDIA.detectCodes(text);
+    return Array.from(new Set(String(text||"").toUpperCase().match(/\b(?:[PBCU][0-3][0-9A-F]{3}|DF\d{3,4})\b/g)||[]));
   }
 
   function tokensFrom(text){
@@ -191,6 +192,9 @@
         var rec=records[String(pair[0])];
         if(!rec) return;
         var text=norm((rec.text||"")+" "+(rec.path||""));
+        if(codes.length&&!codes.some(function(c){return codesFrom(rec.text||"").indexOf(c)>=0;})) return;
+        var modelTokens=identityTokensFrom({model:vehicle&&vehicle.model});
+        if(modelTokens.length&&!modelTokens.some(function(t){return text.indexOf(t)>=0;})) return;
         if(identityTokens.length && !identityTokens.some(function(t){return text.indexOf(t)>=0;})) return;
         var s=pair[1]+truthWeight(rec);
         qTokens.forEach(function(t){if(text.indexOf(t)>=0)s+=6;});

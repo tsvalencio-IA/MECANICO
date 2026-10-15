@@ -9,7 +9,8 @@
   }
 
   function detectCodes(text){
-    return Array.from(new Set((String(text||"").toUpperCase().match(/[A-Z]{1,3}\d{3,5}|DF\d{3,4}/g)||[])));
+    var matches=String(text||"").toUpperCase().match(/\b(?:[PBCU][ \t]*[0-3](?:[ \t]*[0-9A-F]){3}|DF[ \t]*\d(?:[ \t]*\d){2,3})\b/g)||[];
+    return Array.from(new Set(matches.map(function(code){return code.replace(/[ \t]/g,"");})));
   }
 
   function normalize(text){

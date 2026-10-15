@@ -42,8 +42,8 @@ jobs:
           console.log('manifest v1.6.2 installable fields ok');
           NODE
 
-      - name: Verify PWA installation and media selection
-        run: node --test scripts/test_pwa.cjs scripts/test_media.cjs
+      - name: Verify PWA, media selection and practical diagnosis
+        run: node --test scripts/test_pwa.cjs scripts/test_media.cjs scripts/test_diagnosis.cjs
 
       - name: Knowledge smoke checks
         run: |
