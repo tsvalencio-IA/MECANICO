@@ -1,0 +1,94 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const root = path.resolve(__dirname, '..');
+const source = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
+const init = source.slice(source.indexOf('  function initMedia(){'), source.indexOf('\n  function initVoice(){'));
+
+function harness() {
+  const elements = {}, picks = [], processed = [];
+  const ids = ['photoBtn', 'videoBtn', 'mediaSourceDialog', 'mediaSourceTitle',
+    'mediaCameraLabel', 'mediaCameraIcon', 'mediaGalleryHint', 'mediaCameraBtn',
+    'mediaGalleryBtn', 'closeMediaSourceBtn', 'photoInput', 'videoInput',
+    'photoCameraInput', 'videoCameraInput'];
+  for (const id of ids) elements[id] = {
+    open: false, textContent: '', value: '', files: [], handlers: {},
+    click() { picks.push(id); },
+    addEventListener(type, fn) { this.handlers[type] = fn; }
+  };
+  vm.runInNewContext(init + '\ninitMedia();', {
+    $: id => elements[id],
+    openDialog: el => { el.open = true; },
+    closeDialog: el => { el.open = false; },
+    processMedia: file => processed.push(file)
+  });
+  return {
+    elements, picks, processed,
+    click: id => elements[id].handlers.click.call(elements[id]),
+    change(id, file) {
+      const input = elements[id];
+      input.files = file ? [file] : [];
+      input.value = file ? file.name : '';
+      input.handlers.change.call(input);
+    }
+  };
+}
+
+test('camera and gallery are distinct inputs with the correct media type', () => {
+  const html = fs.readFileSync(path.join(root, 'app-v134.html'), 'utf8');
+  for (const kind of ['photo', 'video']) {
+    for (const camera of [false, true]) {
+      const id = kind + (camera ? 'CameraInput' : 'Input');
+      const tag = html.match(new RegExp('<input\\b[^>]*\\bid="' + id + '"[^>]*>'));
+      assert.ok(tag, id);
+      assert.match(tag[0], /type="file"/);
+      assert.ok(tag[0].includes('accept="' + (kind === 'photo' ? 'image/*' : 'video/*') + '"'));
+      assert.equal(/\bcapture\s*=/.test(tag[0]), camera, id);
+    }
+  }
+  assert.match(html, /id="mediaSourceDialog"[^>]*aria-labelledby="mediaSourceTitle"/);
+  assert.match(html, /Escolher da galeria/);
+});
+
+for (const kind of ['photo', 'video']) {
+  test(`${kind}: show an explicit choice before opening any picker`, () => {
+    const h = harness();
+    h.click(kind + 'Btn');
+    assert.equal(h.elements.mediaSourceDialog.open, true);
+    assert.equal(h.elements.mediaCameraLabel.textContent, kind === 'photo' ? 'Tirar foto' : 'Gravar vídeo');
+    assert.deepEqual(h.picks, []);
+    h.click('closeMediaSourceBtn');
+    assert.equal(h.elements.mediaSourceDialog.open, false);
+    assert.deepEqual(h.picks, []);
+    assert.deepEqual(h.processed, []);
+  });
+
+  for (const camera of [false, true]) {
+    test(`${kind}: ${camera ? 'camera' : 'gallery'} opens only the selected source`, () => {
+      const h = harness(), input = kind + (camera ? 'CameraInput' : 'Input');
+      h.click(kind + 'Btn');
+      h.click(camera ? 'mediaCameraBtn' : 'mediaGalleryBtn');
+      assert.deepEqual(h.picks, [input]);
+      assert.equal(h.elements.mediaSourceDialog.open, false);
+      const file = { name: kind === 'photo' ? 'scanner.jpg' : 'scanner.mp4' };
+      h.change(input, file);
+      h.change(input, file);
+      assert.deepEqual(h.processed, [file, file]);
+      assert.equal(h.elements[input].value, '');
+      h.change(input, null);
+      assert.equal(h.processed.length, 2);
+    });
+  }
+}
+
+test('switching from video to photo does not keep the previous picker type', () => {
+  const h = harness();
+  h.click('videoBtn');
+  h.click('closeMediaSourceBtn');
+  h.click('photoBtn');
+  h.click('mediaCameraBtn');
+  assert.deepEqual(h.picks, ['photoCameraInput']);
+});

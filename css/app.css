@@ -362,6 +362,18 @@ html[data-theme="light"] .chat-card{background:linear-gradient(180deg,#fff,#f7fb
   box-shadow:0 28px 80px rgba(0,0,0,.42)
 }
 .app-dialog::backdrop{background:rgba(1,8,15,.7);backdrop-filter:blur(7px)}
+.media-source-dialog{width:min(430px,calc(100vw - 24px));padding:20px}
+.media-source-options{display:grid;gap:10px;margin-top:18px}
+.media-source-option{
+  display:grid;grid-template-columns:34px minmax(0,1fr) 12px;align-items:center;gap:12px;
+  width:100%;min-height:78px;padding:14px;border:1px solid var(--line2);border-radius:15px;
+  background:var(--input);color:var(--text);text-align:left;cursor:pointer
+}
+.media-source-option:hover,.media-source-option:focus-visible{border-color:var(--cyan)}
+.media-source-option:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.media-source-option strong{display:block;font-size:.9rem}
+.media-source-option small{display:block;margin-top:4px;color:var(--muted);font-size:.71rem;line-height:1.4}
+.media-source-icon{font-size:1.55rem;text-align:center}
 .app-dialog>form,.history-dialog{padding:18px}
 .dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .dialog-head h2{margin:4px 0 0;font-size:1.15rem}

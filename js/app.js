@@ -730,10 +730,37 @@
   }
 
   function initMedia(){
-    $("photoBtn").addEventListener("click",function(){$("photoInput").click();});
-    $("videoBtn").addEventListener("click",function(){$("videoInput").click();});
-    $("photoInput").addEventListener("change",function(){var f=this.files&&this.files[0];this.value="";processMedia(f);});
-    $("videoInput").addEventListener("change",function(){var f=this.files&&this.files[0];this.value="";processMedia(f);});
+    var kind="photo";
+    var dialog=$("mediaSourceDialog");
+
+    function chooseSource(nextKind){
+      kind=nextKind;
+      var video=kind==="video";
+      $("mediaSourceTitle").textContent=video?"Enviar vídeo":"Enviar foto";
+      $("mediaCameraLabel").textContent=video?"Gravar vídeo":"Tirar foto";
+      $("mediaCameraIcon").textContent=video?"🎥":"📷";
+      $("mediaGalleryHint").textContent=video?"Vídeos salvos neste aparelho":"Fotos salvas neste aparelho";
+      openDialog(dialog);
+    }
+
+    function openPicker(camera){
+      closeDialog(dialog);
+      $(kind+(camera?"CameraInput":"Input")).click();
+    }
+
+    $("photoBtn").addEventListener("click",function(){chooseSource("photo");});
+    $("videoBtn").addEventListener("click",function(){chooseSource("video");});
+    $("mediaCameraBtn").addEventListener("click",function(){openPicker(true);});
+    $("mediaGalleryBtn").addEventListener("click",function(){openPicker(false);});
+    $("closeMediaSourceBtn").addEventListener("click",function(){closeDialog(dialog);});
+
+    ["photoInput","videoInput","photoCameraInput","videoCameraInput"].forEach(function(id){
+      $(id).addEventListener("change",function(){
+        var file=this.files&&this.files[0];
+        this.value="";
+        if(file) processMedia(file);
+      });
+    });
   }
 
   function initVoice(){

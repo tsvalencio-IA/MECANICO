@@ -10,7 +10,7 @@
   <link rel="manifest" href="./manifest-v134.json?v=1.6.2">
   <link rel="icon" href="./assets/icon-thIAguinho.svg?v=1.6.2" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./assets/icon-192.png?v=1.6.2">
-  <link rel="stylesheet" href="./css/app.css?v=1.6.2">
+  <link rel="stylesheet" href="./css/app.css?v=1.6.2&amp;media=choice1">
   <title>thIAguinho • IA Mecânico</title>
 
   <style id="avatarCriticalStyle">
@@ -129,8 +129,8 @@
 
       <form id="chatForm" class="composer">
         <div class="composer-tools">
-          <button id="photoBtn" type="button" class="tool-btn" title="Foto do scanner" aria-label="Enviar foto">📷</button>
-          <button id="videoBtn" type="button" class="tool-btn" title="Vídeo do scanner" aria-label="Enviar vídeo">🎥</button>
+          <button id="photoBtn" type="button" class="tool-btn" title="Foto do scanner" aria-label="Enviar foto" aria-haspopup="dialog" aria-controls="mediaSourceDialog">📷</button>
+          <button id="videoBtn" type="button" class="tool-btn" title="Vídeo do scanner" aria-label="Enviar vídeo" aria-haspopup="dialog" aria-controls="mediaSourceDialog">🎥</button>
           <button id="micBtn" type="button" class="tool-btn" title="Falar" aria-label="Ditado por voz">🎙</button>
           <button id="vehicleComposerBtn" type="button" class="tool-btn" title="Dados do veículo" aria-label="Dados do veículo">🚘</button>
         </div>
@@ -176,6 +176,28 @@
         <div id="savedVehiclesList" class="saved-vehicles-list"></div>
       </section>
     </form>
+  </dialog>
+
+  <dialog id="mediaSourceDialog" class="app-dialog media-source-dialog" aria-labelledby="mediaSourceTitle">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow">ESCOLHER ORIGEM</span>
+        <h2 id="mediaSourceTitle">Enviar foto</h2>
+      </div>
+      <button id="closeMediaSourceBtn" class="icon-btn" type="button" aria-label="Fechar opções de mídia">×</button>
+    </div>
+    <div class="media-source-options">
+      <button id="mediaCameraBtn" type="button" class="media-source-option">
+        <span id="mediaCameraIcon" class="media-source-icon" aria-hidden="true">📷</span>
+        <span><strong id="mediaCameraLabel">Tirar foto</strong><small>Usar a câmera agora</small></span>
+        <span aria-hidden="true">›</span>
+      </button>
+      <button id="mediaGalleryBtn" type="button" class="media-source-option">
+        <span class="media-source-icon" aria-hidden="true">🖼</span>
+        <span><strong>Escolher da galeria</strong><small id="mediaGalleryHint">Fotos salvas neste aparelho</small></span>
+        <span aria-hidden="true">›</span>
+      </button>
+    </div>
   </dialog>
 
   <dialog id="installDialog" class="app-dialog install-dialog" aria-labelledby="installTitle">
@@ -244,6 +266,8 @@
 
   <input id="photoInput" type="file" accept="image/*" hidden>
   <input id="videoInput" type="file" accept="video/*" hidden>
+  <input id="photoCameraInput" type="file" accept="image/*" capture="environment" hidden>
+  <input id="videoCameraInput" type="file" accept="video/*" capture="environment" hidden>
 
   <footer>
     <span>th<span class="ia">IA</span>guinho • IA Mecânico</span>
@@ -258,6 +282,6 @@
   <script src="./js/firebase.js?v=1.6.2"></script>
   <script src="./js/media.js?v=1.6.2"></script>
   <script src="./js/knowledge-remote.js?v=1.6.2"></script>
-  <script src="./js/app.js?v=1.6.2&amp;install=2"></script>
+  <script src="./js/app.js?v=1.6.2&amp;install=2&amp;media=choice1"></script>
 </body>
 </html>
