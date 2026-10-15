@@ -774,10 +774,31 @@
         recordMessage("user","Código lido na mídia: "+codes.join(", "),{mediaRead:true});
         handleQuestion(question,{immediate:true,silentUser:true,fromMedia:true});
       }else{
-        var message=result.text
-          ?"Li texto, mas não consegui confirmar um código. Digite o código e a descrição que aparecem no scanner."
+        var candidates=ORACLE_MEDIA.codeCandidates(result.text||"");
+        var message=candidates.length
+          ?"A leitura ficou incerta. Você confirma o código "+candidates.join(" ou ")+"?"
+          :result.text?"Li texto, mas não consegui confirmar um código. Digite o código e a descrição que aparecem no scanner."
           :"Não consegui ler a tela. Envie uma foto mais próxima, nítida e sem reflexo.";
-        appendTextMessage("bot",message);recordMessage("bot",message,{mediaRead:true});persistSession();
+        var article=appendTextMessage("bot",message),bubble=article.querySelector(".bubble");
+        if(candidates.length){
+          var actions=document.createElement("div");actions.className="test-actions";
+          candidates.forEach(function(code){
+            var btn=document.createElement("button");btn.type="button";btn.textContent="Confirmar "+code;
+            btn.addEventListener("click",function(){
+              actions.querySelectorAll("button").forEach(function(b){b.disabled=true;});
+              handleQuestion(code);
+            });actions.appendChild(btn);
+          });
+          var correct=document.createElement("button");correct.type="button";correct.textContent="Digitar código";
+          correct.addEventListener("click",function(){$("chatInput").focus();});actions.appendChild(correct);
+          bubble.appendChild(actions);
+        }
+        if(result.text){
+          var reading=document.createElement("details");reading.className="diagnosis-sources";
+          reading.innerHTML='<summary>Conferir o texto lido</summary>';
+          var raw=document.createElement("p");raw.textContent=result.text.slice(0,240);reading.appendChild(raw);bubble.appendChild(reading);
+        }
+        recordMessage("bot",message,{mediaRead:true});persistSession();
       }
 
     }catch(err){

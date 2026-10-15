@@ -21,7 +21,8 @@ class Element {
   click() { if (!this.disabled && this.handlers.click) return this.handlers.click(); }
   remove() { this.removed = true; }
   querySelectorAll(selector) {
-    if (selector === '[data-test-result]' || selector === 'button') return this.buttons;
+    if (selector === '[data-test-result]') return this.buttons;
+    if (selector === 'button') return this.buttons.concat(this.children.filter(child => child.type === 'button'));
     return [];
   }
   querySelector(selector) {
@@ -65,6 +66,32 @@ test('recognize real scanner codes, including hexadecimal characters and spaced 
   assert.deepEqual(Array.from(h.extractCodes('P0301 P 0 3 0 1 DF 0 2 6 P0A80 U0100')), ['P0301', 'DF026', 'P0A80', 'U0100']);
   assert.deepEqual(Array.from(h.extractCodes('PR037 L9113 MAR9109PD B259233 P03010 29F400')), []);
   assert.deepEqual(Array.from(h.extractCodes('P03O1')), []); // Do not guess OCR letter O as zero.
+});
+
+test('ambiguous OCR may suggest a candidate but never silently turns it into a confirmed code', () => {
+  const h = harness(), media = h.context.ORACLE_MEDIA;
+  assert.deepEqual(Array.from(media.detectCodes('PO301 P030I')), []);
+  assert.deepEqual(Array.from(media.codeCandidates('PO301 P030I')), ['P0301']);
+  assert.deepEqual(Array.from(media.codeCandidates('BILL CODE PART')), []);
+});
+
+test('an ambiguous photo requires confirmation before starting a diagnosis or document search', async () => {
+  const h = harness();
+  h.context.ORACLE_MEDIA.analyzeFile = async () => ({ text: 'DTC PO301', kind: 'foto' });
+  await h.processMedia({ type: 'image/png', size: 100 }); await h.flush();
+  assert.equal(h.state.currentDiagnosis, null);
+  assert.equal(h.searches.length, 0);
+  assert.match(h.state.messages.at(-1).text, /leitura ficou incerta.*P0301/);
+});
+
+test('confirming an OCR candidate explicitly starts the selected code and disables duplicate confirmation', async () => {
+  const h = harness();
+  h.context.ORACLE_MEDIA.analyzeFile = async () => ({ text: 'DTC PO301', kind: 'foto' });
+  await h.processMedia({ type: 'image/png', size: 100 });
+  const actions = h.messages().at(-1).querySelector('.test-actions');
+  actions.children[0].click(); await h.flush();
+  assert.equal(h.state.currentDiagnosis.dtcs[0].code, 'P0301');
+  assert.equal(actions.children[0].disabled, true);
 });
 
 test('a code without a vehicle gets a short definition and a useful request for context', () => {

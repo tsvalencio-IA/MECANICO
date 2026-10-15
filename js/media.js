@@ -13,6 +13,13 @@
     return Array.from(new Set(matches.map(function(code){return code.replace(/[ \t]/g,"");})));
   }
 
+  function codeCandidates(text){
+    var matches=String(text||"").toUpperCase().match(/\b(?:[PBCU][ \t]*[0-3OIL](?:[ \t]*[0-9A-FOIL]){3}|DF[ \t]*[0-9OIL](?:[ \t]*[0-9OIL]){2,3})\b/g)||[];
+    return Array.from(new Set(matches.filter(function(value){return /\d.*\d/.test(value);}).map(function(value){
+      return value.replace(/[ \t]/g,"").replace(/O/g,"0").replace(/[IL]/g,"1");
+    }).filter(function(code){return detectCodes(code).indexOf(code)>=0;}))).slice(0,2);
+  }
+
   function normalize(text){
     return String(text||"")
       .replace(/\r/g,"")
@@ -124,5 +131,5 @@
     throw new Error("Formato não suportado");
   }
 
-  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,analyzeFile:analyzeFile};
+  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,codeCandidates:codeCandidates,analyzeFile:analyzeFile};
 })();
