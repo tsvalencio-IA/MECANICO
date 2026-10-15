@@ -12,18 +12,22 @@ main{min-height:100dvh;display:grid;place-items:center;padding:24px;text-align:c
 @keyframes s{to{transform:rotate(360deg)}}h1{font-size:1.35rem;margin:0 0 8px}p{color:#9fb0c3;margin:0}
 </style>
 </head>
-<body><main><div class="box"><div class="spin"></div><h1>Atualizando thIAguinho</h1><p>Abrindo a versão 1.6.0…</p></div></main>
+<body><main><div class="box"><div class="spin"></div><h1>Atualizando thIAguinho</h1><p>Abrindo a versão 1.6.1…</p></div></main>
 <script>
 (async function(){
-  const target="./app-v134.html?v=1.6.0&fresh="+Date.now();
+  const target="./app-v134.html?v=1.6.1&fresh="+Date.now();
   try{
     if("serviceWorker" in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map(r=>r.unregister()));
+      await Promise.all(regs.map(r=>{
+        try{
+          return new URL(r.scope).pathname.indexOf("/MECANICO/")===0 ? r.unregister() : false;
+        }catch(e){return false;}
+      }));
     }
     if("caches" in window){
       const keys=await caches.keys();
-      await Promise.all(keys.map(k=>caches.delete(k)));
+      await Promise.all(keys.filter(k=>k.indexOf("thiaguinho-auto-")===0).map(k=>caches.delete(k)));
     }
   }catch(e){}
   location.replace(target);
