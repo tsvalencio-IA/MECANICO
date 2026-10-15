@@ -1,5 +1,5 @@
 // thIAguinho PWA service worker
-const CACHE="thiaguinho-auto-v1.6.1";
+const CACHE="thiaguinho-auto-v1.6.0";
 const STATIC=[
   "./app-v134.html?v=1.6.0",
   "./index.html?v=1.6.0",
