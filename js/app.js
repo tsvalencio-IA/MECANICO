@@ -817,23 +817,80 @@
 
   // SKIP_WAITING intentionally disabled during PWA recovery
   function initPwa(){
-    var BUILD="1.6.1";
-    if($("installBtn")) $("installBtn").hidden=true;
+    var BUILD="1.6.2";
+    var btn=$("installBtn");
+
+    function isStandalone(){
+      return window.matchMedia && window.matchMedia("(display-mode: standalone)").matches ||
+             window.navigator.standalone===true;
+    }
+
+    function showInstallHelp(){
+      var hint=$("installHint");
+      if(hint){
+        var ua=navigator.userAgent||"";
+        if(/android/i.test(ua)){
+          hint.textContent="No navegador, abra o menu ⋮ e escolha “Instalar app” ou “Adicionar à tela inicial”.";
+        }else if(/iphone|ipad|ipod/i.test(ua)){
+          hint.textContent="No Safari, toque em Compartilhar e depois em “Adicionar à Tela de Início”.";
+        }else{
+          hint.textContent="No Chrome ou Edge, use o ícone de instalar na barra de endereço ou o menu do navegador > Instalar thIAguinho.";
+        }
+      }
+      if($("installDialog")) openDialog($("installDialog"));
+      else toast("Use o menu do navegador para instalar o thIAguinho.");
+    }
+
+    window.addEventListener("beforeinstallprompt",function(e){
+      e.preventDefault();
+      state.deferredInstall=e;
+      if(btn){
+        btn.hidden=false;
+        btn.title="Instalar thIAguinho";
+        btn.setAttribute("aria-label","Instalar thIAguinho");
+      }
+    });
+
+    window.addEventListener("appinstalled",function(){
+      state.deferredInstall=null;
+      if(btn) btn.title="thIAguinho instalado";
+      toast("thIAguinho instalado neste dispositivo");
+      if($("installDialog")) closeDialog($("installDialog"));
+    });
+
+    if(btn){
+      btn.hidden=false;
+      btn.addEventListener("click",async function(){
+        if(isStandalone()){
+          toast("O thIAguinho já está instalado neste dispositivo");
+          return;
+        }
+        if(state.deferredInstall){
+          try{
+            await state.deferredInstall.prompt();
+            var choice=await state.deferredInstall.userChoice;
+            if(choice && choice.outcome==="accepted") state.deferredInstall=null;
+            else showInstallHelp();
+          }catch(err){
+            console.warn("[PWA install]",err);
+            showInstallHelp();
+          }
+          return;
+        }
+        showInstallHelp();
+      });
+    }
+
+    if($("closeInstallBtn")) $("closeInstallBtn").addEventListener("click",function(){closeDialog($("installDialog"));});
+    if($("installHelpBtn")) $("installHelpBtn").addEventListener("click",function(){closeDialog($("installDialog"));});
 
     if(!("serviceWorker" in navigator)) return;
-
     window.addEventListener("load",async function(){
       try{
-        var regs=await navigator.serviceWorker.getRegistrations();
-        await Promise.all(regs.map(function(reg){
-          try{
-            var path=new URL(reg.scope).pathname;
-            if(path.indexOf("/MECANICO/")===0) return reg.unregister();
-          }catch(e){}
-          return Promise.resolve(false);
-        }));
+        var reg=await navigator.serviceWorker.register("./sw-v134.js?v="+BUILD,{scope:"./",updateViaCache:"none"});
+        await reg.update();
       }catch(err){
-        console.warn("[SW cleanup]",err);
+        console.warn("[SW]",err);
       }
     });
   }
