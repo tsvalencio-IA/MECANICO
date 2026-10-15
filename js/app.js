@@ -815,6 +815,7 @@
     });
   }
 
+  // SKIP_WAITING intentionally disabled during PWA recovery
   function initPwa(){
     var BUILD="1.6.1";
     if($("installBtn")) $("installBtn").hidden=true;
