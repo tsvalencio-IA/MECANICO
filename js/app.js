@@ -324,8 +324,13 @@
     return "Não consegui identificar um resultado em ‘"+text.slice(0,80)+"’. Os dados anteriores foram preservados.";
   }
 
+  function startingBatteryState(value){
+    // Realtime Database omits null-valued properties when it returns a saved case.
+    return Object.assign({before:null,during:null,pending:null,unavailable:false,raw:""},value||{});
+  }
+
   function startingBatteryReport(previous,text,slot){
-    var b=Object.assign({before:null,during:null,pending:null,unavailable:false,raw:""},previous||{}),q=norm(text);
+    var b=startingBatteryState(previous),q=norm(text);
     if(/nao tenho (?:o )?multimetro|sem multimetro|nao (?:consigo|consegui) medir|nao medi|nao testei/.test(q)){
       b.unavailable=true;return b;
     }
@@ -407,7 +412,7 @@
     c.dtcDescriptions=Object.assign({},c.dtcDescriptions||{});
     c.coilAppearance=c.coilAppearance?Object.assign({},c.coilAppearance):null;
     c.compression=c.compression?Object.assign({},c.compression,{values:(c.compression.values||[]).slice(),cylinders:(c.compression.cylinders||[]).slice()}):null;
-    c.startingBattery=c.startingBattery?Object.assign({},c.startingBattery):null;
+    c.startingBattery=c.startingBattery?startingBatteryState(c.startingBattery):null;
     c.noStartReference=c.noStartReference?Object.assign({},c.noStartReference):null;
     if(c.observations["misfire-plug-observation"]&&!plugObservation(c.observations["misfire-plug-observation"],true))delete c.observations["misfire-plug-observation"];
     if(c.candidateCode&&c.dtcs.indexOf(c.candidateCode)>=0){c.candidateCode="";c.incompleteCode="";}
@@ -996,7 +1001,7 @@
   }
 
   function noStartBatteryStep(data,answer){
-    var b=data.startingBattery;
+    var b=data.startingBattery?startingBatteryState(data.startingBattery):null;
     if(b&&b.raw)answer.explanation+=(answer.explanation?" ":"")+"Leitura informada: "+b.raw+".";
     if(b&&b.unavailable){
       answer.awaiting="no-start-battery-unavailable";

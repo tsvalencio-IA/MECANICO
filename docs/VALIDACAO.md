@@ -8,7 +8,7 @@ A validação exercita comportamento de software e busca documental: preservar o
 
 ## Verificações executadas
 
-Resultado nesta máquina: **152 testes Node.js e sete testes Python passaram**, sem falhas ou skips. Também passaram as verificações de sintaxe dos dez arquivos JavaScript de aplicação/worker/smoke e o passo de arquivos críticos/arquitetura de privacidade do CI.
+Resultado nesta máquina: **154 testes Node.js e sete testes Python passaram**, sem falhas ou skips. Também passaram as verificações de sintaxe dos dez arquivos JavaScript de aplicação/worker/smoke e o passo de arquivos críticos/arquitetura de privacidade do CI.
 
 | Verificação | Evidência |
 | --- | --- |
@@ -37,7 +37,7 @@ A sequência “não gira → dá clique → 12V → P35 → 1214 → SADAS” p
 
 As três etapas finais de referência de partida agora recebem código de motor, ausência de referência e informações adicionais. Um código sintaticamente plausível é registrado como relato, sem comprovar compatibilidade ou determinar pinagem. Sem documentação aplicável, o caso fica explicitamente pendente e pode ser retomado com a referência ou novas medições; não se inventa um procedimento elétrico. Trechos de manual são reconhecidos, mas sua interpretação técnica não é validada automaticamente.
 
-O estado parcial persiste ao reabrir o caso. Históricos antigos com “12V” recuperam o valor como leitura sem condição; texto do assistente não fornece uma tensão ausente. A mudança do sintoma ou de gira/não gira invalida as evidências dependentes do cenário anterior.
+O estado parcial persiste ao reabrir o caso, inclusive quando o Firebase omite propriedades nulas ou listas vazias. Os campos ausentes são normalizados antes de escolher a próxima etapa; uma leitura completa não volta a aparecer como “undefined V”. Históricos antigos com “12V” recuperam o valor como leitura sem condição; texto do assistente não fornece uma tensão ausente. A mudança do sintoma ou de gira/não gira invalida as evidências dependentes do cenário anterior.
 
 ## Índice real reconstruído
 

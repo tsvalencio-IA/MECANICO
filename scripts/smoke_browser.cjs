@@ -118,10 +118,15 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(baseURL).hostname)) throw new E
     const starting = await page.evaluate(() => JSON.parse(localStorage.getItem('thiaguinho_history')).find(row => row.caseContext?.engineCode === 'CHPA')?.caseContext);
     assert.equal(starting.startingBattery.before, 12);
     assert.equal(starting.startingBattery.during, 10);
-    assert.equal(starting.startingBattery.pending, null);
+    assert.equal(starting.startingBattery.pending == null, true, 'a completed reading has no pending value; Firebase may omit null');
     assert.equal(starting.starterConnections, 'firm');
     assert.equal(starting.noStartReference.status, 'unavailable');
-    assert.equal(starting.dtcs.length, 0, 'incomplete code and arbitrary text do not invent a DTC');
+    assert.equal((starting.dtcs || []).length, 0, 'incomplete code and arbitrary text do not invent a DTC');
+    await page.locator('#historyBtn').click();
+    await page.locator('#historyList [data-history-index]').filter({ hasText: 'não pega' }).first().click();
+    const reopened = await page.locator('#messages .message.bot').last().innerText();
+    assert.doesNotMatch(reopened, /undefined V|Os null V/);
+    assert.match(reopened, /diagnóstico fica pendente/);
     console.log(JSON.stringify({ check: 'pasted-no-start-conversation', passed: true, battery: { before: starting.startingBattery.before, during: starting.startingBattery.during }, reference: starting.noStartReference.status }));
 
     await page.locator('#newCaseBtn').click();

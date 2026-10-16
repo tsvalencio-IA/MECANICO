@@ -926,6 +926,56 @@ test('battery phases and missing measurements survive reopening without borrowin
   assert.equal(migrated.state.caseContext.startingBattery.before, null);
 });
 
+function firebaseStoredPayload(payload) {
+  function stored(value) {
+    if (value === null) return undefined;
+    if (!value || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.length ? value.map(stored) : undefined;
+    const result = Object.fromEntries(Object.entries(value).map(([key, child]) => [key, stored(child)]).filter(([, child]) => child !== undefined));
+    return Object.keys(result).length ? result : undefined;
+  }
+  return JSON.parse(JSON.stringify(stored(payload)));
+}
+
+test('Firebase omission of null battery phases retains a partial reading and its remaining questions', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12V');
+  const saved = firebaseStoredPayload(h.buildSessionPayload());
+  assert.equal(Object.hasOwn(saved.caseContext.startingBattery, 'before'), false);
+  assert.equal(Object.hasOwn(saved.caseContext.startingBattery, 'during'), false);
+  assert.equal(Object.hasOwn(saved.caseContext, 'rpm'), false);
+  assert.equal(Object.hasOwn(saved.caseContext, 'dtcs'), false);
+  const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+  assert.equal(restored.state.caseContext.startingBattery.before, null);
+  assert.equal(restored.state.caseContext.startingBattery.during, null);
+  assert.equal(restored.state.caseContext.startingBattery.pending, 12);
+  assert.equal(restored.state.caseContext.rpm, null);
+  assert.deepEqual(Array.from(restored.state.caseContext.dtcs), []);
+  assert.equal(restored.state.caseContext.awaiting, 'no-start-battery-stage');
+  assert.match(restored.practicalAnswer(restored.buildDiagnosis('')).text, /Os 12 V foram medidos antes.*durante/);
+  assert.match(await say(restored, 'Antes da tentativa'), /menor tensão.*durante/);
+  assert.match(await say(restored, '10 V durante'), /terminais da bateria/);
+  assert.equal(restored.state.caseContext.startingBattery.before, 12);
+  assert.equal(restored.state.caseContext.startingBattery.during, 10);
+});
+
+test('Firebase omission of a cleared pending voltage never reopens a completed reading as undefined volts', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12 V antes e 10 V durante');
+  const atTerminals = firebaseStoredPayload(h.buildSessionPayload());
+  await say(h, 'Terminais firmes'); await say(h, 'CHPA'); await say(h, 'Não tenho a referência');
+  const atReference = firebaseStoredPayload(h.buildSessionPayload());
+  for (const [saved, expected] of [[atTerminals, 'no-start-terminals'], [atReference, 'no-start-power-diagram']]) {
+    assert.equal(Object.hasOwn(saved.caseContext.startingBattery, 'pending'), false);
+    const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+    assert.equal(restored.state.caseContext.startingBattery.pending, null);
+    assert.equal(restored.state.caseContext.startingBattery.before, 12);
+    assert.equal(restored.state.caseContext.startingBattery.during, 10);
+    assert.equal(restored.state.caseContext.awaiting, expected);
+    const answer = restored.practicalAnswer(restored.buildDiagnosis('')).text;
+    assert.doesNotMatch(answer, /undefined|Os .* V foram medidos antes/);
+    assert.match(answer, /12 V antes e 10 V durante/);
+  }
+});
+
 test('explicit before and during voltages preserve their reported order and decimal values', async () => {
   for (const [text, before, during] of [
     ['12,4 V antes e 9,4 V durante', 12.4, 9.4],
