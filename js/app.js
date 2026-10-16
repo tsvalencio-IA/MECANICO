@@ -98,12 +98,21 @@
     return list.some(function(x){return n.indexOf(norm(x))>=0 || norm(x).indexOf(n)>=0;});
   }
 
+  function referenceYearCompatible(sourceIds,year){
+    if(!/^(?:19|20)\d{2}$/.test(String(year||"")))return true;
+    var ranges=(sourceIds||[]).map(function(id){return (KB.sources||[]).find(function(source){return source.id===id;});})
+      .filter(function(source){return source&&source.referenceYears;});
+    return !ranges.length||ranges.some(function(source){return Number(year)>=source.referenceYears[0]&&Number(year)<=source.referenceYears[1];});
+  }
+
   function scoreRule(rule,c){
     var score=0, reasons=[];
     var b=norm(c.brand),m=norm(c.model),e=norm(c.engine);
     var text=norm([c.caseText,c.question,c.mediaText,c.testText,c.measurements].join(" "));
+    text=text.replace(/\b(?:[pbcu][0-3][0-9a-f]{3}|df\d{3,4})\b/g,function(code){return c.dtcs.indexOf(code.toUpperCase())>=0?code:"";});
     var hay=contextHay(c);
     var allDtcs=expandDtcs(c.dtcs,c);
+    if(!referenceYearCompatible(rule.sourceIds,c.year))return {rule:rule,score:-999,reasons:["ano fora da referência local"]};
     if(/^duster-v42-/.test(rule.id)&&!scopeCompatible(["duster","v42"],c)) return {rule:rule,score:-999};
 
     function listedInText(list){
@@ -142,6 +151,7 @@
 
   function scoreFact(fact,c){
     var score=0, scopeHay=contextHay(c);
+    if(!referenceYearCompatible(fact.sourceIds,c.year))return -999;
     function textHas(list){return !!(list&&list.some(function(x){return scopeHay.indexOf(norm(x))>=0;}));}
     if(fact.brands && fact.brands.length){
       if(c.brand && !matchesScope(fact.brands,c.brand)) return -999;
@@ -157,6 +167,7 @@
       if(matchesScope(fact.engines,c.engine)||textHas(fact.engines)) score+=14;
     }
     var hay=norm([c.caseText,c.question,c.mediaText,c.measurements,c.dtcs.join(" ")].join(" "));
+    hay=hay.replace(/\b(?:[pbcu][0-3][0-9a-f]{3}|df\d{3,4})\b/g,function(code){return c.dtcs.indexOf(code.toUpperCase())>=0?code:"";});
     var hits=(fact.keywords||[]).filter(function(k){return hay.indexOf(norm(k))>=0;});
     if(!hits.length) return -999;
     if((fact.sourceIds||[]).indexOf("duster-workshop")>=0&&!scopeCompatible(["duster","v42"],c)) return -999;
@@ -171,7 +182,7 @@
       observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
       startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:"",
       lastInputKind:"",confirmedCodeReminder:false,coilAppearance:null,engineCode:"",engineIdentificationUnavailable:false,repairVerified:false,
-      componentRepair:"",factVersion:1,continuityVersion:2};
+      componentRepair:"",noCodesReported:false,factVersion:1,continuityVersion:2};
   }
 
   function plugObservation(text,allowBare){
@@ -186,6 +197,7 @@
     var q=norm(text);
     var patterns={
       "misfire-common-data":/(?:stft|ltft|curto|longo).*\d|[+-]?\d+(?:[.,]\d+)?\s*%/,
+      "misfire-no-code-data":/marcha lenta|acelerando|sob carga|stft|ltft|\d+(?:[.,]\d+)?\s*%/,
       "misfire-plug-fluid":/\b(?:combustivel|gasolina|oleo)\b/,
       "misfire-compression-readings":/\d+(?:[.,]\d+)?\s*(?:bar|psi|kpa)\b/,
       "misfire-ignition-layout":/bobinas? individuais?|codigo do motor|motor [a-z0-9]{3,6}\b/,
@@ -208,6 +220,25 @@
     return uniq(q.match(/\d+/g).map(Number));
   }
 
+  function unmeasuredReport(text){
+    return /\b(?:pode ser|poderia|deveria|seria|sera que|se (?:eu |o scanner )?(?:medir|aparecer|mostrar|der|acusar)|nao (?:consegui |consigo )?(?:medir|medi|testei|verifiquei)|ainda nao)\b/.test(norm(text));
+  }
+
+  // A code in a question or an explicit denial is not a current scanner reading.
+  function codeReport(text){
+    var q=norm(text), present=[],absent=[];
+    var pattern=/\b(?:[pbcu][ \t]*[0-3](?:[ \t]*[0-9a-f]){3}|df[ \t]*\d(?:[ \t]*\d){2,3})\b/g,match;
+    while((match=pattern.exec(q))){
+      var code=match[0].replace(/[ \t]/g,"").toUpperCase();
+      var before=q.slice(0,match.index).split(/[;,!?.]/).pop();
+      var after=q.slice(pattern.lastIndex).split(/[;,!?.]/)[0];
+      var denied=/\b(?:nao (?:e|era|foi|tem|tenho|tinha|aparece|consta|acusa|apresenta)\s*(?:o codigo\s*|codigo\s*)?|sem (?:o )?(?:codigo )?)\s*$/.test(before)||/^\s*(?:nao (?:aparece|consta|voltou)|ausente|descartado)\b/.test(after);
+      if(denied)absent.push(code);
+      else if(!unmeasuredReport(before)&&!/^\s*(?:pode|poderia|seria|causaria)\b/.test(after))present.push(code);
+    }
+    return {present:uniq(present),absent:uniq(absent)};
+  }
+
   // Only the mechanic's statements and explicitly confirmed media enter the case.
   // Bot questions and suggested codes must never become diagnostic evidence.
   function extendCaseContext(previous,text){
@@ -221,12 +252,14 @@
     if(c.observations["misfire-plug-observation"]&&!plugObservation(c.observations["misfire-plug-observation"],true))delete c.observations["misfire-plug-observation"];
     if(c.candidateCode&&c.dtcs.indexOf(c.candidateCode)>=0){c.candidateCode="";c.incompleteCode="";}
     text=String(text||"").trim();
-    var q=norm(text), codes=extractCodes(text);
+    var q=norm(text), report=codeReport(text),codes=report.present;
+    if(report.absent.length)c.dtcs=c.dtcs.filter(function(code){return report.absent.indexOf(code)<0;});
+    if(/^(?:scanner )?(?:sem codigos?|nao (?:ha|tem|aparece) codigos?)[.! ]*$/.test(q)){c.noCodesReported=true;c.dtcs=[];}
     var noStart=/\bnao pega\b|\bsem partida\b|^nao liga\b|\b(?:motor|carro|veiculo|ele) nao liga\b|\bmotor nao gira\b/.test(q);
     var misfire=/\bfalhando\b|\brateia\b|\bengasga\b|\bfalha (?:de ignicao|de combustao|a |quando)/.test(q);
     var symptom=noStart?"no-start":misfire?"misfire":!c.symptom&&codes.some(function(code){return /^P030[0-8]$/.test(code);})?"misfire":"";
     c.lastInputKind="";c.confirmedCodeReminder=false;
-    if(c.awaiting&&text&&!isGreeting(text)&&!(symptom&&symptom!==c.symptom)&&relevantObservation(c.awaiting,text))c.observations[c.awaiting]=text;
+    if(c.awaiting&&text&&!unmeasuredReport(text)&&!isGreeting(text)&&!(symptom&&symptom!==c.symptom)&&relevantObservation(c.awaiting,text))c.observations[c.awaiting]=text;
     var plug=plugObservation(text,c.awaiting==="misfire-plug-observation");
     if(plug){c.observations["misfire-plug-observation"]=plug;c.lastInputKind="plug-observation";}
     if(/\bbobina\b.*\b(?:verde|azul|vermelha|preta|amarela|branca)\b|\bconector\b.*(?:verde|oxid|zinabre)/.test(q)){
@@ -269,6 +302,7 @@
     if(/^misfire-(?:engine|injector)/.test(c.awaiting)&&/^[1-9][.,]\d[.! ]*$/.test(q))c.lastInputKind="engine-description";
     if(c.candidateCode&&c.awaiting==="code-confirmation"&&/^(sim|isso|correto|confirmo)[.! ]*$/.test(q)) codes=[c.candidateCode];
     if(codes.length){
+      c.noCodesReported=false;
       c.confirmedCodeReminder=codes.every(function(code){return c.dtcs.indexOf(code)>=0;})&&!symptom;
       c.dtcs=c.awaiting==="misfire-other-codes"||/\b(tambem|outro codigo|mais o)\b/.test(q)?uniq(c.dtcs.concat(codes)):codes;
       c.candidateCode="";c.incompleteCode="";
@@ -283,29 +317,31 @@
       }
       if(/^(nao|codigo incorreto|vou digitar)[.! ]*$/.test(q)){c.candidateCode="";c.incompleteCode="";}
     }
-    if(/\b(tempo todo|sempre|frio e quente|frio ou quente)\b/.test(q)) c.temperature="sempre";
-    else if(/\bquente\b/.test(q)) c.temperature="quente";
-    else if(/\bfrio\b/.test(q)) c.temperature="frio";
+    var condition=q.replace(/\bnao\s+(?:(?:e|falha|acontece)\s+)?(?:a\s+)?(?:quente|frio)\b/g,"");
+    if(/\b(tempo todo|sempre|frio e quente|frio ou quente)\b/.test(condition)) c.temperature="sempre";
+    else if(/\bquente\b/.test(condition)) c.temperature="quente";
+    else if(/\bfrio\b/.test(condition)) c.temperature="frio";
     if(c.symptom==="no-start"){
       var cranking=/\bnao gira\b|\bnem gira\b/.test(q)?"nao gira":/\bgira\b|\bgirando\b/.test(q)?"gira":"";
       if(cranking&&cranking!==c.cranking){c.cranking=cranking;c.rpm=null;c.rpmPresent=false;c.rpmUnavailable=false;c.startAuthorized="";c.ecuCommunication="";}
       if(c.awaiting==="no-start-rpm"||/\brpm\b/.test(q)){
         var rpm=q.match(/\b(\d{1,4})\s*rpm\b/)||q.match(/\b(?:rpm|rotacao)\s*(?:de|:)?\s*(\d{1,4})\b/)||q.match(/^(\d{1,4})[.! ]*$/);
-        if(rpm){
+        if(rpm&&!unmeasuredReport(text)){
           if(c.rpm!==Number(rpm[1])){c.startAuthorized="";c.ecuCommunication="";}
           c.rpm=Number(rpm[1]);c.rpmPresent=c.rpm>0;c.rpmUnavailable=false;
         }
-        else if(/mostra rotacao|tem rotacao/.test(q)){c.rpmPresent=true;c.rpmUnavailable=false;}
-        else if(/nao consigo|nao sei|sem scanner|nao tenho scanner|nao aparece/.test(q))c.rpmUnavailable=true;
+        else if(/nao consigo|nao consegui|nao sei|sem scanner|nao tenho scanner|nao aparece|nao mostra rotacao/.test(q))c.rpmUnavailable=true;
+        else if(!unmeasuredReport(text)&&/mostra rotacao|tem rotacao/.test(q)){c.rpmPresent=true;c.rpmUnavailable=false;}
       }
       if(c.awaiting==="no-start-authorization"){
-        if(/bloquead|nao autoriz|nao permit/.test(q))c.startAuthorized="blocked";
+        if(/nao (?:sei|encontrei|achei)|sem (?:esse|o) parametro/.test(q))c.startAuthorized="unknown";
+        else if(/bloquead|nao (?:esta )?autoriz|nao (?:esta )?permit/.test(q))c.startAuthorized="blocked";
         else if(/autorizad|liberad|permitid/.test(q))c.startAuthorized="allowed";
-        else if(/nao (?:sei|encontrei|achei)|sem (?:esse|o) parametro/.test(q))c.startAuthorized="unknown";
       }
       if(c.awaiting==="no-start-communication"){
-        if(/^sim\b|comunica normalmente/.test(q))c.ecuCommunication="yes";
-        else if(/^nao\b|perde comunicacao/.test(q))c.ecuCommunication="no";
+        if(/nao sei|nao (?:medi|testei|conferi)|talvez|sera que/.test(q))c.ecuCommunication="";
+        else if(/^nao\b|nao (?:esta )?comunic|perde comunicacao/.test(q))c.ecuCommunication="no";
+        else if(/^sim\b|comunica normalmente|esta comunicando/.test(q))c.ecuCommunication="yes";
       }
       if(c.awaiting==="no-start-sound"){
         if(/painel apaga|luzes.*enfraquec/.test(q))c.starterSound="panel";
@@ -401,9 +437,10 @@
 
   function buildContext(question,suppliedCase){
     var mediaText=state.mediaAnalyses.map(function(x){return x.text||"";}).join("\n");
-    var mediaCodes=extractCodes(mediaText);
     var caseData=suppliedCase||extendCaseContext(state.caseContext,question);
-    if(!caseData.dtcs.length&&!caseData.candidateCode) caseData.dtcs=mediaCodes;
+    // processMedia submits a readable code (or asks for confirmation). Old OCR
+    // text must never restore a code the mechanic has subsequently withdrawn.
+    if(!caseData.dtcs.length)mediaText="";
     var currentResults=currentTestResults(state.testResults,caseData.flowVersion);
     var testText=currentResults.map(function(x){return x.title+" "+x.result;}).join(" ");
     var context={
@@ -449,11 +486,9 @@
   }
 
   function evidenceLabel(score,rule){
-    if(rule.evidence==="documented" && score>=45) return "procedimento técnico compatível";
-    if(rule.evidence==="documented+shop" && score>=45) return "documentação + sequência de oficina";
-    if(score>=55) return "alta aderência";
-    if(score>=30) return "aderência moderada";
-    return "triagem";
+    if(rule.evidence==="documented") return "referência técnica local; conferir aplicação na fonte";
+    if(rule.evidence==="documented+shop") return "referência local e sequência de oficina; causa não confirmada";
+    return "triagem por hipótese; causa não confirmada";
   }
 
   function buildDiagnosis(question,suppliedCase){
@@ -513,6 +548,7 @@
         good:"centelha presente e alimentação/comando corretos"
       });
     });
+    tests=tests.filter(function(test){return !c.testResults.some(function(result){return result.id===test.id&&result.outcome==="good";});});
 
     var warnings=uniq(rule.warnings||[]);
 
@@ -545,7 +581,15 @@
     var condition=data.temperature==="sempre"?"o tempo todo":"a "+data.temperature;
     answer.explanation=[c.model,c.engine].filter(Boolean).join(" ")+": falha "+condition+".";
     if(!codes.length){
-      answer.question="Qual código aparece no scanner? Se não houver código, diga ‘sem código’.";
+      if(!data.noCodesReported){
+        answer.awaiting="misfire-no-code";
+        answer.question="Qual código aparece no scanner? Se não houver código, diga ‘sem código’.";
+      }else{
+        answer.awaiting="misfire-no-code-data";
+        answer.question=data.observations["misfire-no-code-data"]
+          ?"Dados registrados: "+data.observations["misfire-no-code-data"].slice(0,180)+". Para separar mistura, ignição e condição mecânica, envie o código do motor e uma leitura comparativa pelo procedimento dessa aplicação. Ainda não há causa confirmada."
+          :"Sem código registrado. A falha aparece em marcha lenta, acelerando ou sob carga? Envie também as correções de combustível e os contadores de falha, se o scanner oferecer; não vou escolher um cilindro ou peça sem essa evidência.";
+      }
       return;
     }
     var code=codes.join("-"), liveId="misfire-live-"+code, coilId="misfire-coil-"+code;
@@ -799,9 +843,15 @@
       answer.awaiting="no-start-tools";
       answer.question="Sem essa leitura, vamos escolher um teste possível. Você tem multímetro, testador de centelha ou outro scanner disponível?";
     }else if(data.rpmUnavailable){
-      answer.awaiting="no-start-battery";
       answer.explanation="Equipamento informado: "+observations["no-start-tools"].slice(0,120)+".";
-      answer.question="Se houver multímetro, envie a tensão da bateria antes e durante a partida. Se não houver, precisamos de um scanner ou equipamento de medição para continuar sem adivinhar.";
+      if(!observations["no-start-battery"]){
+        answer.awaiting="no-start-battery";
+        answer.question="Se houver multímetro, envie a tensão da bateria antes e durante a partida. Se não houver, precisamos de um scanner ou equipamento de medição para continuar sem adivinhar.";
+      }else{
+        answer.awaiting="no-start-power-diagram";
+        answer.explanation+=" Leitura informada: "+observations["no-start-battery"].slice(0,180)+".";
+        answer.question="Agora confira a queda de tensão dos cabos e a alimentação da ECU durante a partida pelo esquema desse motor. Envie o código do motor ou o esquema para localizar os pontos corretos; a leitura da bateria sozinha não confirma uma peça defeituosa.";
+      }
     }else if(data.rpm===0){
       answer.explanation="Anotei 0 RPM durante a partida. Isso ainda não confirma sensor defeituoso.";
       if(!data.ecuCommunication){
@@ -875,7 +925,22 @@
     }else{
       answer.explanation=known.length?"O código indica uma condição de falha; sozinho, não confirma uma peça defeituosa.":"Comece por este teste e me diga o resultado.";
       answer.test=diag.tests[0]||null;
+      var previous=answer.test&&(c.testResults||[]).find(function(result){return result.id===answer.test.id;});
+      if(previous&&(previous.outcome==="measured"||previous.outcome==="bad")){
+        answer.briefTest=true;
+        answer.explanation="Anotei no teste ‘"+answer.test.title+"’: "+(previous.report||previous.result)+".";
+        answer.question=previous.outcome==="measured"
+          ?"Confira essa leitura com o procedimento do motor e as condições do ensaio. O resultado ficou normal ou alterado? Informe a unidade e a condição da medição antes de concluir sobre a peça."
+          :"O resultado alterado ainda não confirma uma peça defeituosa. Qual foi a leitura, a unidade e a condição do ensaio? Confira o procedimento da aplicação antes de avançar.";
+      }else if(!answer.test){
+        answer.explanation="Os resultados dos testes foram registrados.";
+        answer.question="Como o veículo está se comportando agora? Se houve reparo, repita a condição original e a leitura do scanner; ainda precisamos dessa verificação para encerrar o caso.";
+      }
       answer.warning=(diag.warnings||[]).find(function(w){return /nao abrir|ruido mecanico|pressao real baixa|atencao imediata|nao prova/.test(norm(w));})||"";
+      if(answer.test&&/\d.*(?:Ω|%|°|bar\b|psi\b|kpa\b)/i.test(answer.test.procedure)&&!c.year){
+        answer.test=null;answer.question="Qual é o ano do veículo? Confirme também o motor e o sistema para conferir a aplicação do procedimento antes de usar valores de referência.";
+        answer.needsVehicle=true;
+      }
     }
     if(/(?:vc|voce).*(?:repet|travad)|nao (?:da|deu) sequencia|ja (?:falei|informei)|nao entendi/.test(norm(c.question))&&answer.test){
       answer.briefTest=true;
@@ -996,11 +1061,14 @@
       bubble.appendChild(actions);
     }
     var refs=(diag.remoteEvidence||[]).slice(0,2).map(function(e){
-      return {text:(e.sourcePath||"Documento técnico").split(/[\\/]/).pop()+(e.page?" • pág. "+e.page:"")};
+      var compatibility=e.compatibility||{},pending=[];
+      if(compatibility.year==="unspecified")pending.push("ano");
+      if(compatibility.engine==="unspecified")pending.push("motor");
+      return {text:(e.sourcePath||"Documento técnico").split(/[\\/]/).pop()+(e.page?" • pág. "+e.page:"")+" — "+(e.statusLabel||"extração não informada")+(pending.length?"; aplicação de "+pending.join(" e ")+" a conferir":"")};
     });
     uniq((diag.sourceIds||[]).concat(answer.sourceIds||[])).forEach(function(id){
       var source=(KB.sources||[]).find(function(x){return x.id===id;});
-      if(source) refs.push({text:source.vehicle+" — "+source.system,url:source.url});
+      if(source) refs.push({text:source.vehicle+" — "+source.system+(!source.url?"; referência local, conferir no manual da aplicação":""),url:source.url});
     });
     if(refs.length){
       var details=document.createElement("details");details.className="diagnosis-sources";
@@ -1038,6 +1106,12 @@
       handleQuestion(userText,{silentUser:true,immediate:true,testReply:true});
       return;
     }
+    if(result==="bad"){
+      var failed="Resultado alterado registrado em ‘"+t.title+"’. Qual foi a leitura, a unidade e a condição do ensaio? O resultado sozinho não confirma qual componente está defeituoso.";
+      var failedArticle=appendTextMessage("bot",failed);recordMessage("bot",failed,{testStep:true});
+      appendTestBox(failedArticle.querySelector(".bubble"),t,true);
+      persistSession();return;
+    }
     state.activeTestIndex++;
     var next=state.activeTests[state.activeTestIndex];
     if(next){
@@ -1058,8 +1132,13 @@
 
   function testReplyChoice(text){
     var test=state.activeTests[state.activeTestIndex];
-    if(!test||!test.choices)return "";
+    if(!test)return "";
     var q=norm(text).replace(/[.!?]+$/g,"");
+    if(!test.choices){
+      if(/^(?:normal|ok|dentro da faixa|dentro do esperado|resultado normal)$/.test(q))return "good";
+      if(/^(?:alterado|fora da faixa|fora do esperado|resultado alterado)$/.test(q))return "bad";
+      return "";
+    }
     var exact=test.choices.find(function(choice){return norm(choice.label)===q;});
     if(exact)return exact.value;
     if(/^misfire-live-/.test(test.id)){
@@ -1105,6 +1184,16 @@
       $("chatInput").value="";autoResize();
       handleTestResult(testChoice,text);return;
     }
+    var pending=state.activeTests[state.activeTestIndex];
+    if(pending&&!pending.choices&&!options.testReply&&!unmeasuredReport(text)){
+      var subject=norm(pending.title+" "+pending.procedure),unit;
+      if(/resist|ohm|Ω/.test(subject))unit=/\d+(?:[.,]\d+)?\s*(?:ohms?\b|Ω)/i;
+      else if(/temperatura|ect|arrefecimento/.test(subject))unit=/\d+(?:[.,]\d+)?\s*°\s*c\b/i;
+      else if(/pressao|compressao/.test(subject))unit=/\d+(?:[.,]\d+)?\s*(?:bar|psi|kpa)\b/i;
+      else if(/alimentacao|tensao|bateria|carga/.test(subject))unit=/\d+(?:[.,]\d+)?\s*(?:v(?:olts?)?|mv)\b/i;
+      var measured=unit&&unit.test(text);
+      if(measured)state.testResults.push({id:pending.id,title:pending.title,result:text,report:text,outcome:"measured",flowVersion:state.caseContext.flowVersion||0,at:now()});
+    }
     var caseData=state.caseContext;
     var caseId=state.sessionId;
     var requestId=++state.requestSequence;
@@ -1148,9 +1237,6 @@
   }
 
   function buildSessionPayload(){
-    var allCodes=[];
-    state.messages.filter(function(m){return m.role==="user";}).forEach(function(m){allCodes=allCodes.concat(extractCodes(m.text));});
-    state.mediaAnalyses.forEach(function(m){allCodes=allCodes.concat(m.codes||[]);});
     var firstUser=state.messages.find(function(m){return m.role==="user" && !m.testResult;});
     return {
       id:state.sessionId,
@@ -1161,7 +1247,7 @@
       caseContext:state.caseContext,
       title:(firstUser?firstUser.text:"Novo diagnóstico").slice(0,140),
       messages:state.messages.slice(-60).map(function(m){return {role:m.role,text:(m.text||"").slice(0,5000),at:m.at,testResult:m.testResult===true};}),
-      dtcs:uniq(allCodes),
+      dtcs:(state.caseContext.dtcs||[]).slice(),
       tests:state.testResults.slice(-20),
       lastDiagnosis:state.currentDiagnosis?{
         ruleId:state.currentDiagnosis.ruleId,
@@ -1175,12 +1261,23 @@
     };
   }
 
+  function mergeHistory(local,cloud){
+    var byId=new Map();
+    function timestamp(item){return Date.parse(item.updatedAt||item.createdAt)||Number(item.updatedAtMs)||0;}
+    (Array.isArray(cloud)?cloud:[]).concat(Array.isArray(local)?local:[]).forEach(function(item){
+      if(!item||!item.id)return;
+      var previous=byId.get(item.id);
+      if(!previous||timestamp(item)>=timestamp(previous))byId.set(item.id,item);
+    });
+    return Array.from(byId.values()).sort(function(a,b){return timestamp(b)-timestamp(a);}).slice(0,50);
+  }
+
   function persistSession(){
     if(!state.messages.length) return;
     var item=buildSessionPayload();
     var local=loadJSON("thiaguinho_history",[]).filter(function(x){return x.id!==item.id;});
     local.unshift(item);local=local.slice(0,50);saveJSON("thiaguinho_history",local);
-    renderHistory(state.cloudHistory.length?state.cloudHistory:local);
+    renderHistory(mergeHistory(local,state.cloudHistory));
     if(window.ORACLE_FIREBASE){
       ORACLE_FIREBASE.saveCase(item).catch(function(err){
         console.warn("[Realtime]",err);
@@ -1571,8 +1668,9 @@
         status.textContent="histórico online";pill.classList.add("online");
         api.watchCases(function(rows){
           state.cloudHistory=rows||[];
-          saveJSON("thiaguinho_history",state.cloudHistory.slice(0,50));
-          renderHistory(state.cloudHistory);
+          var merged=mergeHistory(loadJSON("thiaguinho_history",[]),state.cloudHistory);
+          saveJSON("thiaguinho_history",merged);
+          renderHistory(merged);
         });
       }else{
         status.textContent="histórico local";pill.classList.remove("online");
@@ -1586,7 +1684,7 @@
   }
 
   function initHistory(){
-    $("historyBtn").addEventListener("click",function(){renderHistory(state.cloudHistory.length?state.cloudHistory:loadJSON("thiaguinho_history",[]));openDialog($("historyDialog"));});
+    $("historyBtn").addEventListener("click",function(){renderHistory(mergeHistory(loadJSON("thiaguinho_history",[]),state.cloudHistory));openDialog($("historyDialog"));});
     $("closeHistoryBtn").addEventListener("click",function(){closeDialog($("historyDialog"));});
     $("clearHistoryBtn").addEventListener("click",function(){
       if(!confirm("Apagar todo o seu histórico deste usuário anônimo?")) return;

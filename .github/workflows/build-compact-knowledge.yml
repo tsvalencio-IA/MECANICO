@@ -41,6 +41,11 @@ jobs:
           mkdir -p /tmp/thiaguinho-compact
           python app/scripts/build_compact_knowledge.py             --knowledge-dir knowledge             --out /tmp/thiaguinho-compact
 
+      - name: Test compact index regressions
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s app/scripts -p 'test_compact_knowledge.py' -v
+
       - name: Validate compact index
         run: |
           test -s /tmp/thiaguinho-compact/manifest.json

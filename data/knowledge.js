@@ -18,10 +18,18 @@ window.ORACLE_KNOWLEDGE = {
   ],
 
   sources: [
-    {id:"duster-workshop", vehicle:"Renault/Dacia Duster", system:"manual de oficina e diagnóstico", indexed:true},
-    {id:"duster-v42", vehicle:"Renault Duster 1.6 16V", system:"injeção Valeo V42 / esquema elétrico", indexed:true},
-    {id:"lexus-ewd", vehicle:"Lexus IS 300", system:"diagramas elétricos EWD", indexed:true},
-    {id:"vw-misfire-2033805", vehicle:"Volkswagen gasolina 2008–2023 (exceto Routan e ID.4)", system:"boletim 2033805/6, diagnóstico de falhas de combustão, págs. 2–4", url:"https://static.nhtsa.gov/odi/tsbs/2022/MC-10214471-0001.pdf", indexed:false}
+    {id:"duster-workshop", vehicle:"Renault/Dacia Duster", system:"manual de oficina e diagnóstico",
+      referenceName:"Dacia-Duster-Renault-Duster_2009-2017.pdf",referenceYears:[2009,2017],
+      indexed:false,localSummaryAvailable:true,originalAvailable:false,provenance:"local-reference"},
+    {id:"duster-v42", vehicle:"Renault Duster 1.6 16V", system:"injeção Valeo V42 / esquema elétrico",
+      referenceName:"2011-RENAULT DUSTER 1.6 16V.pdf",referenceYears:[2011,2011],
+      indexed:false,localSummaryAvailable:true,originalAvailable:false,provenance:"local-reference"},
+    {id:"lexus-ewd", vehicle:"Lexus IS 300", system:"diagramas elétricos EWD",
+      referenceName:"[LEXUS]_Esquemas_electricos_Lexus_2002_a_2005.pdf",referenceYears:[2002,2005],
+      indexed:false,localSummaryAvailable:true,originalAvailable:false,provenance:"local-reference"},
+    {id:"vw-misfire-2033805", vehicle:"Volkswagen gasolina 2008–2023 (exceto Routan e ID.4)", system:"boletim 2033805/6, diagnóstico de falhas de combustão, págs. 2–4",
+      url:"https://static.nhtsa.gov/odi/tsbs/2022/MC-10214471-0001.pdf",referenceYears:[2008,2023],
+      indexed:false,localSummaryAvailable:true,originalAvailable:false,provenance:"external-reference"}
   ],
 
   dtcs: {

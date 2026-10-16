@@ -53,7 +53,7 @@ function harness(vehicle = {}) {
   context.window.ORACLE_REMOTE_KNOWLEDGE = context.ORACLE_REMOTE_KNOWLEDGE = {
     async search(query, car) { searches.push({ query, model: car.model }); return [{ snippet: 'RAW WRONG STALL TEST', verified: true, sourcePath: 'manual.pdf', page: 23 }]; }
   };
-  const source = read('js/app.js').replace(/\n  initTheme\(\);[\s\S]*$/, '\nwindow.testApi={state,extractCodes,buildDiagnosis,practicalAnswer,diagnosticSearchQuery,handleQuestion,processMedia,appendDiagnosis,handleTestResult,buildSessionPayload,loadHistoryItem,startNewCase,applyVehicle};\n})();');
+  const source = read('js/app.js').replace(/\n  initTheme\(\);[\s\S]*$/, '\nwindow.testApi={state,extractCodes,buildDiagnosis,practicalAnswer,diagnosticSearchQuery,handleQuestion,processMedia,appendDiagnosis,handleTestResult,buildSessionPayload,loadHistoryItem,startNewCase,applyVehicle,mergeHistory};\n})();');
   vm.runInContext(source, context);
   const api = context.window.testApi; api.state.vehicle = vehicle;
   return {
@@ -677,7 +677,7 @@ test('vehicle identity alone cannot select a technical rule or an unrelated spec
 });
 
 test('known vehicle and module yield one compatible test, a result to expect, and a concise answer', () => {
-  const h = harness({ brand: 'Renault', model: 'Duster', engine: 'K4M V42' });
+  const h = harness({ brand: 'Renault', model: 'Duster', engine: 'K4M V42', year: '2011' });
   const diag = h.buildDiagnosis('DF026');
   assert.equal(diag.ruleId, 'duster-v42-injector-circuit');
   const answer = h.practicalAnswer(diag);
@@ -755,7 +755,7 @@ test('skipping a test never records a successful result or advances the sequence
 });
 
 test('old result buttons cannot accidentally answer a later test', () => {
-  const h = harness({ model: 'Duster', engine: 'K4M V42' });
+  const h = harness({ model: 'Duster', engine: 'K4M V42', year: '2011' });
   h.appendDiagnosis(h.buildDiagnosis('DF026'));
   const first = h.messages().at(-1).querySelector('.test-box');
   first.buttons[0].click();
@@ -810,4 +810,165 @@ test('a procedure search finds matching injector instructions without DTC text a
   vm.runInContext(read('js/knowledge-remote.js'), h.context);
   const hits = await h.context.window.ORACLE_REMOTE_KNOWLEDGE.search('injetor estanqueidade vazamento injector internal leakage', golf, 6);
   assert.deepEqual(Array.from(hits, hit => hit.page), [11]);
+});
+
+
+test('denied and hypothetical codes cannot become scanner evidence, and an explicit correction keeps only the actual code', async () => {
+  const h = harness({ brand: 'Ford', model: 'Ka', engine: '1.0' });
+  await say(h, 'Pode ser P0301?');
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), []);
+  await say(h, 'O scanner acusa P0301');
+  await say(h, 'Corrigindo: não é P0301, é P0302');
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), ['P0302']);
+  await say(h, 'P0302 não aparece mais');
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), []);
+  const noStart = harness({ brand: 'Ford', model: 'Ka', engine: '1.0' });
+  await say(noStart, 'Não pega; scanner acusa P0335');
+  assert.deepEqual(Array.from(noStart.state.caseContext.dtcs), ['P0335']);
+});
+
+test('unmeasured and hypothetical RPM cannot turn into a positive engine speed observation', async () => {
+  for (const report of ['Se aparecer 200 RPM, o sensor está bom?', 'Não consegui medir 200 RPM', 'O scanner não mostra rotação']) {
+    const h = harness({ brand: 'Fiat', model: 'Uno', engine: '1.0' });
+    await say(h, 'O motor gira mas não pega');
+    await say(h, report);
+    assert.equal(h.state.caseContext.rpm, null, report);
+    assert.equal(h.state.caseContext.rpmPresent, false, report);
+    assert.doesNotMatch(h.state.messages.at(-1).text, /imobilizador mostra partida autorizada/);
+  }
+});
+
+test('negative and uncertain communication reports retain their meaning at the zero-RPM step', async () => {
+  for (const report of ['Não comunica normalmente', 'A ECU não está comunicando durante a partida']) {
+    const h = harness({ brand: 'Ford', model: 'Ka', engine: '1.0' });
+    await say(h, 'Gira mas não pega'); await say(h, '0 RPM');
+    assert.match(await say(h, report), /comunicação cai|tensão da bateria/);
+    assert.equal(h.state.caseContext.ecuCommunication, 'no');
+  }
+  const h = harness(golf); await say(h, 'Gira mas não pega'); await say(h, '0 RPM');
+  assert.match(await say(h, 'Não sei se comunica'), /continua comunicando/);
+  assert.equal(h.state.caseContext.ecuCommunication, '');
+});
+
+test('unknown and denied authorization are never classified as an allowed start', async () => {
+  for (const [report, expected] of [['Não sei se está autorizada', 'unknown'], ['Não está autorizada', 'blocked']]) {
+    const h = harness({ brand: 'Fiat', model: 'Uno', engine: '1.0' });
+    await say(h, 'Gira mas não pega'); await say(h, '200 RPM'); await say(h, report);
+    assert.equal(h.state.caseContext.startAuthorized, expected);
+    if (expected === 'blocked') assert.match(h.state.messages.at(-1).text, /partida está bloqueada/);
+  }
+});
+
+test('a cold-only correction does not retain the explicitly denied hot condition', async () => {
+  const h = harness(golf); await say(h, 'P0301 falhando a quente');
+  assert.match(await say(h, 'Só a frio, não a quente'), /falha a frio/);
+  assert.equal(h.state.caseContext.temperature, 'frio');
+});
+
+test('a voltage that was not measured cannot complete a no-start check and a real reading is not repeatedly requested', async () => {
+  const h = harness({ brand: 'Chevrolet', model: 'Onix', engine: '1.0' });
+  await say(h, 'Gira mas não pega'); await say(h, 'Não consigo medir a rotação'); await say(h, 'Tenho multímetro');
+  await say(h, 'Ainda não medi, deveria dar 12 V?');
+  assert.equal(h.state.caseContext.observations['no-start-battery'], undefined);
+  const reply = await say(h, 'Medi 12,5 V antes e 10,1 V durante a partida');
+  assert.match(reply, /12,5 V antes e 10,1 V/);
+  assert.doesNotMatch(reply, /envie a tensão da bateria antes/);
+});
+
+test('misfire without a stored code advances to operating conditions without fabricating a cylinder', async () => {
+  const h = harness(golf);
+  await say(h, 'Está falhando a quente');
+  const reply = await say(h, 'Sem código');
+  assert.match(reply, /marcha lenta|sob carga/);
+  assert.doesNotMatch(reply, /diga ‘sem código’|bobina do cilindro/);
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), []);
+  assert.match(await say(h, 'Em marcha lenta, STFT +15% e LTFT +10%'), /Dados registrados.*STFT/);
+});
+
+test('generic normal results survive the next message and a reopened case', async () => {
+  const car = { brand: 'Renault', model: 'Duster', engine: 'K4M V42', year: '2011' };
+  const h = harness(car); await say(h, 'DF026');
+  assert.equal(h.state.activeTests[0].id, 'injector-resistance');
+  await say(h, 'Normal');
+  assert.equal(h.state.activeTests[h.state.activeTestIndex].id, 'injector-12v');
+  await say(h, 'Qual o próximo teste?');
+  assert.equal(h.state.activeTests[0].id, 'injector-12v');
+  const saved = JSON.parse(JSON.stringify(h.buildSessionPayload()));
+  const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+  assert.equal(restored.state.activeTests[0].id, 'injector-12v');
+});
+
+test('a measured or abnormal generic result is recorded without silently passing it or abandoning it', async () => {
+  const h = harness({ brand: 'Renault', model: 'Duster', engine: 'K4M V42', year: '2011' });
+  await say(h, 'DF026');
+  assert.match(await say(h, 'Medi 14 Ω a 25 °C'), /Anotei no teste.*14 Ω/);
+  assert.equal(h.state.testResults.at(-1).outcome, 'measured');
+  assert.equal(h.state.activeTests[0].id, 'injector-resistance');
+  const reply = await say(h, 'Alterado');
+  assert.match(reply, /resultado sozinho não confirma/);
+  assert.equal(h.state.activeTests[h.state.activeTestIndex].id, 'injector-resistance');
+  assert.match(await say(h, 'Medi 40 Ω'), /40 Ω/);
+  assert.equal(h.state.testResults.at(-1).outcome, 'measured');
+});
+
+test('case summary contains only current reported codes while preserving corrections in the messages', async () => {
+  const h = harness(golf);
+  await say(h, 'P0301'); await say(h, 'Corrigindo: não é P0301, é P0302');
+  const item = h.buildSessionPayload();
+  assert.deepEqual(Array.from(item.dtcs), ['P0302']);
+  assert.ok(item.messages.some(message => /não é P0301/.test(message.text)));
+});
+
+test('local technical values require a model year and cannot apply outside the cited manual years', () => {
+  const unknown = harness({ brand: 'Renault', model: 'Duster', engine: 'K4M V42' });
+  const answer = unknown.practicalAnswer(unknown.buildDiagnosis('DF026'));
+  assert.equal(answer.test, null);
+  assert.match(answer.question, /ano do veículo/);
+  assert.doesNotMatch(answer.text, /11.?20|9,2.?17/);
+  const newer = harness({ brand: 'Renault', model: 'Duster', engine: 'K4M V42', year: '2025' });
+  assert.equal(newer.buildDiagnosis('DF026').ruleId, 'baseline');
+  assert.equal(newer.buildDiagnosis('resistência do injetor DF026').facts.length, 0);
+});
+
+test('an older cloud snapshot cannot erase an offline case or replace its newer result', () => {
+  const h = harness();
+  const local = [
+    { id: 'offline', updatedAt: '2026-10-16T13:00:00Z', title: 'Novo caso offline' },
+    { id: 'shared', updatedAt: '2026-10-16T12:00:00Z', title: 'Resultado corrigido' }
+  ];
+  const cloud = [
+    { id: 'cloud', updatedAt: '2026-10-16T10:00:00Z', title: 'Outro caso' },
+    { id: 'shared', updatedAt: '2026-10-16T11:00:00Z', title: 'Resultado antigo' }
+  ];
+  const merged = h.mergeHistory(local, cloud);
+  assert.deepEqual(Array.from(merged, row => row.id), ['offline', 'shared', 'cloud']);
+  assert.equal(merged.find(row => row.id === 'shared').title, 'Resultado corrigido');
+  assert.equal(h.mergeHistory(local, []).length, 2);
+  cloud[1].updatedAt = '2026-10-16T14:00:00Z';
+  assert.equal(h.mergeHistory(local, cloud)[0].title, 'Resultado antigo'); // Newer server snapshot wins.
+});
+
+test('a withdrawn OCR code stays withdrawn on follow-up and after reopening the case', async () => {
+  const h = harness(golf);
+  h.context.ORACLE_MEDIA.analyzeFile = async () => ({ text: 'P0301', codes: ['P0301'], kind: 'foto' });
+  await h.processMedia({ type: 'image/png', size: 100 }); await h.flush();
+  await say(h, 'P0301 não aparece mais'); await say(h, 'E agora?');
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), []);
+  const restored = harness(); restored.loadHistoryItem(JSON.parse(JSON.stringify(h.buildSessionPayload()))); await restored.flush();
+  await say(restored, 'Qual o próximo passo?');
+  assert.deepEqual(Array.from(restored.state.caseContext.dtcs), []);
+});
+
+test('code possession denials and causal questions do not create current scanner readings', async () => {
+  for (const message of ['Não tenho P0301 no scanner', 'Não tenho o código P0301', 'P0301 pode aparecer por causa de combustível?']) {
+    const h = harness(golf); await say(h, message);
+    assert.deepEqual(Array.from(h.state.caseContext.dtcs), [], message);
+  }
+});
+
+test('a battery voltage cannot be recorded as an injector resistance reading', async () => {
+  const h = harness({ brand: 'Renault', model: 'Duster', engine: 'K4M V42', year: '2011' });
+  await say(h, 'DF026'); await say(h, 'Medi 12 V na bateria');
+  assert.equal(h.state.testResults.length, 0);
+  assert.equal(h.state.activeTests[0].id, 'injector-resistance');
 });

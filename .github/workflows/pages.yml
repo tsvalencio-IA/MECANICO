@@ -42,8 +42,13 @@ jobs:
           console.log('manifest v1.6.2 installable fields ok');
           NODE
 
-      - name: Verify PWA, media selection and practical diagnosis
-        run: node --test scripts/test_pwa.cjs scripts/test_media.cjs scripts/test_diagnosis.cjs
+      - name: Verify PWA, media, diagnosis and knowledge retrieval
+        run: node --test scripts/test_*.cjs
+
+      - name: Verify compact knowledge builder
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
 
       - name: Knowledge smoke checks
         run: |
