@@ -19,7 +19,9 @@ Resultado nesta máquina: **128 testes Node.js e sete testes Python passaram**, 
 | Navegador Chromium | Acesso sem senha, diagnóstico com correção de resultado, histórico local, PWA, falha de comunicação com 0 RPM, falha sem DTC, busca real e foto sintética com OCR `por+eng` |
 | OCR real | Leitura `DTC PO303`; confirmação explícita de P0303 pela interface antes de iniciar o diagnóstico |
 
-No smoke, os SDKs Firebase são interceptados para manter os casos sintéticos locais. Isso testa o funcionamento com nuvem indisponível, não a autenticação ou gravação no Firebase de produção. TLS foi mantido ativo. O Chromium precisou de acesso em leitura e escrita ao NSS para usar a CA já instalada no ambiente.
+No smoke local versionado, os SDKs Firebase são interceptados para manter os casos sintéticos locais. Ele testa o funcionamento com nuvem indisponível. Após a autorização de publicação, foi executada também uma validação no site público com uma identidade anônima nova: diagnóstico, histórico, PWA, busca, OCR, gravação com confirmação do servidor e leitura independente no Realtime Database passaram. Os cinco casos de teste e o usuário anônimo dessa validação foram removidos ao terminar; históricos preexistentes não foram usados nem alterados.
+
+TLS foi mantido ativo. O Chromium precisou de acesso em leitura e escrita ao NSS para usar a CA já instalada no ambiente.
 
 ## Índice real reconstruído
 
@@ -47,7 +49,7 @@ Os 20.736 registros, o mapa de buckets e todas as entradas DTC foram conferidos 
 - Os nomes de manuais locais foram registrados conforme `docs/INGESTAO.md`. Não foram inventados páginas, hashes ou URLs para os PDFs ausentes. Anos explicitamente fora das referências locais são rejeitados; valores técnicos específicos exigem informação do ano.
 - A exportação Firebase fornecida contém 26 casos sob oito identificadores anônimos. A auditoria não encontrou reparos confirmados com ausência da falha nas condições originais. Esses dados não permitem calcular sensibilidade, taxa de acerto ou sucesso de reparo. Nenhuma conversa ou identificador pessoal foi copiado para os testes ou esta documentação.
 - A interpretação de linguagem e a compatibilidade são baseadas em regras. Formas de relato fora da cobertura podem exigir confirmação; os testes não comprovam entendimento irrestrito.
-- A integração Firebase desta máquina continua dependendo da política de rede. O rascunho inclui `www.gstatic.com`, `identitytoolkit.googleapis.com`, `securetoken.googleapis.com` e `mecanico-b222e-default-rtdb.firebaseio.com`. A indisponibilidade local não determina o estado do site público.
+- A integração Firebase exige `www.gstatic.com`, `identitytoolkit.googleapis.com`, `securetoken.googleapis.com` e `mecanico-b222e-default-rtdb.firebaseio.com`. O bloqueio inicial de rede desta máquina deixou de ocorrer durante a publicação; autenticação anônima, gravação e leitura foram então verificadas no site público. As regras continuam impedindo leitura anônima sem identidade e separando os históricos por UID.
 
 ## Reproduzir
 
@@ -73,10 +75,16 @@ MECANICO_KNOWLEDGE_DIR=/caminho/compact node scripts/smoke_browser.cjs
 
 Nesta máquina, os diretórios preparados estão em `/workspace/.cloud-setup/MECANICO/knowledge-source` e `/workspace/.cloud-setup/MECANICO/knowledge-compact`. Os artefatos volumosos ficam fora do checkout.
 
-## Disponibilização
+## Publicação pública confirmada
 
-As alterações foram preparadas e testadas no checkout. O índice reconstruído foi validado localmente. O site público e o branch `knowledge-compact` não foram alterados por esta validação.
+O código da aplicação foi enviado ao `main` no commit `201cd4f19695e3f17cf9ee24d8d1990e406a72dd`. O GitHub Pages concluiu build e deploy com sucesso: [execução 38928638957](https://github.com/tsvalencio-IA/MECANICO/actions/runs/38928638957). A [validação do código](https://github.com/tsvalencio-IA/MECANICO/actions/runs/38928640021) também passou.
 
-O workflow existente `build-compact-knowledge.yml` reconstrói e publica o índice quando a mudança do indexador chega ao `main`; seus testes de regressão passam a executar antes da publicação. O workflow `pages.yml` valida o código, mas não possui uma etapa de deploy do site. A configuração de GitHub Pages precisa apontar para a origem desejada para disponibilizar a aplicação.
+Site: https://tsvalencio-ia.github.io/MECANICO/
+
+O índice foi reconstruído e publicado pelo [workflow 38928640154](https://github.com/tsvalencio-IA/MECANICO/actions/runs/38928640154), com sucesso. O branch `knowledge-compact` passou ao commit `1e4655442dbe37252b703928752cbfb636454a60`; seu manifest tem a mesma revisão, contagens e procedência do índice validado localmente.
+
+O endereço público e os arquivos atualizados responderam HTTP 200. O smoke no Chromium passou no próprio domínio público, com o índice publicado de 20.736 registros e 294 chaves DTC e com o teste de persistência Firebase descrito acima.
+
+O workflow `pages.yml` valida o código. A publicação existente do GitHub Pages é executada separadamente pelo workflow dinâmico `pages build and deployment` após atualizar o `main`. Não foi necessário trocar a configuração de hospedagem.
 
 A comprovação de precisão em oficina requer casos adicionais com veículo/motor identificados, medições, defeito confirmado, reparo efetuado e repetição da condição original sem falha. Esse resultado não foi presumido a partir dos testes de software.
