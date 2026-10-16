@@ -875,6 +875,163 @@ test('a voltage that was not measured cannot complete a no-start check and a rea
   assert.doesNotMatch(reply, /envie a tensão da bateria antes/);
 });
 
+async function afterNoCrankClick(h) {
+  await say(h, 'O carro não pega. Me guie pelo diagnóstico passo a passo.');
+  await say(h, 'O motor não gira ao tentar ligar.'); await say(h, 'Dá clique');
+  assert.equal(h.state.caseContext.awaiting, 'no-start-battery');
+}
+
+test('the pasted no-crank conversation clarifies a lone voltage and explains each invalid reply', async () => {
+  const h = harness(golf); await afterNoCrankClick(h);
+  assert.match(await say(h, '12V'), /Os 12 V foram medidos antes.*durante/);
+  const partial = h.state.caseContext.startingBattery;
+  assert.equal(partial.before, null); assert.equal(partial.during, null); assert.equal(partial.pending, 12);
+  assert.match(await say(h, 'P35'), /DTC incompleto/);
+  assert.match(await say(h, '1214'), /não identifica uma tensão/);
+  assert.match(await say(h, 'SADAS'), /Não consegui identificar um resultado/);
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), []);
+  assert.equal(h.state.caseContext.engineCode, '');
+  assert.equal(h.state.caseContext.startingBattery.pending, 12);
+  assert.match(await say(h, 'Antes da tentativa'), /menor tensão.*durante/);
+  assert.equal(h.state.caseContext.startingBattery.before, 12);
+  assert.equal(h.state.caseContext.startingBattery.during, null);
+  assert.match(await say(h, '10 V durante'), /terminais da bateria/);
+  assert.equal(h.state.caseContext.startingBattery.during, 10);
+  assert.match(await say(h, 'Terminais firmes, sem oxidação'), /código de identificação do motor/);
+  assert.match(await say(h, 'CHPA'), /Código de motor informado: CHPA/);
+  assert.equal(h.state.caseContext.noStartReference.status, 'code');
+  const reply = await say(h, 'Não tenho a referência');
+  assert.match(reply, /diagnóstico fica pendente/);
+  assert.doesNotMatch(reply, /Envie o código de identificação|arranque (?:condenado|defeituoso)|bateria (?:boa|ruim)/);
+});
+
+test('battery phases and missing measurements survive reopening without borrowing generated text', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12V');
+  const saved = JSON.parse(JSON.stringify(h.buildSessionPayload()));
+  const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+  await say(restored, 'Durante a tentativa');
+  assert.equal(restored.state.caseContext.startingBattery.during, 12);
+  assert.equal(restored.state.caseContext.startingBattery.before, null);
+  assert.equal(restored.state.caseContext.awaiting, 'no-start-battery-before');
+  assert.match(await say(restored, '12,4'), /terminais da bateria/);
+  assert.equal(restored.state.caseContext.startingBattery.before, 12.4);
+
+  const old = JSON.parse(JSON.stringify(saved));
+  delete old.caseContext.startingBattery;
+  old.caseContext.awaiting = 'no-start-power-diagram';
+  old.messages.push({ role: 'bot', text: 'Antes 14 V e durante 10 V.', at: new Date().toISOString() });
+  const migrated = harness(); migrated.loadHistoryItem(old); await migrated.flush();
+  assert.equal(migrated.state.caseContext.awaiting, 'no-start-battery-stage');
+  assert.equal(migrated.state.caseContext.startingBattery.pending, 12);
+  assert.equal(migrated.state.caseContext.startingBattery.before, null);
+});
+
+test('explicit before and during voltages preserve their reported order and decimal values', async () => {
+  for (const [text, before, during] of [
+    ['12,4 V antes e 9,4 V durante', 12.4, 9.4],
+    ['Durante 9.4 V e antes 12.4 V', 12.4, 9.4],
+    ['12V antes e durante, nos dois', 12, 12]
+  ]) {
+    const h = harness(golf); await afterNoCrankClick(h); await say(h, text);
+    assert.equal(h.state.caseContext.startingBattery.before, before, text);
+    assert.equal(h.state.caseContext.startingBattery.during, during, text);
+    assert.equal(h.state.caseContext.awaiting, 'no-start-terminals');
+  }
+});
+
+test('unmeasured, hypothetical and unrelated readings never complete the battery phases', async () => {
+  for (const text of ['Se medir 12 V antes e 10 V durante?', 'Deveria dar 12 V?', 'Medi 180 psi', '1214', '1214 V', 'Medi -12 V']) {
+    const h = harness(golf); await afterNoCrankClick(h); await say(h, text);
+    assert.equal(h.state.caseContext.startingBattery, null, text);
+    assert.equal(h.state.caseContext.awaiting, 'no-start-battery', text);
+  }
+});
+
+test('missing equipment pauses the measurement and can be resumed without fabricating voltages', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12V');
+  assert.match(await say(h, 'Não tenho multímetro'), /Providencie um multímetro/);
+  assert.equal(h.state.caseContext.startingBattery.before, null);
+  assert.match(await say(h, 'Vou medir agora'), /Os 12 V foram medidos/);
+  await say(h, 'Antes'); await say(h, '10V');
+  assert.equal(h.state.caseContext.awaiting, 'no-start-terminals');
+});
+
+test('loose terminals are not silently recorded as firm even when there is no corrosion', async () => {
+  for (const text of ['Estão soltos, sem oxidação', 'Terminais não estão firmes', 'Sem oxidação, mas soltos', 'Terminais danificados, sem oxidação']) {
+    const h = harness(golf); await afterNoCrankClick(h); await say(h, '12 V antes e 10 V durante');
+    assert.match(await say(h, text), /Conexão solta ou oxidada/, text);
+    assert.equal(h.state.caseContext.starterConnections, 'problem');
+    assert.doesNotMatch(h.state.messages.at(-1).text, /arranque defeituoso|bateria normal/);
+  }
+});
+
+test('all no-start reference endpoints consume identification, missing reference and new measurements', async () => {
+  const cases = [
+    ['no-start-power-diagram', ['Não pega', 'Não gira', 'Dá clique', '12 V antes e 10 V durante', 'Terminais firmes']],
+    ['no-start-signal-reference', ['Gira mas não pega', '0 RPM', 'Não comunica normalmente', '9,4 V durante']],
+    ['no-start-engine-procedure', ['Gira mas não pega', '200 RPM', 'Partida autorizada', 'Sem códigos']]
+  ];
+  for (const [slot, inputs] of cases) {
+    const h = harness(golf); for (const input of inputs) await say(h, input);
+    assert.equal(h.state.caseContext.awaiting, slot);
+    assert.match(await say(h, 'P35'), /DTC incompleto/);
+    assert.equal(h.state.caseContext.engineCode, '');
+    assert.match(await say(h, 'CHPA'), /Código de motor informado: CHPA/);
+    assert.match(await say(h, 'Não tenho o esquema'), /diagnóstico fica pendente/);
+    const restored = harness(); restored.loadHistoryItem(JSON.parse(JSON.stringify(h.buildSessionPayload()))); await restored.flush();
+    assert.equal(restored.state.caseContext.noStartReference.status, 'unavailable');
+    assert.match(await say(restored, 'Quero registrar novas medições'), /pontos onde mediu/);
+    assert.match(await say(restored, 'Medi 9,5 V nos polos durante a tentativa'), /Informação adicional registrada: Medi 9,5 V/);
+    assert.equal(restored.state.caseContext.noStartReference.status, 'evidence');
+  }
+});
+
+test('changing the cranking condition invalidates earlier starting measurements and reference status', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12 V antes e 10 V durante');
+  await say(h, 'Terminais firmes'); await say(h, 'Não tenho referência');
+  assert.match(await say(h, 'Agora o motor gira mas não pega'), /RPM/);
+  assert.equal(h.state.caseContext.startingBattery, null);
+  assert.equal(h.state.caseContext.noStartReference, null);
+  h.startNewCase(); assert.equal(h.state.caseContext.startingBattery, null);
+});
+
+test('returning to no-start does not reuse signal evidence from a previous physical condition', async () => {
+  const h = harness(golf);
+  for (const input of ['Gira mas não pega', '0 RPM', 'Sim, comunica normalmente', 'Conector firme, chicote sem danos']) await say(h, input);
+  assert.equal(h.state.caseContext.awaiting, 'no-start-signal-reference');
+  for (const input of ['Está falhando', 'Não pega', 'Gira', '0 RPM', 'Sim, comunica normalmente']) await say(h, input);
+  assert.equal(h.state.caseContext.awaiting, 'no-start-rotation-signal');
+  assert.equal(h.state.caseContext.observations['no-start-rotation-signal'], undefined);
+});
+
+test('a post-connection report that the engine turned advances to RPM while a denied turn does not', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12 V antes e 10 V durante'); await say(h, 'Terminais soltos');
+  assert.match(await say(h, 'Corrigi a conexão, mas não girou'), /Conexão solta ou oxidada/);
+  assert.equal(h.state.caseContext.cranking, 'nao gira');
+  assert.match(await say(h, 'Agora girou mas não pega'), /RPM/);
+  assert.equal(h.state.caseContext.cranking, 'gira');
+});
+
+test('a reported manual excerpt and negative code reading are acknowledged without asking for the same input again', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12 V antes e 10 V durante'); await say(h, 'Terminais firmes');
+  const report = 'Manual CHPA página 10: conferir alimentação conforme procedimento; medi 12 V nos polos durante a tentativa';
+  assert.match(await say(h, report), /Informação adicional registrada: Manual CHPA/);
+  assert.doesNotMatch(h.state.messages.at(-1).text, /envie.*esquema|informe os pontos de medição/i);
+  assert.match(await say(h, 'Sem códigos'), /Informação adicional registrada: Sem códigos/);
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), []);
+});
+
+test('a later battery correction replaces the structured voltage without borrowing a voltage from another circuit', async () => {
+  const h = harness(golf); await afterNoCrankClick(h); await say(h, '12 V antes e 10 V durante'); await say(h, 'Terminais firmes');
+  const reply = await say(h, 'Corrigindo: medi 8 V nos polos da bateria durante a tentativa');
+  assert.equal(h.state.caseContext.startingBattery.before, 12);
+  assert.equal(h.state.caseContext.startingBattery.during, 8);
+  assert.match(reply, /12 V antes e 8 V durante/);
+  assert.doesNotMatch(reply, /10 V durante/);
+  await say(h, 'Medi 5 V no sensor durante a tentativa');
+  assert.equal(h.state.caseContext.startingBattery.during, 8);
+});
+
 test('misfire without a stored code advances to operating conditions without fabricating a cylinder', async () => {
   const h = harness(golf);
   await say(h, 'Está falhando a quente');

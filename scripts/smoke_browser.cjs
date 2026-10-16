@@ -99,6 +99,32 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(baseURL).hostname)) throw new E
     console.log(JSON.stringify({ check: 'pasted-compression-conversation', passed: true, reading: compression.compression.values, unit: compression.compression.unit }));
 
     await page.locator('#newCaseBtn').click();
+    await say('O carro não pega. Me guie pelo diagnóstico passo a passo.', 'motor gira ou nem gira');
+    await say('O motor não gira ao tentar ligar.', 'algum clique');
+    await say('Dá clique', 'tensão aparece antes e durante');
+    await say('12V', 'Os 12 V foram medidos antes');
+    await say('P35', 'DTC incompleto');
+    await say('1214', 'não identifica uma tensão');
+    await say('SADAS', 'Não consegui identificar um resultado');
+    const partialBattery = await page.locator('#messages .message.bot').last().innerText();
+    assert.match(partialBattery, /Os 12 V foram medidos antes/);
+    assert.doesNotMatch(partialBattery, /Envie o código de identificação do motor ou o esquema/);
+    await say('Antes da tentativa', 'menor tensão');
+    await say('10 V durante', 'terminais da bateria');
+    await say('Terminais firmes, sem oxidação', 'código de identificação do motor');
+    await say('CHPA', 'O código foi registrado');
+    assert.match(await page.locator('#messages .message.bot').last().innerText(), /Código de motor informado: CHPA/);
+    await say('Não tenho a referência', 'diagnóstico fica pendente');
+    const starting = await page.evaluate(() => JSON.parse(localStorage.getItem('thiaguinho_history')).find(row => row.caseContext?.engineCode === 'CHPA')?.caseContext);
+    assert.equal(starting.startingBattery.before, 12);
+    assert.equal(starting.startingBattery.during, 10);
+    assert.equal(starting.startingBattery.pending, null);
+    assert.equal(starting.starterConnections, 'firm');
+    assert.equal(starting.noStartReference.status, 'unavailable');
+    assert.equal(starting.dtcs.length, 0, 'incomplete code and arbitrary text do not invent a DTC');
+    console.log(JSON.stringify({ check: 'pasted-no-start-conversation', passed: true, battery: { before: starting.startingBattery.before, during: starting.startingBattery.during }, reference: starting.noStartReference.status }));
+
+    await page.locator('#newCaseBtn').click();
     await say('O motor gira mas não pega', 'RPM');
     await say('0 RPM', 'continua comunicando');
     await say('Não comunica normalmente', 'comunicação cai');

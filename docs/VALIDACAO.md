@@ -8,7 +8,7 @@ A validação exercita comportamento de software e busca documental: preservar o
 
 ## Verificações executadas
 
-Resultado nesta máquina: **140 testes Node.js e sete testes Python passaram**, sem falhas ou skips. Também passaram as verificações de sintaxe dos dez arquivos JavaScript de aplicação/worker/smoke e o passo de arquivos críticos/arquitetura de privacidade do CI.
+Resultado nesta máquina: **152 testes Node.js e sete testes Python passaram**, sem falhas ou skips. Também passaram as verificações de sintaxe dos dez arquivos JavaScript de aplicação/worker/smoke e o passo de arquivos críticos/arquitetura de privacidade do CI.
 
 | Verificação | Evidência |
 | --- | --- |
@@ -30,6 +30,14 @@ A reprodução enviada pelo usuário percorre comparação de bobina e vela, ens
 O estado persiste ao reabrir o caso. Valores ignorados em snapshots antigos podem ser recuperados exclusivamente de mensagens do mecânico posteriores ao ensaio de injetor registrado, nunca de texto gerado pelo assistente. A leitura fica vinculada aos resultados antecedentes; mudanças nesses resultados e novos casos não reutilizam medições antigas. Uma correção do cilindro 4 não é aplicada aos demais cilindros.
 
 A igualdade relatada não confirma normalidade mecânica. Ausência de vazamento do injetor não comprova comando ou vazão corretos. A interpretação exige a unidade, as condições e a referência aplicável.
+
+## Correção da conversa de partida sem giro
+
+A sequência “não gira → dá clique → 12V → P35 → 1214 → SADAS” passa a preservar a tensão sem atribuir uma condição por conta própria. O sistema pergunta se os 12 V foram medidos antes ou durante a tentativa; as respostas seguintes recebem feedback específico e não inventam DTC, motor ou uma segunda tensão. Após receber as duas leituras, segue para a verificação dos terminais. Terminais negados como firmes, soltos ou danificados não são registrados como bons por conterem “sem oxidação”.
+
+As três etapas finais de referência de partida agora recebem código de motor, ausência de referência e informações adicionais. Um código sintaticamente plausível é registrado como relato, sem comprovar compatibilidade ou determinar pinagem. Sem documentação aplicável, o caso fica explicitamente pendente e pode ser retomado com a referência ou novas medições; não se inventa um procedimento elétrico. Trechos de manual são reconhecidos, mas sua interpretação técnica não é validada automaticamente.
+
+O estado parcial persiste ao reabrir o caso. Históricos antigos com “12V” recuperam o valor como leitura sem condição; texto do assistente não fornece uma tensão ausente. A mudança do sintoma ou de gira/não gira invalida as evidências dependentes do cenário anterior.
 
 ## Índice real reconstruído
 

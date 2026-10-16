@@ -182,7 +182,7 @@
       observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
       startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:"",
       lastInputKind:"",confirmedCodeReminder:false,coilAppearance:null,engineCode:"",engineIdentificationUnavailable:false,repairVerified:false,
-      componentRepair:"",noCodesReported:false,compression:null,factVersion:1,continuityVersion:2};
+      componentRepair:"",noCodesReported:false,compression:null,startingBattery:null,starterConnections:"",noStartReference:null,noStartFeedback:"",factVersion:1,continuityVersion:2};
   }
 
   function plugObservation(text,allowBare){
@@ -317,6 +317,85 @@
     return recovered;
   }
 
+  function noStartInputFeedback(text){
+    var q=norm(text);
+    if(/\b[pbcu]\d{1,3}\b/.test(q))return "‘"+text.slice(0,60)+"’ parece um DTC incompleto. Copie a letra e os quatro caracteres do scanner; não vou completar o código por conta própria.";
+    if(/^\d{3,}$/.test(q))return "‘"+text.slice(0,60)+"’ não identifica uma tensão com unidade nem sua condição. Use, por exemplo, ‘12 V antes’ ou ‘10 V durante’.";
+    return "Não consegui identificar um resultado em ‘"+text.slice(0,80)+"’. Os dados anteriores foram preservados.";
+  }
+
+  function startingBatteryReport(previous,text,slot){
+    var b=Object.assign({before:null,during:null,pending:null,unavailable:false,raw:""},previous||{}),q=norm(text);
+    if(/nao tenho (?:o )?multimetro|sem multimetro|nao (?:consigo|consegui) medir|nao medi|nao testei/.test(q)){
+      b.unavailable=true;return b;
+    }
+    if(/^(?:vou medir agora|tenho (?:o )?multimetro)[.! ]*$/.test(q)){b.unavailable=false;return b;}
+    if(unmeasuredReport(text)||/\b(?:rpm|psi|bar|ohms?)\b|(?:^|\s)-\s*\d/.test(q))return null;
+    var phaseBefore=/\bantes\b|\brepouso\b|sem (?:tentar|dar) partida/.test(q);
+    var phaseDuring=/\bdurante\b|\bminim[ao]\b|na tentativa|enquanto.*partida/.test(q);
+    var matches=Array.from(q.matchAll(/\b(\d+(?:[.,]\d+)?)\s*(?:v(?:olts?)?)\b/g));
+    var bare=q.match(/^(\d+(?:[.,]\d+)?)[.! ]*$/);
+    if(!matches.length&&bare)matches=[bare];
+    var values=matches.map(function(m){return Number(m[1].replace(",","."));});
+    if(values.some(function(value){return value>60;}))return null;
+    if(!values.length){
+      if(b.pending!==null&&(phaseBefore!==phaseDuring)){
+        b[phaseBefore?"before":"during"]=b.pending;b.pending=null;b.unavailable=false;return b;
+      }
+      return null;
+    }
+    if(values.length===2&&phaseBefore&&phaseDuring){
+      var duringFirst=q.search(/\bdurante\b|\bminim[ao]\b|na tentativa/) < q.search(/\bantes\b|\brepouso\b/);
+      b.before=values[duringFirst?1:0];b.during=values[duringFirst?0:1];b.pending=null;
+    }else if(values.length===1){
+      if(phaseBefore&&phaseDuring&&/antes e durante|nos dois|mesm[ao]/.test(q)){b.before=values[0];b.during=values[0];b.pending=null;}
+      else if(phaseBefore!==phaseDuring){b[phaseBefore?"before":"during"]=values[0];b.pending=null;}
+      else if(slot==="no-start-battery-before"||slot==="no-start-battery-during"){b[slot.endsWith("before")?"before":"during"]=values[0];b.pending=null;}
+      else b.pending=values[0];
+    }else return null;
+    b.raw=text.slice(0,500);b.unavailable=false;return b;
+  }
+
+  function extendNoStartEvidence(c,text){
+    var slot=c.awaiting,q=norm(text);
+    c.noStartFeedback="";
+    if(!c.startingBattery&&c.observations["no-start-battery"]){
+      c.startingBattery=startingBatteryReport(null,c.observations["no-start-battery"],"");
+    }
+    if(!text)return;
+    if(/^no-start-battery(?:-|$)/.test(slot)){
+      var battery=startingBatteryReport(c.startingBattery,text,slot);
+      if(battery){c.startingBattery=battery;if(!battery.unavailable)c.observations["no-start-battery"]=battery.raw||text;}
+      else c.noStartFeedback=noStartInputFeedback(text);
+    }else if(/\b(?:bateria|polos)\b/.test(q)&&/\b(?:antes|durante|repouso)\b/.test(q)&&/\d+(?:[.,]\d+)?\s*v(?:olts?)?\b/.test(q)){
+      // A later battery correction must replace its current value, not only its transcript.
+      var correction=startingBatteryReport(c.startingBattery,text,"");
+      if(correction&&!correction.unavailable){
+        c.startingBattery=correction;c.observations["no-start-battery"]=correction.raw;c.noStartReference=null;
+      }
+    }
+    if(slot==="no-start-terminals"){
+      var connections=q.replace(/\b(?:sem (?:oxidacao|zinabre|danos)|nao (?:estao |esta )?(?:soltos?|oxidados?|danificados?))\b/g,"");
+      if(/nao (?:conferi|testei|verifiquei)|nao consigo/.test(q))c.starterConnections="unavailable";
+      else if(/solt|danific|oxid|zinabre|nao (?:estao |esta )?firmes?/.test(connections))c.starterConnections="problem";
+      else if(/firmes?/.test(connections))c.starterConnections="firm";
+      else c.noStartFeedback=noStartInputFeedback(text);
+    }
+    if(/^no-start-(?:power-diagram|signal-reference|engine-procedure)$/.test(slot)){
+      var ref=c.noStartReference&&c.noStartReference.slot===slot?Object.assign({},c.noStartReference):{slot:slot,status:"",text:"",engineCode:""};
+      if(/nao (?:sei|tenho|achei|encontrei|consigo)|sem (?:esquema|referencia|manual)/.test(q)){ref.status="unavailable";ref.text="";}
+      else if(/quero registrar novas medicoes/.test(q))ref.status="collecting";
+      else{
+        var engine=text.toUpperCase().match(/^(?:(?:MOTOR|CÓDIGO DO MOTOR)[: ]+)?([A-Z][A-Z0-9]{2,3})[.! ]*$/);
+        if(engine&&!/^(?:[PBCU]\d|(?:NAO|SIM|RPM|ECU|GOLF|TSI|SECA|VELA)$)/.test(engine[1])){ref.engineCode=engine[1];ref.status="code";c.engineCode=engine[1];}
+        else if(!unmeasuredReport(text)&&(/\d+(?:[.,]\d+)?\s*(?:v(?:olts?)?|mv|hz|ms)\b/.test(q)||/\b(?:manual|esquema|procedimento|pagina)\b/.test(q)&&/\d/.test(q)||codeReport(text).present.length||/^sem codigos?[.! ]*$/.test(q))){
+          ref.status="evidence";ref.text=text.slice(0,500);
+        }else c.noStartFeedback=noStartInputFeedback(text);
+      }
+      c.noStartReference=ref;
+    }
+  }
+
   // Only the mechanic's statements and explicitly confirmed media enter the case.
   // Bot questions and suggested codes must never become diagnostic evidence.
   function extendCaseContext(previous,text){
@@ -328,6 +407,8 @@
     c.dtcDescriptions=Object.assign({},c.dtcDescriptions||{});
     c.coilAppearance=c.coilAppearance?Object.assign({},c.coilAppearance):null;
     c.compression=c.compression?Object.assign({},c.compression,{values:(c.compression.values||[]).slice(),cylinders:(c.compression.cylinders||[]).slice()}):null;
+    c.startingBattery=c.startingBattery?Object.assign({},c.startingBattery):null;
+    c.noStartReference=c.noStartReference?Object.assign({},c.noStartReference):null;
     if(c.observations["misfire-plug-observation"]&&!plugObservation(c.observations["misfire-plug-observation"],true))delete c.observations["misfire-plug-observation"];
     if(c.candidateCode&&c.dtcs.indexOf(c.candidateCode)>=0){c.candidateCode="";c.incompleteCode="";}
     text=String(text||"").trim();
@@ -338,7 +419,7 @@
     var misfire=/\bfalhando\b|\brateia\b|\bengasga\b|\bfalha (?:de ignicao|de combustao|a |quando)/.test(q);
     var symptom=noStart?"no-start":misfire?"misfire":!c.symptom&&codes.some(function(code){return /^P030[0-8]$/.test(code);})?"misfire":"";
     c.lastInputKind="";c.confirmedCodeReminder=false;
-    if(c.awaiting&&text&&!unmeasuredReport(text)&&!isGreeting(text)&&!(symptom&&symptom!==c.symptom)&&relevantObservation(c.awaiting,text))c.observations[c.awaiting]=text;
+    if(c.awaiting&&!/^no-start-battery(?:-|$)/.test(c.awaiting)&&text&&!unmeasuredReport(text)&&!isGreeting(text)&&!(symptom&&symptom!==c.symptom)&&relevantObservation(c.awaiting,text))c.observations[c.awaiting]=text;
     var plug=plugObservation(text,c.awaiting==="misfire-plug-observation");
     if(plug){c.observations["misfire-plug-observation"]=plug;c.lastInputKind="plug-observation";}
     if(/\bbobina\b.*\b(?:verde|azul|vermelha|preta|amarela|branca)\b|\bconector\b.*(?:verde|oxid|zinabre)/.test(q)){
@@ -369,7 +450,10 @@
     if(symptom&&symptom!==c.symptom){
       if(c.symptom)c.flowVersion++;
       c.symptom=symptom;c.awaiting="";
-      if(noStart){c.cranking="";c.rpm=null;c.rpmPresent=false;c.rpmUnavailable=false;c.startAuthorized="";c.ecuCommunication="";c.starterSound="";}
+      if(noStart){
+        c.cranking="";c.rpm=null;c.rpmPresent=false;c.rpmUnavailable=false;c.startAuthorized="";c.ecuCommunication="";c.starterSound="";c.startingBattery=null;c.starterConnections="";c.noStartReference=null;
+        Object.keys(c.observations).forEach(function(key){if(/^no-start-/.test(key))delete c.observations[key];});
+      }
     }
     c.ambiguousCylinderReply=false;
     if(/\bgolf\b/.test(q)){c.vehicleDetails.model="Golf";c.vehicleDetails.brand="Volkswagen";}
@@ -402,8 +486,11 @@
     else if(/\bquente\b/.test(condition)) c.temperature="quente";
     else if(/\bfrio\b/.test(condition)) c.temperature="frio";
     if(c.symptom==="no-start"){
-      var cranking=/\bnao gira\b|\bnem gira\b/.test(q)?"nao gira":/\bgira\b|\bgirando\b/.test(q)?"gira":"";
-      if(cranking&&cranking!==c.cranking){c.cranking=cranking;c.rpm=null;c.rpmPresent=false;c.rpmUnavailable=false;c.startAuthorized="";c.ecuCommunication="";}
+      var cranking=/\b(?:nao|nem) (?:gira|girou)\b/.test(q)?"nao gira":/\b(?:gira|girando|girou)\b/.test(q)?"gira":"";
+      if(cranking&&cranking!==c.cranking){
+        c.cranking=cranking;c.rpm=null;c.rpmPresent=false;c.rpmUnavailable=false;c.startAuthorized="";c.ecuCommunication="";c.startingBattery=null;c.starterConnections="";c.noStartReference=null;c.starterSound="";c.awaiting="";
+        Object.keys(c.observations).forEach(function(key){if(/^no-start-/.test(key))delete c.observations[key];});
+      }
       if(c.awaiting==="no-start-rpm"||/\brpm\b/.test(q)){
         var rpm=q.match(/\b(\d{1,4})\s*rpm\b/)||q.match(/\b(?:rpm|rotacao)\s*(?:de|:)?\s*(\d{1,4})\b/)||q.match(/^(\d{1,4})[.! ]*$/);
         if(rpm&&!unmeasuredReport(text)){
@@ -428,6 +515,7 @@
         else if(/sem clique|nenhum clique|nao.*clique/.test(q))c.starterSound="silent";
         else if(/clique/.test(q))c.starterSound="click";
       }
+      extendNoStartEvidence(c,text);
     }else{
       var observed=cylinderReply(text,/^misfire-(?:cylinders|coil-movement|plug-movement|component-current)$/.test(c.awaiting));
       if(observed.length){c.observedCylinders=observed;c.observedCylinder=observed.length===1?observed[0]:0;}
@@ -907,6 +995,52 @@
     }
   }
 
+  function noStartBatteryStep(data,answer){
+    var b=data.startingBattery;
+    if(b&&b.raw)answer.explanation+=(answer.explanation?" ":"")+"Leitura informada: "+b.raw+".";
+    if(b&&b.unavailable){
+      answer.awaiting="no-start-battery-unavailable";
+      answer.question="Sem medir a bateria nas duas condições, ainda não podemos avaliar a alimentação da partida. Providencie um multímetro ou apoio de uma oficina. Retome com as leituras; não há peça condenada.";
+      answer.actions=[{label:"Já posso medir",text:"Vou medir agora"}];
+    }else if(b&&b.pending!==null){
+      answer.awaiting="no-start-battery-stage";
+      answer.question="Os "+b.pending+" V foram medidos antes de tentar ligar ou durante a tentativa?";
+      answer.actions=[{label:"Antes",text:"Antes da tentativa"},{label:"Durante",text:"Durante a tentativa"}];
+    }else if(!b||b.before===null||b.during===null){
+      answer.awaiting=!b||b.before===null&&b.during===null?"no-start-battery":b.before===null?"no-start-battery-before":"no-start-battery-during";
+      answer.question=answer.awaiting==="no-start-battery-before"?"Já registrei a tensão durante a tentativa. Qual tensão aparece nos polos da bateria antes de tentar ligar?"
+        :answer.awaiting==="no-start-battery-during"?"Já registrei a tensão antes da tentativa. Qual é a menor tensão nos polos da bateria durante a tentativa de partida?"
+        :"Com um multímetro nos polos da bateria, qual tensão aparece antes e durante a tentativa de partida? Identifique cada leitura e a unidade; se não tiver multímetro, diga isso.";
+    }else{
+      answer.explanation+=" Leituras identificadas: "+b.before+" V antes e "+b.during+" V durante a tentativa. Esses valores, sozinhos, não confirmam uma peça defeituosa.";
+      return false;
+    }
+    return true;
+  }
+
+  function noStartReferenceStep(data,answer,slot){
+    answer.awaiting=slot;
+    var ref=data.noStartReference&&data.noStartReference.slot===slot?data.noStartReference:null;
+    var target=slot==="no-start-power-diagram"?(data.cranking==="nao gira"?"cabos da bateria e circuito de comando do arranque":"alimentação e aterramento da ECU")
+      :slot==="no-start-signal-reference"?"alimentação e sinal de rotação":"alimentação, sinal e autorização de partida";
+    if(ref&&ref.engineCode)answer.explanation+=" Código de motor informado: "+ref.engineCode+"; a compatibilidade do procedimento ainda precisa ser conferida.";
+    if(ref&&ref.status==="unavailable"){
+      answer.question="Ficou registrado que você não tem a referência. Ainda não há causa confirmada. Para testar "+target+" nos pontos corretos, obtenha o esquema e o procedimento aplicáveis ao veículo. O diagnóstico fica pendente dessa informação; você pode retomar com a referência ou registrar novas medições com unidade e ponto de medição.";
+      answer.actions=[{label:"Registrar novas medições",text:"Quero registrar novas medições"}];
+    }else if(ref&&ref.status==="collecting"){
+      answer.question="Envie a nova medição com unidade, os pontos onde mediu e a condição da tentativa de partida. Não faça pontes no arranque nem alimente pinos sem o procedimento correto.";
+      answer.actions=[{label:"Não consegui medir",text:"Não tenho a referência para medir"}];
+    }else if(ref&&ref.status==="evidence"){
+      answer.explanation+=" Informação adicional registrada: "+ref.text+". Esse relato ainda não confirma uma causa.";
+      answer.question="A referência de "+target+" ainda precisa ser conferida na documentação aplicável ao veículo. A interpretação desse teste elétrico exige essa conferência ou apoio técnico antes de condenar uma peça. O caso permanece aberto; retome com o resultado da verificação ou uma mudança do sintoma.";
+      answer.actions=[{label:"Não tenho a referência",text:"Não tenho a referência"}];
+    }else{
+      answer.question=ref&&ref.status==="code"?"O código foi registrado. Agora envie o trecho textual do esquema ou procedimento de "+target+", com os pontos e as condições do ensaio. Só o nome do motor não determina pinagem ou limites."
+        :"Para conferir "+target+", informe o código de identificação do motor ou o trecho textual do esquema/procedimento aplicável. Se não tiver a referência, use a opção abaixo.";
+      answer.actions=[{label:"Não tenho a referência",text:"Não tenho a referência"}];
+    }
+  }
+
   function noStartStep(diag,answer){
     var c=diag.context,data=c.caseData;
     var observations=data.observations||{};
@@ -922,13 +1056,19 @@
         answer.awaiting="no-start-sound";
         answer.question="Ao tentar ligar, você ouve algum clique ou as luzes do painel enfraquecem?";
         answer.actions=[{label:"Dá clique",text:"Dá clique"},{label:"Sem clique",text:"Sem clique"},{label:"Painel apaga",text:"O painel apaga"}];
-      }else if(!observations["no-start-battery"]){
-        answer.awaiting="no-start-battery";
-        answer.question="Anotado. Com um multímetro nos polos da bateria, qual tensão aparece antes e durante a tentativa de partida? Confira também se os terminais estão firmes.";
       }else{
-        answer.explanation="Leitura informada: "+observations["no-start-battery"].slice(0,180)+".";
-        answer.awaiting="no-start-power-diagram";
-        answer.question="Agora precisamos conferir a queda de tensão dos cabos e o comando do arranque pelo esquema desse motor. Envie o código de identificação do motor ou o esquema para localizar os pontos corretos.";
+        if(!noStartBatteryStep(data,answer)){
+          if(!data.starterConnections){
+            answer.awaiting="no-start-terminals";
+            answer.question="Com a ignição desligada, os terminais da bateria estão firmes e sem oxidação aparente? Não aproxime ferramentas entre os polos.";
+            answer.actions=[{label:"Firmes, sem oxidação",text:"Terminais firmes, sem oxidação"},{label:"Soltos ou oxidados",text:"Terminais soltos ou oxidados"},{label:"Não conferi",text:"Não conferi os terminais"}];
+          }else if(data.starterConnections==="problem"||data.starterConnections==="unavailable"){
+            answer.awaiting="no-start-terminals";
+            answer.question=data.starterConnections==="problem"?"Conexão solta ou oxidada foi relatada. Providencie a correção conforme o procedimento do veículo, com a ignição desligada e apoio técnico se necessário. Depois, repita a tentativa e informe se o motor passou a girar; isso ainda não confirma defeito no arranque."
+              :"Sem conferir as conexões, falta essa verificação básica. Peça apoio para avaliar os terminais com a ignição desligada e retome com o que encontrou.";
+            answer.actions=[{label:"Conferi: estão firmes",text:"Terminais firmes, sem oxidação"}];
+          }else noStartReferenceStep(data,answer,"no-start-power-diagram");
+        }
       }
     }else if(data.rpm===null&&!data.rpmPresent&&!data.rpmUnavailable){
       answer.awaiting="no-start-rpm";
@@ -939,14 +1079,7 @@
       answer.question="Sem essa leitura, vamos escolher um teste possível. Você tem multímetro, testador de centelha ou outro scanner disponível?";
     }else if(data.rpmUnavailable){
       answer.explanation="Equipamento informado: "+observations["no-start-tools"].slice(0,120)+".";
-      if(!observations["no-start-battery"]){
-        answer.awaiting="no-start-battery";
-        answer.question="Se houver multímetro, envie a tensão da bateria antes e durante a partida. Se não houver, precisamos de um scanner ou equipamento de medição para continuar sem adivinhar.";
-      }else{
-        answer.awaiting="no-start-power-diagram";
-        answer.explanation+=" Leitura informada: "+observations["no-start-battery"].slice(0,180)+".";
-        answer.question="Agora confira a queda de tensão dos cabos e a alimentação da ECU durante a partida pelo esquema desse motor. Envie o código do motor ou o esquema para localizar os pontos corretos; a leitura da bateria sozinha não confirma uma peça defeituosa.";
-      }
+      if(!noStartBatteryStep(data,answer))noStartReferenceStep(data,answer,"no-start-power-diagram");
     }else if(data.rpm===0){
       answer.explanation="Anotei 0 RPM durante a partida. Isso ainda não confirma sensor defeituoso.";
       if(!data.ecuCommunication){
@@ -960,9 +1093,8 @@
         answer.awaiting="no-start-rotation-signal";
         answer.question="A ECU comunica, mas não registra rotação. Confira conector e chicote do sensor de rotação com a ignição desligada. Envie os códigos atuais e o código do motor para localizar o teste de sinal correto.";
       }else{
-        answer.awaiting="no-start-signal-reference";
         answer.explanation+=" Registrei a informação enviada: "+(observations["no-start-rotation-signal"]||observations["no-start-ecu-power"]||"").slice(0,160)+".";
-        answer.question="O próximo passo é comparar o sinal e a alimentação com o esquema e o procedimento desse motor. Envie essa referência ou a forma de onda medida; 0 RPM sozinho não condena o sensor.";
+        noStartReferenceStep(data,answer,"no-start-signal-reference");
       }
     }else{
       answer.explanation=data.rpm!==null?"Anotei "+data.rpm+" RPM durante a partida.":"O scanner registra rotação durante a partida.";
@@ -977,11 +1109,11 @@
         answer.awaiting="no-start-next-evidence";
         answer.question="A rotação foi registrada. Informe os códigos atuais do motor e diga se já verificou faísca com testador e comando dos injetores. Com isso, escolhemos o próximo teste compatível com o motor.";
       }else{
-        answer.awaiting="no-start-engine-procedure";
         answer.explanation+=" Dados informados: "+(observations["no-start-immobilizer-codes"]||observations["no-start-next-evidence"]).slice(0,180)+".";
-        answer.question="Ainda não há causa confirmada. Precisamos do código de identificação do motor e do procedimento de teste para conferir alimentação, sinal ou autorização de partida nos pontos corretos. Envie essa referência para continuar.";
+        noStartReferenceStep(data,answer,"no-start-engine-procedure");
       }
     }
+    if(data.noStartFeedback)answer.explanation+=(answer.explanation?" ":"")+data.noStartFeedback;
   }
 
   function practicalAnswer(diag){
