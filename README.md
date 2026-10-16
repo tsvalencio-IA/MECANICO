@@ -33,6 +33,17 @@ GitHub Pages:
 
 https://tsvalencio-ia.github.io/MECANICO/
 
+## Continuidade do diagnóstico — 16/10/2026
+
+- Runtime preservado em **1.6.2**, com diagnóstico no navegador e conhecimento compacto sem Cloud Functions.
+- Resultados explícitos sobre bobina ou vela podem corrigir um teste anterior, mesmo quando outra pergunta está aberta. O histórico mantém os relatos anteriores; o próximo passo usa o resultado mais recente e desconsidera os testes que dependiam de um resultado corrigido.
+- Uma falha que migrou de cilindro direciona a confirmação para o componente comparado. A troca de várias peças exige uma comparação isolada antes de recomendar substituição. O reparo ainda precisa ser verificado nas condições informadas.
+- O motor cadastrado permite apresentar o próximo ensaio de injetor. A identificação específica é complementar; não se inventam procedimentos de alta pressão, pinagens, torques ou limites por falta dela.
+- A busca por ensaios de injetor e compressão procura o procedimento, sem exigir que a mesma página repita o DTC. Referências incompatíveis de sistema, veículo ou motorização são filtradas.
+- Ao reabrir históricos antigos, correções ignoradas podem ser recuperadas dos relatos do usuário ainda presentes, vinculadas aos testes registrados. Texto do assistente não serve como evidência.
+
+Verificação: `node --test scripts/test_pwa.cjs scripts/test_media.cjs scripts/test_diagnosis.cjs`. A reprodução inclui a conversa P0303, correções por texto, respostas curtas, histórico, comparação de uma peça por vez e leitura após reparo.
+
 ---
 
 **Powered by thIAguinho Soluções Automotiva**

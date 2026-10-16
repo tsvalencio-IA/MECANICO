@@ -5,7 +5,7 @@
   var manifest=null,manifestPromise=null,mapPromise=null;
   var jsonCache=new Map();
   var queryCache=new Map();
-  var SEARCH_VERSION="2.0.1-compact";
+  var SEARCH_VERSION="2.0.2-compact";
 
   function norm(v){
     return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
@@ -187,6 +187,9 @@
       bucketData.forEach(function(obj){Object.keys(obj||{}).forEach(function(k){records[k]=obj[k];});});
 
       var needles=codes.concat(qTokens).concat(vehicleTokens);
+      var queryText=norm(query),compressionQuery=!codes.length&&/compressao|compression/.test(queryText);
+      var injectorLeakQuery=!codes.length&&!compressionQuery&&/estanqueidade|internal leakage/.test(queryText)&&/injetor|injector/.test(queryText);
+      var requestedEngine=norm(vehicle&&vehicle.engine).match(/\b([1-9])[.,](\d)\b/);
       var detailed=[];
       ranked.forEach(function(pair){
         var rec=records[String(pair[0])];
@@ -196,6 +199,17 @@
         var modelTokens=identityTokensFrom({model:vehicle&&vehicle.model});
         if(modelTokens.length&&!modelTokens.some(function(t){return text.indexOf(t)>=0;})) return;
         if(identityTokens.length && !identityTokens.some(function(t){return text.indexOf(t)>=0;})) return;
+        if(injectorLeakQuery&&(!/injetor|injector|\bbicos?\b/.test(text)||!/vazamento|estanqueidade|leak|gotej|vedacao/.test(text)))return;
+        if(compressionQuery&&!/compressao|compression/.test(text))return;
+        if((injectorLeakQuery||compressionQuery)&&requestedEngine){
+          var documentEngines=(text.match(/\b[1-9][.,]\d\s*(?:l\b|litros?\b|tsi\b|tfsi\b|tdi\b|mpi\b|flex\b|turbo\b|16v\b|8v\b)/g)||[]).map(function(e){return e.slice(0,3).replace(",",".");});
+          modelTokens.forEach(function(model){
+            var named=text.match(new RegExp("\\b"+model.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s+([1-9][.,]\\d)\\b","g"))||[];
+            named.forEach(function(e){documentEngines.push(e.match(/[1-9][.,]\d/)[0].replace(",","."));});
+          });
+          if(documentEngines.length&&documentEngines.indexOf(requestedEngine[1]+"."+requestedEngine[2])<0)return;
+          if(/\b(?:tsi|tfsi|gasolina|flex)\b/.test(norm(vehicle&&vehicle.engine))&&/\b(?:tdi|diesel)\b/.test(text)&&!/\b(?:tsi|tfsi|gasolina|flex)\b/.test(text))return;
+        }
         var s=pair[1]+truthWeight(rec);
         qTokens.forEach(function(t){if(text.indexOf(t)>=0)s+=6;});
         vehicleTokens.forEach(function(t){if(text.indexOf(t)>=0)s+=8;});

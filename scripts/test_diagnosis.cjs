@@ -73,6 +73,161 @@ async function afterCoilStayed(h) {
   h.handleTestResult('stayed'); await h.flush();
 }
 
+async function afterCylinderThreeCoil(h) {
+  await say(h, 'P303'); await say(h, 'P0303'); await say(h, 'A falha acontece o tempo todo.');
+  h.handleTestResult('single'); await h.flush();
+  h.handleTestResult('stayed'); await h.flush();
+}
+
+test('the reported P0303 conversation accepts a later coil result and changes the next step to the moved component', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h);
+  const reply = await say(h, 'TROQUEI AS BOBINAS E MUDOU PARA O 1 CILINDRO A FALHA');
+  assert.match(reply, /cilindro 3[\s\S]*cilindro 1/);
+  assert.doesNotMatch(reply, /falha ficou no mesmo|Agora confira a vela|estanqueidade do injetor/);
+  const result = h.buildDiagnosis('').context.testResults.find(r => r.id === 'misfire-coil-P0303');
+  assert.equal(result.outcome, 'moved'); assert.equal(result.toCylinder, 1);
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), ['P0303']); // Do not invent a new scanner code.
+  assert.match(h.state.activeTests[0].id, /^misfire-migration-verify-/);
+  h.handleTestResult('confirmed'); await h.flush();
+  assert.match(h.state.messages.at(-1).text, /bobina que saiu do cilindro 3/);
+  assert.match(await say(h, 'Corrigi e testei nas mesmas condições; sem falhas'), /verificação sem falhas registrada/i);
+});
+
+test('explicit coil corrections work while a plug comparison is pending and never become plug results', async () => {
+  for (const report of ['Troquei as bobinas e a falha passou para o cilindro 1', 'Corrigindo: a falha acompanhou a bobina e agora está no cilindro 1']) {
+    const h = harness(golf); await afterCylinderThreeCoil(h); await say(h, 'SECA');
+    const reply = await say(h, report);
+    assert.match(reply, /cilindro 3[\s\S]*cilindro 1/);
+    assert.equal(h.state.testResults.some(r => /^misfire-plug-/.test(r.id)), false);
+    assert.equal(h.state.caseContext.observations['misfire-plug-observation'], 'SECA');
+  }
+});
+
+test('hypothetical swaps and multiple changed components cannot confirm a defective coil', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h);
+  await say(h, 'Se eu trocar as bobinas e mudar para o cilindro 1?');
+  assert.equal(h.buildDiagnosis('').context.testResults.find(r => r.id === 'misfire-coil-P0303').outcome, 'stayed');
+  await say(h, 'Troquei bobinas e velas e a falha mudou para o cilindro 1');
+  assert.match(h.state.messages.at(-1).text, /mais de um componente|bobinas e velas/);
+  assert.doesNotMatch(h.state.messages.at(-1).text, /bobina confirmada|substitua a bobina/);
+});
+
+test('a changed earlier comparison invalidates dependent results while keeping the audit and observed plug fact', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h); await say(h, 'SECA');
+  h.handleTestResult('stayed'); await h.flush();
+  await say(h, 'Corrigindo, troquei as bobinas e a falha mudou para o cilindro 1');
+  assert.equal(h.buildDiagnosis('').context.testResults.some(r => /^misfire-plug-/.test(r.id)), false);
+  assert.ok(h.state.testResults.some(r => /^misfire-plug-/.test(r.id)));
+  const reply = await say(h, 'Corrigindo o teste da bobina: a falha continuou no cilindro 3');
+  assert.match(reply, /Comparar a vela do cilindro 3/);
+  assert.doesNotMatch(reply, /estanqueidade do injetor|bobina: cilindro 1/);
+});
+
+test('the saved old conversation recovers the ignored coil correction from user text when reopened', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h);
+  const saved = JSON.parse(JSON.stringify(h.buildSessionPayload()));
+  delete saved.caseContext.continuityVersion;
+  saved.messages.push({ role: 'user', at: new Date(Date.now() + 10).toISOString(), text: 'TROQUEI AS BOBINAS E MUDOU PARA O 1 CILINDRO A FALHA' });
+  saved.messages.push({ role: 'bot', text: 'A falha ficou no mesmo cilindro. Agora confira a vela.' });
+  const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+  const reply = await say(restored, 'VC ESTA SE REPETINDO');
+  assert.match(reply, /cilindro 3[\s\S]*cilindro 1/);
+  assert.doesNotMatch(reply, /Agora confira a vela|identificação do motor/);
+  assert.equal(restored.buildDiagnosis('').context.testResults.find(r => r.id === 'misfire-coil-P0303').outcome, 'moved');
+});
+
+test('engine displacement and an unknown engine identifier do not trap the case before the injector test', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h); await say(h, 'SECA');
+  h.handleTestResult('stayed'); await h.flush();
+  for (const reply of ['1.4', 'MOTOR1.4 TSI', 'VC ESTA SE REPETINDO', 'Não sei identificar o motor']) {
+    const answer = await say(h, reply);
+    assert.equal(h.state.caseContext.engineCode, '');
+    assert.match(h.state.activeTests[0].id, /^misfire-injector-leak-/);
+    assert.doesNotMatch(answer, /qual é a identificação do motor|qual é o código de identificação do motor/i);
+    assert.doesNotMatch(answer, /CHPA|pressão correta é|torque de \d/);
+  }
+});
+
+test('common descriptions of a migrated coil fault identify the destination without fabricating the DTC', async () => {
+  for (const report of [
+    'Inverti as bobinas e agora falha no 1',
+    'A falha acompanhou a bobina para o primeiro cilindro',
+    'A falha passou do cilindro 3 para o cilindro 1 depois de inverter as bobinas',
+    'Troquei somente as bobinas, sem mexer nas velas, e a falha mudou para o 1'
+  ]) {
+    const h = harness(golf); await afterCylinderThreeCoil(h);
+    assert.match(await say(h, report), /cilindro 3[\s\S]*cilindro 1/);
+    assert.deepEqual(Array.from(h.state.caseContext.dtcs), ['P0303']);
+    assert.match(h.state.activeTests[0].id, /^misfire-migration-verify-/);
+  }
+});
+
+test('a short result uses the active comparison and a bare destination answers the requested cylinder', async () => {
+  const h = harness(golf); await say(h, 'P0303'); await say(h, 'O tempo todo');
+  h.handleTestResult('single'); await h.flush();
+  assert.match(await say(h, 'mudou para o cilindro 1'), /cilindro 3[\s\S]*cilindro 1/);
+  const other = harness(golf); await say(other, 'P0303'); await say(other, 'O tempo todo');
+  other.handleTestResult('single'); await other.flush(); other.handleTestResult('moved'); await other.flush();
+  assert.match(other.state.messages.at(-1).text, /Qual cilindro/);
+  assert.match(await say(other, '1'), /cilindro 3[\s\S]*cilindro 1/);
+});
+
+test('the failed migration check accepts the current cylinder and leaves the invalidated migration path', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h);
+  await say(h, 'Troquei as bobinas e mudou para o cilindro 1');
+  h.handleTestResult('not-followed'); await h.flush();
+  const next = await say(h, '3');
+  assert.match(next, /Agora confira a vela/);
+  assert.doesNotMatch(next, /mudança anterior não se confirmou|Substitua somente a bobina/);
+});
+
+test('a multiple-part swap is isolated before it can support a component replacement', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h);
+  await say(h, 'Troquei as bobinas e mudou para o cilindro 1');
+  h.handleTestResult('multiple-changes'); await h.flush();
+  assert.match(h.state.messages.at(-1).text, /mais de um componente[\s\S]*Compare somente a bobina/);
+  assert.doesNotMatch(h.state.messages.at(-1).text, /Substitua somente a bobina/);
+  h.handleTestResult('stayed'); await h.flush();
+  assert.match(h.state.messages.at(-1).text, /Agora confira a vela/);
+});
+
+test('a repetition complaint produces a short pending-result prompt rather than the whole procedure again', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h); await say(h, 'SECA');
+  h.handleTestResult('stayed'); await h.flush();
+  const reply = await say(h, 'VC ESTA SE REPETINDO');
+  assert.match(reply, /Falta o resultado do ensaio/);
+  assert.doesNotMatch(reply, /Use o procedimento e o equipamento/);
+  assert.match(h.state.activeTests[0].id, /^misfire-injector-leak-/);
+});
+
+test('the next-test search asks for the procedure without requiring its page to repeat the DTC', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h); await say(h, 'SECA');
+  h.handleTestResult('stayed'); await h.flush();
+  assert.match(h.searches.at(-1).query, /injetor estanqueidade/);
+  assert.doesNotMatch(h.searches.at(-1).query, /P0303/);
+  h.handleTestResult('sealed'); await h.flush();
+  assert.match(h.searches.at(-1).query, /compressao compression/);
+});
+
+test('ordinary workshop words at the injector step cannot become an engine identifier', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h); await say(h, 'SECA');
+  h.handleTestResult('stayed'); await h.flush();
+  for (const word of ['SECA', 'TESTEI', 'CERTO']) { await say(h, word); assert.equal(h.state.caseContext.engineCode, ''); }
+  await say(h, 'Motor CHPA'); assert.equal(h.state.caseContext.engineCode, 'CHPA');
+});
+
+test('a failed repair and a new scanner reading start a new physical condition without rewriting the earlier swap', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h);
+  await say(h, 'Troquei as bobinas e mudou para o cilindro 1');
+  h.handleTestResult('confirmed'); await h.flush();
+  await say(h, 'Após o reparo, a falha continua');
+  const next = await say(h, 'Substituí a bobina por uma nova, mas o scanner mostra P0303');
+  assert.match(next, /Confirmar a falha no cilindro 3/);
+  assert.doesNotMatch(next, /Substitua somente a bobina|Qual é a identificação do motor/);
+  assert.equal(h.state.testResults.find(r => r.report === 'Troquei as bobinas e mudou para o cilindro 1').outcome, 'moved');
+  assert.ok(h.state.caseContext.flowVersion > 0);
+});
+
 test('the reported sequence keeps VELA OK, separates the green coil note and retains the confirmed P0301', async () => {
   const h = harness({ ...golf, brand: 'vw', model: 'golf', engine: '1.4 tsi' });
   await afterCoilStayed(h);
@@ -116,9 +271,9 @@ test('the plug comparison can move the fault and the new code validates that res
   assert.doesNotMatch(confirmed, /Qual cilindro passou|A falha acontece|contador de falhas de combustão/);
 });
 
-test('a plug result that stays in cylinder one advances through engine identification, injector leak and compression', async () => {
+test('a plug result that stays in cylinder one advances to the injector test and accepts optional engine identification', async () => {
   const h = harness(golf); await afterCoilStayed(h); await say(h, 'VELA OK');
-  assert.match(await say(h, 'Continuou no 1'), /estanqueidade do injetor[\s\S]*identificação do motor/);
+  assert.match(await say(h, 'Continuou no 1'), /Verificar estanqueidade do injetor[\s\S]*Golf 1.4 TSI/);
   assert.match(await say(h, 'P301 UAI JA FALEI'), /P0301[\s\S]*confirmado/);
   assert.equal(h.state.caseContext.engineCode, '');
   const procedure = await say(h, 'Motor CHPA');
@@ -622,4 +777,26 @@ test('compact search excludes a different vehicle and documents that lack the ac
   const hits = await h.context.window.ORACLE_REMOTE_KNOWLEDGE.search('P0301', { model: 'Duster', engine: 'K4M V42' }, 6);
   assert.equal(hits.length, 1);
   assert.equal(hits[0].page, 1);
+});
+
+test('a procedure search finds matching injector instructions without DTC text and excludes other systems and engines', async () => {
+  const records = {
+    1: { id: 1, text: 'Volkswagen Golf 1.4 TSI: ensaio de estanqueidade e vazamento interno do injetor.', path: 'VW/Golf-1.4.pdf', truth_status: 'source_extracted', page: 11 },
+    2: { id: 2, text: 'Volkswagen Golf: teste de estol da transmissão e pressão de linha.', path: 'VW/Golf-transmissao.pdf', truth_status: 'source_extracted', page: 12 },
+    3: { id: 3, text: 'Volkswagen Golf 1.6: ensaio de estanqueidade e vazamento interno do injetor.', path: 'VW/Golf-1.6.pdf', truth_status: 'source_extracted', page: 13 },
+    4: { id: 4, text: 'Renault Duster 1.6: ensaio de estanqueidade e vazamento interno do injetor.', path: 'Renault/Duster.pdf', truth_status: 'source_extracted', page: 14 },
+    5: { id: 5, text: 'Volkswagen Golf 1.4 TDI diesel: ensaio de estanqueidade e vazamento interno do injetor.', path: 'VW/Golf-diesel.pdf', truth_status: 'source_extracted', page: 15 }
+  };
+  const h = harness(); h.context.CustomEvent = function () {}; h.context.window.dispatchEvent = () => {};
+  h.context.fetch = async url => {
+    const pathname = new URL(url).pathname;
+    const body = pathname.endsWith('manifest.json') ? { mode: 'compact-lexical', heavy_shards_required_by_client: false }
+      : pathname.endsWith('record-map.json') ? { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+      : pathname.endsWith('records/r00.json') ? records
+      : { injetor: [1, 2, 3, 4, 5], estanqueidade: [1, 3, 4, 5], golf: [1, 2, 3, 5] };
+    return { ok: true, async json() { return body; } };
+  };
+  vm.runInContext(read('js/knowledge-remote.js'), h.context);
+  const hits = await h.context.window.ORACLE_REMOTE_KNOWLEDGE.search('injetor estanqueidade vazamento injector internal leakage', golf, 6);
+  assert.deepEqual(Array.from(hits, hit => hit.page), [11]);
 });
