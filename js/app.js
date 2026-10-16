@@ -1239,6 +1239,7 @@
     state.mediaAnalyses=(item.mediaAnalysis||[]).map(function(m){return Object.assign({status:"Análise recuperada do histórico"},m);});
     var resumed=practicalAnswer(buildDiagnosis(""));
     state.caseContext=Object.assign({},state.caseContext,{awaiting:resumed.awaiting||"",awaitingDtc:resumed.awaitingDtc||"",continuityVersion:2});
+    var restoreControls=!!(resumed.test||resumed.pendingTest||resumed.actions.length);
     state.currentDiagnosis=null;state.activeTests=[];state.activeTestIndex=0;
     saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();renderMediaQueue();
 
@@ -1246,11 +1247,14 @@
     if(!state.messages.length){
       appendTextMessage("bot","Histórico aberto. Continue me contando o que aconteceu depois.");
     }else{
-      state.messages.forEach(function(m){appendTextMessage(m.role==="user"?"user":"bot",m.text);});
+      state.messages.forEach(function(m,index){
+        // Re-render the last answer with live controls instead of duplicating it as plain text.
+        if(restoreControls&&!recoveredComparison&&index===state.messages.length-1&&m.role==="bot"&&m.text===resumed.text)return;
+        appendTextMessage(m.role==="user"?"user":"bot",m.text);
+      });
     }
-    if(recoveredComparison){
-      appendDiagnosis(buildDiagnosis(""));recordMessage("bot",practicalAnswer(state.currentDiagnosis).text,{historyRecovery:true});persistSession();
-    }
+    if(recoveredComparison||restoreControls)appendDiagnosis(buildDiagnosis(""));
+    if(recoveredComparison){recordMessage("bot",practicalAnswer(state.currentDiagnosis).text,{historyRecovery:true});persistSession();}
     scrollMessages();
     toast("Diagnóstico reaberto");
   }

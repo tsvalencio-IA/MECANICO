@@ -136,6 +136,17 @@ test('the saved old conversation recovers the ignored coil correction from user 
   assert.equal(restored.buildDiagnosis('').context.testResults.find(r => r.id === 'misfire-coil-P0303').outcome, 'moved');
 });
 
+test('reopening the current case restores the pending result controls without duplicating the last answer', async () => {
+  const h = harness(golf); await afterCylinderThreeCoil(h);
+  await say(h, 'Troquei as bobinas e mudou para o cilindro 1');
+  const saved = JSON.parse(JSON.stringify(h.buildSessionPayload()));
+  const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+  assert.match(restored.state.activeTests[0].id, /^misfire-migration-verify-/);
+  assert.equal(restored.messages().length, saved.messages.length);
+  restored.handleTestResult('confirmed'); await restored.flush();
+  assert.match(restored.state.messages.at(-1).text, /Substitua somente a bobina identificada/);
+});
+
 test('engine displacement and an unknown engine identifier do not trap the case before the injector test', async () => {
   const h = harness(golf); await afterCylinderThreeCoil(h); await say(h, 'SECA');
   h.handleTestResult('stayed'); await h.flush();

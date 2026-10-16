@@ -40,7 +40,7 @@ https://tsvalencio-ia.github.io/MECANICO/
 - Uma falha que migrou de cilindro direciona a confirmação para o componente comparado. A troca de várias peças exige uma comparação isolada antes de recomendar substituição. O reparo ainda precisa ser verificado nas condições informadas.
 - O motor cadastrado permite apresentar o próximo ensaio de injetor. A identificação específica é complementar; não se inventam procedimentos de alta pressão, pinagens, torques ou limites por falta dela.
 - A busca por ensaios de injetor e compressão procura o procedimento, sem exigir que a mesma página repita o DTC. Referências incompatíveis de sistema, veículo ou motorização são filtradas.
-- Ao reabrir históricos antigos, correções ignoradas podem ser recuperadas dos relatos do usuário ainda presentes, vinculadas aos testes registrados. Texto do assistente não serve como evidência.
+- Ao reabrir um caso, os botões da etapa pendente voltam a funcionar sem duplicar a última resposta. Em históricos antigos, correções ignoradas podem ser recuperadas dos relatos do usuário ainda presentes, vinculadas aos testes registrados. Texto do assistente não serve como evidência.
 
 Verificação: `node --test scripts/test_pwa.cjs scripts/test_media.cjs scripts/test_diagnosis.cjs`. A reprodução inclui a conversa P0303, correções por texto, respostas curtas, histórico, comparação de uma peça por vez e leitura após reparo.
 
