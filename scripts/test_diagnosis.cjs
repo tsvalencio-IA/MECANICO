@@ -972,3 +972,132 @@ test('a battery voltage cannot be recorded as an injector resistance reading', a
   assert.equal(h.state.testResults.length, 0);
   assert.equal(h.state.activeTests[0].id, 'injector-resistance');
 });
+
+async function afterCylinderFourInjector(h) {
+  await say(h, 'O motor está falhando. Quero começar o diagnóstico sem trocar peça no chute.');
+  await say(h, 'A falha acontece o tempo todo.'); await say(h, 'p304'); await say(h, 'P0304');
+  h.handleTestResult('single'); await h.flush(); h.handleTestResult('stayed'); await h.flush();
+  await say(h, 'seca'); h.handleTestResult('stayed'); await h.flush();
+  h.handleTestResult('sealed'); await h.flush();
+  assert.equal(h.state.caseContext.awaiting, 'misfire-compression-readings');
+}
+
+test('the pasted P0304 conversation records 180 in each cylinder and asks only for its unit', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h);
+  const reply = await say(h, '180 em cada');
+  assert.match(reply, /180/);
+  assert.match(reply, /psi.*bar.*kPa/i);
+  assert.doesNotMatch(reply, /após comparar bobina e vela|próximo passo é medir a compressão|compressão normal/);
+  assert.equal(h.state.caseContext.awaiting, 'misfire-compression-unit');
+  const next = await say(h, 'PSI');
+  assert.match(next, /180 psi em cada cilindro/);
+  assert.match(next, /frio|aquecido/);
+  assert.doesNotMatch(next, /próximo passo é medir a compressão|mecânica está normal|injetor está bom/);
+  assert.equal(h.state.caseContext.temperature, 'sempre');
+});
+
+test('a compression unit supplied after reopening completes the saved partial reading', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h); await say(h, '180 em cada');
+  const restored = harness(); restored.loadHistoryItem(JSON.parse(JSON.stringify(h.buildSessionPayload()))); await restored.flush();
+  const reply = await say(restored, 'psi');
+  assert.match(reply, /180 psi em cada cilindro/);
+  assert.equal(restored.state.caseContext.engineCode, '');
+});
+
+test('compression conditions are retained without rewriting the original failure temperature', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h); await say(h, '180 psi em cada');
+  const reply = await say(h, 'Motor aquecido, seguindo o procedimento do ensaio');
+  assert.match(reply, /180 psi/);
+  assert.match(reply, /condiç|Condiç/);
+  assert.doesNotMatch(reply, /A medição foi feita com o motor frio|compressão normal|injetor.*confirmado como bom/);
+  assert.equal(h.state.caseContext.temperature, 'sempre');
+});
+
+test('a correction to one cylinder is not propagated to every cylinder', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h); await say(h, '180 em cada'); await say(h, 'psi');
+  const reply = await say(h, 'Corrigindo: 150 no cilindro 4');
+  assert.match(reply, /150 psi.*cilindro 4|cilindro 4.*150 psi/);
+  assert.doesNotMatch(reply, /150 psi em cada|não há diferença/);
+});
+
+test('hypothetical measurements and unrelated voltages are not recorded as compression', async () => {
+  for (const text of ['Se medir 180 em cada, está bom?', 'Não medi 180 psi', 'Medi 12 V na bateria', 'Não é 150 no cilindro 4', 'Se fosse 150 no cilindro 4', '-180 psi em cada']) {
+    const h = harness(golf); await afterCylinderFourInjector(h); await say(h, text);
+    assert.equal(h.state.caseContext.compression, null, text);
+  }
+});
+
+test('a natural correction replaces the pressure instead of repeating the old reading', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h); await say(h, '180 psi em cada');
+  await say(h, 'Motor quente seguindo o procedimento');
+  const reply = await say(h, 'Não, 150 psi em cada');
+  assert.deepEqual(Array.from(h.state.caseContext.compression.values), [150]);
+  assert.match(reply, /150 psi em cada cilindro/);
+  assert.doesNotMatch(reply, /180 psi/);
+});
+
+test('cylinder counts are not included among the pressure readings', async () => {
+  for (const text of ['180 psi em cada um dos 4 cilindros', '180 nos 4 cilindros']) {
+    const h = harness(golf); await afterCylinderFourInjector(h);
+    const reply = await say(h, text);
+    assert.deepEqual(Array.from(h.state.caseContext.compression.values), [180], text);
+    assert.equal(h.state.caseContext.compression.allCylinders, true);
+    assert.doesNotMatch(reply, /180 \/ 4/);
+  }
+});
+
+test('pressure units adjacent to the value are recognized without asking for them again', async () => {
+  for (const [text, value, unit] of [['180psi em cada', 180, 'psi'], ['12,5bar em cada', 12.5, 'bar'], ['1200kPa em cada', 1200, 'kpa']]) {
+    const h = harness(golf); await afterCylinderFourInjector(h);
+    const reply = await say(h, text);
+    assert.equal(h.state.caseContext.compression.unit, unit);
+    assert.deepEqual(Array.from(h.state.caseContext.compression.values), [value]);
+    assert.doesNotMatch(reply, /A leitura está em psi/);
+    assert.equal(h.state.caseContext.awaiting, 'misfire-compression-conditions');
+  }
+});
+
+test('compression and explicit test conditions supplied together do not trigger the same question', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h);
+  const reply = await say(h, '180 psi em cada um dos 4 cilindros, motor quente a 90 °C seguindo o procedimento');
+  assert.deepEqual(Array.from(h.state.caseContext.compression.values), [180]);
+  assert.match(h.state.caseContext.compression.conditions, /motor quente a 90/);
+  assert.match(reply, /180 psi em cada cilindro/);
+  assert.doesNotMatch(reply, /A medição foi feita com o motor frio/);
+  assert.equal(h.state.caseContext.awaiting, 'misfire-compression-reference');
+  assert.equal(h.state.caseContext.temperature, 'sempre');
+});
+
+test('new cases and changed earlier comparisons cannot reuse old compression readings', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h); await say(h, '180 psi em cada');
+  await say(h, 'Corrigindo, troquei as bobinas e a falha mudou para o cilindro 1');
+  assert.match(h.state.activeTests[0].id, /^misfire-migration-verify-/);
+  assert.doesNotMatch(h.state.messages.at(-1).text, /180 psi/);
+  h.startNewCase();
+  assert.equal(h.state.caseContext.compression, null);
+});
+
+test('an old case recovers the ignored compression value from the mechanic and excludes generated answers', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h); await say(h, '180 em cada');
+  const saved = JSON.parse(JSON.stringify(h.buildSessionPayload()));
+  delete saved.caseContext.compression;
+  saved.caseContext.awaiting = 'misfire-compression-readings';
+  saved.messages.at(-1).text = 'Meça a compressão e informe o valor com unidade.';
+  const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+  assert.equal(restored.state.caseContext.awaiting, 'misfire-compression-unit');
+  assert.match(await say(restored, 'psi'), /180 psi em cada cilindro/);
+
+  const polluted = JSON.parse(JSON.stringify(saved));
+  polluted.messages = polluted.messages.filter(message => message.role !== 'user' || message.text !== '180 em cada');
+  polluted.messages.push({ role: 'bot', text: 'Exemplo: 180 psi em cada', at: new Date().toISOString() });
+  const clean = harness(); clean.loadHistoryItem(polluted); await clean.flush();
+  assert.equal(clean.state.caseContext.compression, null);
+  assert.equal(clean.state.caseContext.awaiting, 'misfire-compression-readings');
+});
+
+test('a pressure list and a zero reading stay numeric observations without a normality verdict', async () => {
+  const h = harness(golf); await afterCylinderFourInjector(h);
+  assert.match(await say(h, '180 / 180 / 180 / 0 psi'), /180 \/ 180 \/ 180 \/ 0 psi/);
+  assert.deepEqual(Array.from(h.state.caseContext.compression.values), [180, 180, 180, 0]);
+  assert.doesNotMatch(h.state.messages.at(-1).text, /motor normal|troque o injetor|mecânica está normal/);
+});

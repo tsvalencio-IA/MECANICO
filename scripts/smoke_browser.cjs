@@ -76,6 +76,29 @@ if (!['127.0.0.1', 'localhost'].includes(new URL(baseURL).hostname)) throw new E
       }, expected);
     }
     await page.locator('#newCaseBtn').click();
+    await say('O motor está falhando. Quero começar o diagnóstico sem trocar peça no chute.', 'frio');
+    await say('A falha acontece o tempo todo.', 'sem código');
+    await say('p304', 'P0304');
+    await say('P0304', 'Confirmar a falha no cilindro 4');
+    await page.locator('[data-test-result="single"]:not([disabled])').last().click();
+    await page.locator('[data-test-result="stayed"]:not([disabled])').last().click();
+    await page.waitForFunction(() => document.querySelector('#messages .message.bot:last-child')?.textContent.includes('Agora confira a vela'));
+    await say('seca', 'Comparar a vela do cilindro 4');
+    await page.locator('[data-test-result="stayed"]:not([disabled])').last().click();
+    await page.locator('[data-test-result="sealed"]:not([disabled])').last().click();
+    await page.waitForFunction(() => document.querySelector('#messages .message.bot:last-child')?.textContent.includes('próximo passo é medir a compressão'));
+    await say('180 em cada', 'psi, bar ou kPa');
+    const unitQuestion = await page.locator('#messages .message.bot').last().innerText();
+    assert.match(unitQuestion, /180/);
+    assert.doesNotMatch(unitQuestion, /próximo passo é medir a compressão|após comparar bobina e vela/);
+    await say('PSI', '180 psi em cada cilindro');
+    await say('Motor aquecido, seguindo o procedimento do ensaio', 'Condições informadas');
+    const compression = await page.evaluate(() => JSON.parse(localStorage.getItem('thiaguinho_history')).find(row => row.caseContext?.compression)?.caseContext);
+    assert.equal(compression.compression.unit, 'psi');
+    assert.equal(compression.temperature, 'sempre');
+    console.log(JSON.stringify({ check: 'pasted-compression-conversation', passed: true, reading: compression.compression.values, unit: compression.compression.unit }));
+
+    await page.locator('#newCaseBtn').click();
     await say('O motor gira mas não pega', 'RPM');
     await say('0 RPM', 'continua comunicando');
     await say('Não comunica normalmente', 'comunicação cai');

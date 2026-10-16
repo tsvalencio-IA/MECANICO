@@ -54,6 +54,7 @@ Ele usa o servidor local, testa conversa/histórico/PWA, busca remota e OCR real
 
 ## Qualidade do diagnóstico — 16/10/2026
 
+- Uma resposta como “180 em cada” na etapa de compressão é registrada mesmo sem unidade. A pergunta seguinte pede apenas psi/bar/kPa; a unidade e as condições do ensaio ficam vinculadas à leitura, inclusive após reabrir o caso. Valores iguais não são tratados como comprovação de compressão normal.
 - DTCs retirados, negados ou apenas hipotéticos não entram na leitura atual nem reaparecem de uma foto antiga.
 - “Não comunica”, autorização desconhecida e medições ainda não realizadas mantêm seu significado; uma hipótese não vira resultado de teste.
 - Falha sem DTC avança para condição de funcionamento e leituras disponíveis.

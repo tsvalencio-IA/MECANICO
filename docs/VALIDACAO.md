@@ -8,7 +8,7 @@ A validação exercita comportamento de software e busca documental: preservar o
 
 ## Verificações executadas
 
-Resultado nesta máquina: **128 testes Node.js e sete testes Python passaram**, sem falhas ou skips. Também passaram as verificações de sintaxe dos dez arquivos JavaScript de aplicação/worker/smoke e o passo de arquivos críticos/arquitetura de privacidade do CI.
+Resultado nesta máquina: **140 testes Node.js e sete testes Python passaram**, sem falhas ou skips. Também passaram as verificações de sintaxe dos dez arquivos JavaScript de aplicação/worker/smoke e o passo de arquivos críticos/arquitetura de privacidade do CI.
 
 | Verificação | Evidência |
 | --- | --- |
@@ -22,6 +22,14 @@ Resultado nesta máquina: **128 testes Node.js e sete testes Python passaram**, 
 No smoke local versionado, os SDKs Firebase são interceptados para manter os casos sintéticos locais. Ele testa o funcionamento com nuvem indisponível. Após a autorização de publicação, foi executada também uma validação no site público com uma identidade anônima nova: diagnóstico, histórico, PWA, busca, OCR, gravação com confirmação do servidor e leitura independente no Realtime Database passaram. Os cinco casos de teste e o usuário anônimo dessa validação foram removidos ao terminar; históricos preexistentes não foram usados nem alterados.
 
 TLS foi mantido ativo. O Chromium precisou de acesso em leitura e escrita ao NSS para usar a CA já instalada no ambiente.
+
+## Correção da conversa P0304 com compressão
+
+A reprodução enviada pelo usuário percorre comparação de bobina e vela, ensaio sem vazamento do injetor e resposta “180 em cada”. A leitura sem unidade passa a ser salva, seguida por uma pergunta curta sobre psi/bar/kPa. “PSI” isolado completa a leitura anterior. As condições do ensaio são perguntadas quando ainda não foram informadas e não alteram a condição original da falha. Correções como “Não, 150 psi em cada” substituem a leitura. Quantidade de cilindros e temperatura do motor não entram na lista de pressões.
+
+O estado persiste ao reabrir o caso. Valores ignorados em snapshots antigos podem ser recuperados exclusivamente de mensagens do mecânico posteriores ao ensaio de injetor registrado, nunca de texto gerado pelo assistente. A leitura fica vinculada aos resultados antecedentes; mudanças nesses resultados e novos casos não reutilizam medições antigas. Uma correção do cilindro 4 não é aplicada aos demais cilindros.
+
+A igualdade relatada não confirma normalidade mecânica. Ausência de vazamento do injetor não comprova comando ou vazão corretos. A interpretação exige a unidade, as condições e a referência aplicável.
 
 ## Índice real reconstruído
 
@@ -77,7 +85,7 @@ Nesta máquina, os diretórios preparados estão em `/workspace/.cloud-setup/MEC
 
 ## Publicação pública confirmada
 
-O código da aplicação foi enviado ao `main` no commit `201cd4f19695e3f17cf9ee24d8d1990e406a72dd`. O GitHub Pages concluiu build e deploy com sucesso: [execução 38928638957](https://github.com/tsvalencio-IA/MECANICO/actions/runs/38928638957). A [validação do código](https://github.com/tsvalencio-IA/MECANICO/actions/runs/38928640021) também passou.
+A primeira publicação desta revisão da aplicação foi enviada ao `main` no commit `201cd4f19695e3f17cf9ee24d8d1990e406a72dd`. O GitHub Pages concluiu build e deploy com sucesso: [execução 38928638957](https://github.com/tsvalencio-IA/MECANICO/actions/runs/38928638957). A [validação do código](https://github.com/tsvalencio-IA/MECANICO/actions/runs/38928640021) também passou.
 
 Site: https://tsvalencio-ia.github.io/MECANICO/
 

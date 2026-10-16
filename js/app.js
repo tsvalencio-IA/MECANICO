@@ -182,7 +182,7 @@
       observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
       startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:"",
       lastInputKind:"",confirmedCodeReminder:false,coilAppearance:null,engineCode:"",engineIdentificationUnavailable:false,repairVerified:false,
-      componentRepair:"",noCodesReported:false,factVersion:1,continuityVersion:2};
+      componentRepair:"",noCodesReported:false,compression:null,factVersion:1,continuityVersion:2};
   }
 
   function plugObservation(text,allowBare){
@@ -239,6 +239,84 @@
     return {present:uniq(present),absent:uniq(absent)};
   }
 
+  function compressionScope(data,results,code){
+    return JSON.stringify([data.flowVersion||0,code,(results||[]).filter(function(result){
+      return result.code===code&&/^misfire-(?:coil|plug|injector-leak)-/.test(result.id);
+    }).map(function(result){return [result.id,result.outcome,result.toCylinder||0,result.at||""];})]);
+  }
+
+  function compressionReport(text,previous){
+    var q=norm(text),unit=(q.match(/(?:^|[^a-z])(psi|bar|kpa)\b/)||[])[1]||"";
+    if(unmeasuredReport(text)||/\b(?:nao (?:testei|medi|e|deu|marcou|mediu)|se (?:fosse|desse|tiver)|supondo|hipotese)\b|(?:^|\s)-\s*\d/.test(q))return null;
+    if(previous&&/^(?:(?:e|em|unidade|a unidade e|corrigindo)[: ,]*)?(?:psi|bar|kpa)[.! ]*$/.test(q)){
+      return Object.assign({},previous,{unit:unit});
+    }
+    var condition=q.match(/\b(?:motor\s+)?(?:frio|quente|aquecido)\b|\b(?:seguindo|conforme)\s+(?:(?:o|ao)\s+)?procedimento\b/);
+    // Cylinder counts and engine temperature are context, not pressure readings.
+    var measurement=condition&&condition.index>q.search(/\d/)?q.slice(0,condition.index):q;
+    if(/\b(?:volts?|rpm|ohms?)\b|\d\s*v\b|Ω|°\s*c\b/.test(measurement))return null;
+    var perCylinder=measurement.match(/(\d+(?:[.,]\d+)?)\s*(?:psi|bar|kpa)?\s*(?:no|do)\s+(?:cilindro\s+)?(\d{1,2})\b/);
+    var labeled=Array.from(measurement.matchAll(/\b(?:cilindro|cil\.?|c)\s*(\d{1,2})(?:\s*[:=]\s*|\s+)(\d+(?:[.,]\d+)?)/g));
+    var numeric=measurement.replace(/^(?:(?:corrigindo|na verdade|correcao)[: ,]*|nao\s*,\s*)/,"")
+      .split(/\b(?:em cada|em todos|todos os cilindros|por cilindro|nos\s+\d+\s+cilindros)\b/)[0];
+    var measured=/^\d|^(?:medi|mediu|medimos|deu|deram|marcou|compressao|pressao|resultado)\b/.test(numeric);
+    if(perCylinder||labeled.length||measured){
+      var values=(numeric.match(/\d+(?:[.,]\d+)?/g)||[]).map(function(value){return Number(value.replace(",","."));});
+      var cylinder=perCylinder?Number(perCylinder[2]):labeled.length===1?Number(labeled[0][1]):0;
+      if(labeled.length)values=labeled.map(function(entry){return Number(entry[2].replace(",","."));});
+      else if(cylinder)values=[Number(perCylinder[1].replace(",","."))];
+      if(!values.length)return null;
+      return {raw:String(text).slice(0,500),values:values,unit:unit||(previous&&previous.unit)||"",cylinder:cylinder,
+        cylinders:labeled.map(function(entry){return Number(entry[1]);}),
+        allCylinders:!cylinder&&/em cada|cada cilindro|em todos|todos os cilindros|por cilindro|nos\s+\d+\s+cilindros/.test(q),
+        conditions:condition?String(text).slice(0,500):""};
+    }
+    if(previous&&/\b(?:frio|quente|aquecido|procedimento|ensaio|borboleta|bateria|arranque)\b/.test(q)){
+      return Object.assign({},previous,{unit:unit||previous.unit,conditions:String(text).slice(0,500)});
+    }
+    return null;
+  }
+
+  function recordCompressionReport(text){
+    var data=state.caseContext;
+    if(!/^misfire-compression-/.test(data.awaiting))return false;
+    var code=data.dtcs.filter(function(value){return /^P030[0-8]$/.test(value);}).join("-");
+    var results=currentTestResults(state.testResults,data.flowVersion);
+    if(!results.some(function(result){return result.id==="misfire-injector-leak-"+code&&result.outcome==="sealed";}))return false;
+    var scope=compressionScope(data,results,code);
+    var previous=data.compression&&data.compression.scope===scope?data.compression:null;
+    var reading=compressionReport(text,previous);
+    if(!reading)return false;
+    data.compression=Object.assign({},reading,{scope:scope});
+    return true;
+  }
+
+  function compressionText(reading){
+    if(reading.cylinders&&reading.cylinders.length)return reading.cylinders.map(function(cylinder,index){
+      return "C"+cylinder+" "+String(reading.values[index]).replace(".",",")+(reading.unit?" "+reading.unit:"");
+    }).join("; ");
+    var values=reading.values.map(function(value){return String(value).replace(".",",");}).join(" / ");
+    return values+(reading.unit?" "+(reading.unit==="kpa"?"kPa":reading.unit):"")+
+      (reading.cylinder?" no cilindro "+reading.cylinder:reading.allCylinders?" em cada cilindro":"");
+  }
+
+  function recoverCompressionReport(){
+    var data=state.caseContext;
+    if(!/^misfire-compression-/.test(data.awaiting))return false;
+    var code=data.dtcs.filter(function(value){return /^P030[0-8]$/.test(value);}).join("-");
+    var results=currentTestResults(state.testResults,data.flowVersion);
+    var injector=results.find(function(result){return result.id==="misfire-injector-leak-"+code&&result.outcome==="sealed";});
+    var scope=compressionScope(data,results,code);
+    if(!injector||data.compression&&data.compression.scope===scope)return false;
+    var cutoff=Date.parse(injector.at);
+    if(!Number.isFinite(cutoff))return false;
+    var recovered=false;
+    state.messages.forEach(function(message){
+      if(message.role==="user"&&!message.testResult&&Date.parse(message.at)>=cutoff&&recordCompressionReport(message.text))recovered=true;
+    });
+    return recovered;
+  }
+
   // Only the mechanic's statements and explicitly confirmed media enter the case.
   // Bot questions and suggested codes must never become diagnostic evidence.
   function extendCaseContext(previous,text){
@@ -249,6 +327,7 @@
     c.observations=Object.assign({},c.observations||{});
     c.dtcDescriptions=Object.assign({},c.dtcDescriptions||{});
     c.coilAppearance=c.coilAppearance?Object.assign({},c.coilAppearance):null;
+    c.compression=c.compression?Object.assign({},c.compression,{values:(c.compression.values||[]).slice(),cylinders:(c.compression.cylinders||[]).slice()}):null;
     if(c.observations["misfire-plug-observation"]&&!plugObservation(c.observations["misfire-plug-observation"],true))delete c.observations["misfire-plug-observation"];
     if(c.candidateCode&&c.dtcs.indexOf(c.candidateCode)>=0){c.candidateCode="";c.incompleteCode="";}
     text=String(text||"").trim();
@@ -317,7 +396,8 @@
       }
       if(/^(nao|codigo incorreto|vou digitar)[.! ]*$/.test(q)){c.candidateCode="";c.incompleteCode="";}
     }
-    var condition=q.replace(/\bnao\s+(?:(?:e|falha|acontece)\s+)?(?:a\s+)?(?:quente|frio)\b/g,"");
+    var condition=/^misfire-compression-/.test(c.awaiting)&&!/\b(?:falha|falhando|defeito)\s+(?:so\s+)?a\s+(?:frio|quente)\b/.test(q)
+      ?"":q.replace(/\bnao\s+(?:(?:e|falha|acontece)\s+)?(?:a\s+)?(?:quente|frio)\b/g,"");
     if(/\b(tempo todo|sempre|frio e quente|frio ou quente)\b/.test(condition)) c.temperature="sempre";
     else if(/\bquente\b/.test(condition)) c.temperature="quente";
     else if(/\bfrio\b/.test(condition)) c.temperature="frio";
@@ -805,10 +885,25 @@
       answer.awaiting="misfire-injector-repair";
       answer.question="O ensaio indicou vazamento interno no injetor "+cylinder+". Corrija a causa conforme o procedimento do motor e repita a leitura nas mesmas condições da falha. Informe os contadores e códigos após a verificação.";
     }else{
+      var reading=data.compression&&data.compression.scope===compressionScope(data,results,code)?data.compression:null;
       answer.awaiting="misfire-compression-readings";
-      answer.question=data.observations["misfire-compression-readings"]
-        ?"Compressão informada: "+data.observations["misfire-compression-readings"]+". Vamos comparar com os limites e condições do manual do motor "+motor+" antes de concluir se há desvio mecânico. Envie a referência técnica ou o resultado do ensaio de estanqueidade do cilindro."
-        :"O ensaio do injetor não apontou vazamento. O próximo passo é medir a compressão dos cilindros pelo procedimento do motor "+motor+". Envie o valor de cada cilindro e a unidade; não vou inventar a pressão de referência.";
+      if(!reading){
+        answer.question="O ensaio do injetor não apontou vazamento. O próximo passo é medir a compressão dos cilindros pelo procedimento do motor "+motor+". Envie o valor de cada cilindro e a unidade; não vou inventar a pressão de referência.";
+      }else{
+        answer.explanation="Compressão informada: "+compressionText(reading)+".";
+        if(!reading.unit){
+          answer.awaiting="misfire-compression-unit";
+          answer.question="A leitura está em psi, bar ou kPa?";
+          answer.actions=[{label:"psi",text:"psi"},{label:"bar",text:"bar"},{label:"kPa",text:"kPa"}];
+        }else if(!reading.conditions){
+          answer.awaiting="misfire-compression-conditions";
+          answer.question="A medição foi feita com o motor frio ou aquecido e seguindo o procedimento do ensaio? Precisamos dessas condições para interpretar os valores, sem presumir compressão normal.";
+        }else{
+          answer.awaiting="misfire-compression-reference";
+          answer.explanation+=" Condições informadas: "+reading.conditions+".";
+          answer.question="Agora precisamos comparar com os limites e as condições do manual do motor "+motor+". Envie a referência ou o resultado do ensaio de estanqueidade dos cilindros, se indicado no procedimento. O ensaio anterior do injetor só não apontou vazamento; ainda não confirma comando ou vazão corretos.";
+        }
+      }
     }
   }
 
@@ -958,7 +1053,9 @@
     if(diag.context.caseData.symptom==="no-start")return "";
     if(!diag.context.model||!diag.context.dtcs.length) return "";
     var answer=practicalAnswer(diag);
-    if(/^misfire-(?:injector|compression)/.test(answer.awaiting))return [diag.context.caseData.engineCode,"injetor estanqueidade vazamento injector internal leakage",answer.awaiting==="misfire-compression-readings"?"compressao compression":""].filter(Boolean).join(" ");
+    if(/^misfire-compression-/.test(answer.awaiting))return answer.awaiting==="misfire-compression-unit"?""
+      :[diag.context.caseData.engineCode,"compressao compression"].filter(Boolean).join(" ");
+    if(/^misfire-injector/.test(answer.awaiting))return [diag.context.caseData.engineCode,"injetor estanqueidade vazamento injector internal leakage"].filter(Boolean).join(" ");
     if(answer.actions.length) return "";
     return diag.context.dtcs.join(" ");
   }
@@ -1179,6 +1276,7 @@
     }
     if(!options.testReply)recordUnconfirmedMigration(text);
     var reportedComparison=!options.testReply&&recordComparisonReport(text);
+    if(!options.testReply)recordCompressionReport(text);
     var testChoice=options.testReply||reportedComparison?"":testReplyChoice(text);
     if(testChoice){
       $("chatInput").value="";autoResize();
@@ -1336,6 +1434,9 @@
     state.mediaAnalyses=(item.mediaAnalysis||[]).map(function(m){return Object.assign({status:"Análise recuperada do histórico"},m);});
     var resumed=practicalAnswer(buildDiagnosis(""));
     state.caseContext=Object.assign({},state.caseContext,{awaiting:resumed.awaiting||"",awaitingDtc:resumed.awaitingDtc||"",continuityVersion:2});
+    var recoveredCompression=recoverCompressionReport();
+    if(recoveredCompression)resumed=practicalAnswer(buildDiagnosis(""));
+    var recoveredState=recoveredComparison||recoveredCompression;
     var restoreControls=!!(resumed.test||resumed.pendingTest||resumed.actions.length);
     state.currentDiagnosis=null;state.activeTests=[];state.activeTestIndex=0;
     saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();renderMediaQueue();
@@ -1346,12 +1447,12 @@
     }else{
       state.messages.forEach(function(m,index){
         // Re-render the last answer with live controls instead of duplicating it as plain text.
-        if(restoreControls&&!recoveredComparison&&index===state.messages.length-1&&m.role==="bot"&&m.text===resumed.text)return;
+        if(restoreControls&&!recoveredState&&index===state.messages.length-1&&m.role==="bot"&&m.text===resumed.text)return;
         appendTextMessage(m.role==="user"?"user":"bot",m.text);
       });
     }
-    if(recoveredComparison||restoreControls)appendDiagnosis(buildDiagnosis(""));
-    if(recoveredComparison){recordMessage("bot",practicalAnswer(state.currentDiagnosis).text,{historyRecovery:true});persistSession();}
+    if(recoveredState||restoreControls)appendDiagnosis(buildDiagnosis(""));
+    if(recoveredState){recordMessage("bot",practicalAnswer(state.currentDiagnosis).text,{historyRecovery:true});persistSession();}
     scrollMessages();
     toast("Diagnóstico reaberto");
   }
