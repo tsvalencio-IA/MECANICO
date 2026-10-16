@@ -58,6 +58,7 @@ function harness(vehicle = {}) {
   const api = context.window.testApi; api.state.vehicle = vehicle;
   return {
     ...api, context, elements, get, searches,
+    runNextTimer() { return timers.shift()(); },
     async flush() { while (timers.length) await timers.shift()(); },
     messages() { return get('messages').children.filter(el => !el.removed); }
   };
@@ -65,6 +66,155 @@ function harness(vehicle = {}) {
 
 const golf = { brand: 'Volkswagen', model: 'Golf', year: '2014', engine: '1.4 TSI', transmission: 'Automático' };
 async function say(h, text) { h.handleQuestion(text); await h.flush(); return h.state.messages.at(-1).text; }
+
+test('the reported multi-cylinder conversation records 1 and 2, then switches to no-start and RPM', async () => {
+  const h = harness({ ...golf, brand: 'vw', model: 'golf', engine: '1.4 tsi' });
+  await say(h, 'golf 1.4 tsi 2014 codigo p301'); await say(h, 'P0301');
+  await say(h, 'A falha acontece a quente.');
+  h.handleTestResult('multiple'); await h.flush();
+  const question = h.state.messages.at(-1).text;
+  const recorded = await say(h, 'cilindro 1 e 2');
+  assert.notEqual(recorded, question);
+  assert.match(recorded, /cilindros 1 e 2/);
+  assert.doesNotMatch(recorded, /Quais cilindros acumulam/);
+  await say(h, '1'); // Ambiguous reply must not silently erase either observed cylinder.
+  assert.deepEqual(Array.from(h.state.caseContext.observedCylinders), [1, 2]);
+  assert.match(await say(h, 'O carro não pega. Me guie pelo diagnóstico passo a passo.'), /motor gira ou nem gira/);
+  const cranking = await say(h, 'O motor gira, mas não pega.');
+  assert.match(cranking, /RPM|rotação/);
+  assert.doesNotMatch(cranking, /Quais cilindros|falha a quente|comparar a bobina/i);
+  const measured = await say(h, '200 rpm');
+  assert.notEqual(measured, cranking);
+  assert.match(measured, /200 RPM|200 rpm/);
+  assert.doesNotMatch(measured, /Qual rotação|Quais cilindros/);
+});
+
+test('the vehicle explicitly supplied in chat survives code confirmation without a second vehicle request', async () => {
+  const h = harness();
+  await say(h, 'golf 1.4 tsi 2014 codigo p301');
+  const reply = await say(h, 'P0301');
+  assert.doesNotMatch(reply, /Qual é o veículo|Informe modelo/);
+  assert.equal(h.state.currentDiagnosis.context.model.toLowerCase(), 'golf');
+  assert.equal(h.state.currentDiagnosis.context.year, '2014');
+  assert.match(h.state.currentDiagnosis.context.engine, /1\.4\s+TSI/i);
+});
+
+test('multi-cylinder information and the answer about other codes advance by text or button', async () => {
+  const h = harness(golf);
+  await say(h, 'P0301 falhando a quente');
+  await say(h, 'cilindros 1 e 2');
+  const reply = await say(h, 'sem outros códigos');
+  assert.match(reply, /cilindros 1 e 2/);
+  assert.doesNotMatch(reply, /Quais cilindros|aparece outro código/);
+  assert.ok(h.practicalAnswer(h.state.currentDiagnosis).test);
+});
+
+test('a bare cylinder number is interpreted only when a cylinder is requested, never from an RPM reading', async () => {
+  const h = harness(golf);
+  await say(h, 'P0300 falhando a quente');
+  h.handleTestResult('multiple'); await h.flush();
+  assert.doesNotMatch(await say(h, '1'), /Quais cilindros/);
+  assert.deepEqual(Array.from(h.state.caseContext.observedCylinders), [1]);
+  await say(h, 'Não pega'); await say(h, 'Gira'); await say(h, '0');
+  assert.equal(h.state.caseContext.rpm, 0);
+  assert.deepEqual(Array.from(h.state.caseContext.observedCylinders), [1]);
+  assert.doesNotMatch(h.state.messages.at(-1).text, /Quais cilindros/);
+});
+
+test('no-start takes priority over a compatible documented misfire rule and both starter choices stay in no-start', async () => {
+  for (const response of ['Gira', 'Não gira']) {
+    const h = harness({ brand: 'Renault', model: 'Duster', engine: 'K4M V42' });
+    await say(h, 'Duster K4M V42 P0301 falhando a quente');
+    await say(h, 'O carro não pega');
+    const reply = await say(h, response);
+    assert.match(reply, response === 'Gira' ? /RPM|rotação/ : /clique|painel/);
+    assert.doesNotMatch(reply, /faísca da bobina|Quais cilindros|falha a quente/);
+  }
+});
+
+test('old misfire result controls cannot change the case while a new no-start response is pending', async () => {
+  const h = harness(golf); await say(h, 'P0301 falhando a quente');
+  const oldTest = h.messages().at(-1).querySelector('.test-box');
+  h.handleQuestion('Não pega'); oldTest.buttons[1].click(); await h.flush();
+  assert.equal(h.state.testResults.length, 0);
+  assert.equal(h.state.caseContext.symptom, 'no-start');
+  assert.match(h.state.messages.at(-1).text, /motor gira ou nem gira/);
+});
+
+test('reopened current and legacy cases accept the RPM answer without returning to earlier cylinder questions', async () => {
+  const h = harness(golf);
+  await say(h, 'P0301 falhando a quente'); await say(h, 'cilindros 1 e 2');
+  await say(h, 'Não pega'); await say(h, 'Gira');
+  const saved = JSON.parse(JSON.stringify(h.buildSessionPayload()));
+  for (const legacy of [false, true]) {
+    const item = JSON.parse(JSON.stringify(saved)); if (legacy) delete item.caseContext;
+    const restored = harness(); restored.loadHistoryItem(item); await restored.flush();
+    const reply = await say(restored, '0');
+    assert.match(reply, /0 RPM[\s\S]*comunicando/);
+    assert.doesNotMatch(reply, /Quais cilindros|Qual rotação/);
+  }
+});
+
+test('zero RPM is an observation, not proof of a bad sensor, and an explicit correction changes the next check', async () => {
+  const h = harness(golf); await say(h, 'Não pega'); await say(h, 'Gira');
+  assert.match(await say(h, '0 RPM'), /ainda não confirma sensor defeituoso/);
+  assert.match(await say(h, 'Sim'), /ECU comunica[\s\S]*conector e chicote/);
+  const corrected = await say(h, 'Corrigindo a leitura: 240 RPM');
+  assert.match(corrected, /240 RPM[\s\S]*imobilizador/);
+  assert.doesNotMatch(corrected, /Anotei 0 RPM|Quais cilindros/);
+  assert.match(await say(h, 'Bloqueada'), /partida está bloqueada/i);
+});
+
+test('multi-cylinder connection results and fuel-trim observations are recorded instead of asking the same thing again', async () => {
+  const h = harness(golf);
+  await say(h, 'P0301 falhando a quente'); await say(h, 'cilindros 1 e 2'); await say(h, 'sem outros códigos');
+  assert.match(await say(h, 'conexões firmes'), /curto e longo prazo/);
+  const measured = await say(h, 'STFT +3%, LTFT +2%, marcha lenta');
+  assert.match(measured, /STFT \+3%, LTFT \+2%/);
+  assert.doesNotMatch(measured, /veja as correções de combustível/);
+  assert.doesNotMatch(measured, /mistura (?:rica|pobre) confirmada|troque (?:a|o)/);
+});
+
+test('a new code and its reported scanner description are accepted without fabricating a catalog definition', async () => {
+  const h = harness(golf);
+  await say(h, 'P0301 falhando a quente'); await say(h, 'cilindros 1 e 2');
+  assert.match(await say(h, 'P019A'), /descrição completa/);
+  const reply = await say(h, 'P019A: pressão de combustível, módulo motor');
+  assert.doesNotMatch(reply, /Qual é a descrição completa/);
+  assert.equal(h.state.currentDiagnosis.dtcs.find(d => d.code === 'P019A').label, '');
+  assert.match(h.state.caseContext.dtcDescriptions.P019A, /pressão de combustível/);
+});
+
+test('a slow old document search cannot replace a more recent no-start answer', async () => {
+  const h = harness(golf); let release;
+  h.context.ORACLE_REMOTE_KNOWLEDGE.search = () => new Promise(resolve => { release = resolve; });
+  h.handleQuestion('P0301 falhando a quente');
+  const searching = h.runNextTimer();
+  h.handleQuestion('Não pega'); await h.flush();
+  const latest = h.state.messages.at(-1).text;
+  release([]); await searching;
+  assert.equal(h.state.messages.at(-1).text, latest);
+  assert.match(latest, /motor gira ou nem gira/);
+  assert.equal(h.state.activeTests.length, 0);
+});
+
+test('yes in a new no-start step cannot confirm an old tentative DTC', async () => {
+  const h = harness(golf); await say(h, 'P301');
+  await say(h, 'Não pega'); await say(h, 'Gira'); await say(h, '0 RPM'); await say(h, 'Sim');
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), []);
+  assert.match(h.state.messages.at(-1).text, /ECU comunica/);
+});
+
+test('chat-supplied vehicle identity stays available after the compact text window advances', async () => {
+  const h = harness(); await say(h, 'golf 1.4 tsi 2014 codigo P0301');
+  for (let i = 0; i < 14; i++) await say(h, 'Observação do caso ' + i);
+  const reply = await say(h, 'Quente');
+  assert.equal(h.state.vehicle.model, 'Golf');
+  assert.match(reply, /Golf 1.4 TSI/);
+  assert.doesNotMatch(reply, /Qual é o veículo/);
+  const pressure = harness(); await say(pressure, 'Golf com pressão de 1.4 bar');
+  assert.equal(pressure.state.vehicle.engine || '', '');
+});
 
 test('the complete Golf conversation in the screenshot keeps the code, symptom, and hot condition', async () => {
   const h = harness(golf);

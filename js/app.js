@@ -14,6 +14,7 @@
     activeTestIndex: 0,
     testResults: [],
     caseContext: emptyCaseContext(),
+    requestSequence: 0,
     deferredInstall: null,
     recognition: null,
     settings: loadJSON("thiaguinho_settings",{sound:true,autoSpeak:false,motion:true}),
@@ -166,7 +167,18 @@
   }
 
   function emptyCaseContext(){
-    return {dtcs:[],symptom:"",temperature:"",cranking:"",details:[],candidateCode:"",incompleteCode:"",observedCylinder:0};
+    return {dtcs:[],symptom:"",temperature:"",cranking:"",details:[],candidateCode:"",incompleteCode:"",observedCylinder:0,
+      observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
+      startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:""};
+  }
+
+  function cylinderReply(text,allowBare){
+    var q=norm(text).replace(/[.!?]+$/g,"");
+    var explicit=/^(?:(?:so|somente|apenas)\s+)?(?:(?:no|nos|o|os)\s+)?cilindros?\s+/.test(q)||/^(?:so|somente|apenas)\s+(?:no\s+)?\d/.test(q);
+    if(!explicit&&!allowBare)return [];
+    q=q.replace(/^(?:(?:so|somente|apenas)\s+)?(?:(?:no|nos|o|os)\s+)?(?:cilindros?\s+)?/,"");
+    if(!/^(?:[1-9]|1[0-2])(?:\s*(?:,|e|\/|&)\s*(?:[1-9]|1[0-2]))*$/.test(q))return [];
+    return uniq(q.match(/\d+/g).map(Number));
   }
 
   // Only the mechanic's statements and explicitly confirmed media enter the case.
@@ -174,27 +186,78 @@
   function extendCaseContext(previous,text){
     var c=Object.assign(emptyCaseContext(),previous||{});
     c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();
+    c.observedCylinders=(c.observedCylinders||[]).slice();
+    c.vehicleDetails=Object.assign({},c.vehicleDetails||{});
+    c.observations=Object.assign({},c.observations||{});
+    c.dtcDescriptions=Object.assign({},c.dtcDescriptions||{});
     text=String(text||"").trim();
     var q=norm(text), codes=extractCodes(text);
-    if(c.candidateCode&&/^(sim|isso|correto|confirmo)[.! ]*$/.test(q)) codes=[c.candidateCode];
+    var noStart=/\bnao pega\b|\bsem partida\b|^nao liga\b|\b(?:motor|carro|veiculo|ele) nao liga\b|\bmotor nao gira\b/.test(q);
+    var misfire=/\bfalhando\b|\brateia\b|\bengasga\b|\bfalha (?:de ignicao|de combustao|a |quando)/.test(q);
+    var symptom=noStart?"no-start":misfire?"misfire":!c.symptom&&codes.some(function(code){return /^P030[0-8]$/.test(code);})?"misfire":"";
+    if(c.awaiting&&text&&!isGreeting(text)&&!(symptom&&symptom!==c.symptom))c.observations[c.awaiting]=text;
+    if(c.awaiting==="dtc-description"&&c.awaitingDtc&&text&&!isGreeting(text)&&!noStart){
+      var description=text.replace(/\b(?:[PBCU][0-3][0-9A-F]{3}|DF\d{3,4})\b/gi,"").trim();
+      if(/[a-z\u00c0-\u024f]{3}/i.test(description))c.dtcDescriptions[c.awaitingDtc]=description.slice(0,500);
+    }
+    if(symptom&&symptom!==c.symptom){
+      if(c.symptom)c.flowVersion++;
+      c.symptom=symptom;c.awaiting="";
+      if(noStart){c.cranking="";c.rpm=null;c.rpmPresent=false;c.rpmUnavailable=false;c.startAuthorized="";c.ecuCommunication="";c.starterSound="";}
+    }
+    c.ambiguousCylinderReply=false;
+    if(/\bgolf\b/.test(q)){c.vehicleDetails.model="Golf";c.vehicleDetails.brand="Volkswagen";}
+    if(/\bgolf\b|\bano\b/.test(q)){
+      var year=q.match(/\b((?:19|20)\d{2})\b/);if(year)c.vehicleDetails.year=year[1];
+    }
+    var engine=q.match(/\b([1-9][.,]\d)\s*(tsi|tfsi|tdi|mpi|flex|turbo|16v|8v|gasolina)\b/)||q.match(/\b(?:motor|golf)\s+([1-9][.,]\d)\b/);
+    if(engine)c.vehicleDetails.engine=engine[1].replace(",",".")+(engine[2]?" "+engine[2].toUpperCase():"");
+    if(c.candidateCode&&c.awaiting==="code-confirmation"&&/^(sim|isso|correto|confirmo)[.! ]*$/.test(q)) codes=[c.candidateCode];
     if(codes.length){
-      c.dtcs=/\b(tambem|outro codigo|mais o)\b/.test(q)?uniq(c.dtcs.concat(codes)):codes;
+      c.dtcs=c.awaiting==="misfire-other-codes"||/\b(tambem|outro codigo|mais o)\b/.test(q)?uniq(c.dtcs.concat(codes)):codes;
       c.candidateCode="";c.incompleteCode="";
       c.observedCylinder=0;
+      if(c.awaiting==="misfire-other-codes"||c.awaiting==="misfire-code-or-cylinder")c.otherCodesKnown=true;
     }else{
       var shortCode=text.toUpperCase().match(/\b([PBCU])(\d{3})\b/);
       if(shortCode){c.incompleteCode=shortCode[0];c.candidateCode=shortCode[1]+"0"+shortCode[2];}
       if(/^(nao|codigo incorreto|vou digitar)[.! ]*$/.test(q)){c.candidateCode="";c.incompleteCode="";}
     }
-    if(/nao (?:pega|liga)|sem partida/.test(q)) c.symptom="no-start";
-    else if(/falhando|falha (?:de|na|a|quando)|rateia|engasga|ignicao/.test(q)) c.symptom="misfire";
     if(/\b(tempo todo|sempre|frio e quente|frio ou quente)\b/.test(q)) c.temperature="sempre";
     else if(/\bquente\b/.test(q)) c.temperature="quente";
     else if(/\bfrio\b/.test(q)) c.temperature="frio";
-    if(/\bnao gira\b|\bnem gira\b/.test(q)) c.cranking="nao gira";
-    else if(/\bgira\b|\bgirando\b/.test(q)) c.cranking="gira";
-    var observed=q.replace(/[.!?]+$/g,"").match(/^(?:so|somente|apenas) (?:no |o )?(?:cilindro )?(\d)$/);
-    if(observed)c.observedCylinder=Number(observed[1]);
+    if(c.symptom==="no-start"){
+      var cranking=/\bnao gira\b|\bnem gira\b/.test(q)?"nao gira":/\bgira\b|\bgirando\b/.test(q)?"gira":"";
+      if(cranking&&cranking!==c.cranking){c.cranking=cranking;c.rpm=null;c.rpmPresent=false;c.rpmUnavailable=false;c.startAuthorized="";c.ecuCommunication="";}
+      if(c.awaiting==="no-start-rpm"||/\brpm\b/.test(q)){
+        var rpm=q.match(/\b(\d{1,4})\s*rpm\b/)||q.match(/\b(?:rpm|rotacao)\s*(?:de|:)?\s*(\d{1,4})\b/)||q.match(/^(\d{1,4})[.! ]*$/);
+        if(rpm){
+          if(c.rpm!==Number(rpm[1])){c.startAuthorized="";c.ecuCommunication="";}
+          c.rpm=Number(rpm[1]);c.rpmPresent=c.rpm>0;c.rpmUnavailable=false;
+        }
+        else if(/mostra rotacao|tem rotacao/.test(q)){c.rpmPresent=true;c.rpmUnavailable=false;}
+        else if(/nao consigo|nao sei|sem scanner|nao tenho scanner|nao aparece/.test(q))c.rpmUnavailable=true;
+      }
+      if(c.awaiting==="no-start-authorization"){
+        if(/bloquead|nao autoriz|nao permit/.test(q))c.startAuthorized="blocked";
+        else if(/autorizad|liberad|permitid/.test(q))c.startAuthorized="allowed";
+        else if(/nao (?:sei|encontrei|achei)|sem (?:esse|o) parametro/.test(q))c.startAuthorized="unknown";
+      }
+      if(c.awaiting==="no-start-communication"){
+        if(/^sim\b|comunica normalmente/.test(q))c.ecuCommunication="yes";
+        else if(/^nao\b|perde comunicacao/.test(q))c.ecuCommunication="no";
+      }
+      if(c.awaiting==="no-start-sound"){
+        if(/painel apaga|luzes.*enfraquec/.test(q))c.starterSound="panel";
+        else if(/sem clique|nenhum clique|nao.*clique/.test(q))c.starterSound="silent";
+        else if(/clique/.test(q))c.starterSound="click";
+      }
+    }else{
+      var observed=cylinderReply(text,c.awaiting==="misfire-cylinders");
+      if(observed.length){c.observedCylinders=observed;c.observedCylinder=observed.length===1?observed[0]:0;}
+      if(c.awaiting==="misfire-other-codes"&&/^\d[.! ]*$/.test(q))c.ambiguousCylinderReply=true;
+      if((c.awaiting==="misfire-other-codes"||c.awaiting==="misfire-code-or-cylinder")&&/^(?:nao|nenhum|sem outros codigos|so (?:esse|este|o p\d{4}|p\d{4}))[.! ]*$/.test(q))c.otherCodesKnown=true;
+    }
     if(text&&!isGreeting(text)&&c.details[c.details.length-1]!==text) c.details.push(text);
     c.details=c.details.slice(-12);
     return c;
@@ -205,17 +268,18 @@
       .reduce(function(c,m){return extendCaseContext(c,m.text);},emptyCaseContext());
   }
 
-  function buildContext(question){
+  function buildContext(question,suppliedCase){
     var mediaText=state.mediaAnalyses.map(function(x){return x.text||"";}).join("\n");
     var mediaCodes=extractCodes(mediaText);
-    var caseData=extendCaseContext(state.caseContext,question);
+    var caseData=suppliedCase||extendCaseContext(state.caseContext,question);
     if(!caseData.dtcs.length&&!caseData.candidateCode) caseData.dtcs=mediaCodes;
-    var testText=state.testResults.map(function(x){return x.title+" "+x.result;}).join(" ");
+    var currentResults=state.testResults.filter(function(x){return (x.flowVersion||0)===(caseData.flowVersion||0);});
+    var testText=currentResults.map(function(x){return x.title+" "+x.result;}).join(" ");
     var context={
-      brand:state.vehicle.brand||"",
-      model:state.vehicle.model||"",
-      year:state.vehicle.year||"",
-      engine:state.vehicle.engine||"",
+      brand:state.vehicle.brand||caseData.vehicleDetails.brand||"",
+      model:state.vehicle.model||caseData.vehicleDetails.model||"",
+      year:state.vehicle.year||caseData.vehicleDetails.year||"",
+      engine:state.vehicle.engine||caseData.vehicleDetails.engine||"",
       transmission:state.vehicle.transmission||"",
       mileage:state.vehicle.mileage||"",
       question:String(question||"").trim(),
@@ -225,7 +289,7 @@
       measurements:"",
       testText:testText,
       dtcs:caseData.dtcs,
-      testResults:state.testResults.slice()
+      testResults:currentResults
     };
     var provided=norm(context.caseText+" "+mediaText);
     if(!context.model){
@@ -261,11 +325,12 @@
     return "triagem";
   }
 
-  function buildDiagnosis(question){
-    var c=buildContext(question);
+  function buildDiagnosis(question,suppliedCase){
+    var c=buildContext(question,suppliedCase);
     var ranked=(KB.rules||[]).map(function(r){return scoreRule(r,c);})
       .filter(function(x){return x.score>0;})
       .sort(function(a,b){return b.score-a.score;});
+    if(c.caseData.symptom==="no-start")ranked=[];
     if(!ranked.length) ranked=[{rule:fallbackRule(),score:10,reasons:["triagem"],dtcHits:[],keyHits:[]}];
 
     var top=ranked[0];
@@ -290,6 +355,7 @@
       .sort(function(a,b){return b.score-a.score;})
       .slice(0,4)
       .map(function(x){return x.fact;});
+    if(c.caseData.symptom==="no-start")facts=[];
 
     var hypotheses=[];
     ranked.slice(0,1).forEach(function(item){
@@ -333,8 +399,11 @@
 
   function misfireStep(diag,answer){
     var c=diag.context, data=c.caseData, codes=c.dtcs.filter(function(code){return /^P030[0-8]$/.test(code);});
-    var cylinder=codes.length===1&&/^P030[1-8]$/.test(codes[0])?Number(codes[0].slice(-1)):0;
+    var codedCylinder=codes.length===1&&/^P030[1-8]$/.test(codes[0])?Number(codes[0].slice(-1)):0;
+    var observed=data.observedCylinders||[];
+    var cylinder=observed.length===1?observed[0]:codedCylinder;
     if(!data.temperature){
+      answer.awaiting="misfire-temperature";
       answer.question="A falha acontece a frio, a quente ou o tempo todo?";
       answer.actions=[{label:"A frio",text:"A falha acontece a frio."},{label:"A quente",text:"A falha acontece a quente."},{label:"O tempo todo",text:"A falha acontece o tempo todo."}];
       return;
@@ -349,23 +418,63 @@
     var results=c.testResults||[], live=results.filter(function(r){return r.id===liveId;}).slice(-1)[0];
     var coil=results.filter(function(r){return r.id===coilId;}).slice(-1)[0];
     answer.customTest=true;
-    if(cylinder&&data.observedCylinder&&data.observedCylinder!==cylinder){
-      answer.question="Anotei falhas atuais no cilindro "+data.observedCylinder+", mas "+codes[0]+" indica o cilindro "+cylinder+". Faça uma nova leitura e envie os códigos atuais para separar falha presente de histórico.";
-    }else if(!live){
+    if(data.ambiguousCylinderReply){
+      answer.awaiting="misfire-code-or-cylinder";
+      answer.question="Esse número é uma correção para só o cilindro 1, ou você quis dizer que há só o código "+codes[0]+"?";
+      answer.actions=[{label:"Só cilindro 1",text:"Só cilindro 1"},{label:"Só "+codes[0],text:"Só "+codes[0]}];
+    }else if(codedCylinder&&observed.length===1&&cylinder!==codedCylinder){
+      answer.awaiting="misfire-current-codes";
+      answer.question="Anotei falhas atuais no cilindro "+cylinder+", mas "+codes[0]+" indica o cilindro "+codedCylinder+". Faça uma nova leitura e envie os códigos atuais para separar falha presente de histórico.";
+    }else if(!live&&!observed.length){
+      answer.awaiting="misfire-cylinders";
       answer.test={id:liveId,title:cylinder?"Confirmar a falha no cilindro "+cylinder:"Localizar os cilindros com falha",
         procedure:"Com o motor "+(data.temperature==="frio"?"frio":data.temperature==="quente"?"quente":"na condição da falha")+", veja no scanner o contador de falhas de combustão. Anote quais cilindros acumulam falhas agora e os outros códigos, sem apagar.",
-        good:"identificar se a falha está em um cilindro ou em vários",code:code,
+        good:"identificar se a falha está em um cilindro ou em vários",code:code,cylinder:cylinder,
         choices:cylinder?[{value:"single",label:"Só no "+cylinder},{value:"multiple",label:"Em vários"}]:[{value:"single",label:"Um cilindro"},{value:"multiple",label:"Vários cilindros"}]};
-    }else if(live.outcome==="multiple"){
-      answer.question="Quais cilindros acumulam falhas e quais outros códigos aparecem? Vamos conferir o que afeta todos eles antes de testar uma peça isolada.";
+    }else if((live&&live.outcome==="multiple"||observed.length>1)&&!observed.length){
+      answer.awaiting="misfire-cylinders";
+      answer.question="Quais cilindros acumulam falhas agora? Pode responder, por exemplo, ‘1 e 2’.";
+    }else if(observed.length>1){
+      var cylinderNames=observed.slice(0,-1).join(", ")+" e "+observed[observed.length-1];
+      answer.explanation+=" Anotei falhas nos cilindros "+cylinderNames+".";
+      if(!data.otherCodesKnown){
+        answer.awaiting="misfire-other-codes";
+        answer.question="Além de "+codes.join(", ")+", aparece outro código no scanner?";
+        answer.actions=[{label:"Sem outros códigos",text:"Sem outros códigos"},{label:"Informar código",input:true}];
+      }else{
+        var connections=results.filter(function(r){return r.id==="misfire-connections";}).slice(-1)[0];
+        if(!connections){
+          answer.awaiting="misfire-connections";
+          answer.test={id:"misfire-connections",title:"Conferir as conexões dos cilindros "+cylinderNames,
+            procedure:"Com o motor desligado e frio, confira conectores e chicotes visíveis desses cilindros. Procure plugue solto, fio danificado ou umidade. Não desconecte nada com o motor funcionando.",
+            good:"conexões firmes e sem dano visível",code:code,
+            choices:[{value:"intact",label:"Conexões firmes"},{value:"damaged",label:"Achei dano ou mau contato"}]};
+        }else if(connections.outcome==="damaged"){
+          answer.awaiting="misfire-damage";
+          answer.question="Em qual conector ou fio você encontrou o problema? Envie o local e, se puder, uma foto. Vamos confirmar essa ligação antes de trocar peça.";
+        }else if(!data.observations["misfire-common-data"]){
+          answer.awaiting="misfire-common-data";
+          answer.question="Conexões visuais conferidas. No scanner, veja as correções de combustível de curto e longo prazo, com a falha presente. Envie os valores e diga se está em marcha lenta ou acelerado; não vou definir pressão ou tolerância sem o procedimento desse motor.";
+        }else{
+          answer.explanation+=" Leitura informada: "+data.observations["misfire-common-data"].slice(0,180)+".";
+          answer.awaiting="misfire-engine-identification";
+          answer.question=data.observations["misfire-engine-identification"]
+            ?"Dados registrados. Para decidir entre mistura, ignição e condição mecânica, precisamos do procedimento e dos valores de referência desse motor. Envie a página técnica ou uma leitura comparativa; ainda não há causa confirmada."
+            :"Qual é o código de identificação do motor? Precisamos dele para conferir os valores de referência antes de interpretar essas correções.";
+        }
+      }
     }else if(!cylinder){
+      answer.awaiting="misfire-cylinders";
       answer.question="Qual cilindro está acumulando falhas? Envie o número ou o código específico mostrado no scanner.";
     }else{
       // This bulletin covers VW gasoline engines, model years 2008–2023.
       // Do not apply its coil procedure to diesel engines or unknown ignition systems.
       var vwGas=/volkswagen|^vw$/.test(norm(c.brand))&&!/routan|id\.?4/.test(norm(c.model))&&/\b(?:tsi|tfsi|gasolina)\b/.test(norm(c.engine))&&Number(c.year)>=2008&&Number(c.year)<=2023;
       if(!vwGas){
-        answer.question="Falha localizada no cilindro "+cylinder+". Qual é o código do motor e ele usa bobinas individuais? Isso define o próximo teste sem aplicar o procedimento de outro sistema.";
+        answer.awaiting="misfire-ignition-layout";
+        answer.question=data.observations["misfire-ignition-layout"]
+          ?"Configuração informada: "+data.observations["misfire-ignition-layout"].slice(0,150)+". Precisamos do procedimento desse sistema para comparar alimentação, comando e componente. Envie o esquema ou o resultado de um teste já feito; ainda não há peça confirmada."
+          :"Falha localizada no cilindro "+cylinder+". Qual é o código do motor e ele usa bobinas individuais? Isso define o próximo teste sem aplicar o procedimento de outro sistema.";
       }else{
         answer.sourceIds=["vw-misfire-2033805"];
         if(!coil){
@@ -378,11 +487,85 @@
           answer.question="A falha acompanhou a bobina. Isso aponta para ela. Qual cilindro passou a falhar e qual código apareceu? Confirme antes de fechar o reparo.";
         }else{
           answer.explanation+=" A falha ficou no mesmo cilindro; a bobina ainda não foi confirmada como causa.";
-          answer.question="Agora confira a vela desse cilindro com o motor frio. Ela está seca, molhada de combustível/óleo ou danificada? Envie o que encontrou para escolher o próximo teste.";
+          answer.awaiting="misfire-plug-observation";
+          answer.question=data.observations["misfire-plug-observation"]
+            ?"Anotei sobre a vela: "+data.observations["misfire-plug-observation"].slice(0,150)+". A aparência sozinha não fecha o diagnóstico. Precisamos conferir a vela pelo procedimento do motor e depois separar injeção de condição mecânica; envie o código do motor ou o teste comparativo já realizado."
+            :"Agora confira a vela desse cilindro com o motor frio. Ela está seca, molhada de combustível/óleo ou danificada? Envie o que encontrou para escolher o próximo teste.";
         }
       }
     }
     answer.warning="Se a luz de injeção piscar, interrompa o teste para evitar dano ao catalisador.";
+  }
+
+  function noStartStep(diag,answer){
+    var c=diag.context,data=c.caseData;
+    var observations=data.observations||{};
+    answer.lead=data.cranking==="gira"?"O motor gira, mas não pega.":"O motor não pega.";
+    if(!data.cranking){
+      answer.awaiting="no-start-cranking";
+      answer.question="Quando você tenta ligar, o motor gira ou nem gira?";
+      answer.actions=[{label:"Gira",text:"O motor gira, mas não pega."},{label:"Não gira",text:"O motor não gira ao tentar ligar."}];
+    }else if(!(c.model&&c.engine)){
+      answer.question="Qual é o veículo? Informe modelo, ano e motor.";answer.needsVehicle=true;
+    }else if(data.cranking==="nao gira"){
+      if(!data.starterSound){
+        answer.awaiting="no-start-sound";
+        answer.question="Ao tentar ligar, você ouve algum clique ou as luzes do painel enfraquecem?";
+        answer.actions=[{label:"Dá clique",text:"Dá clique"},{label:"Sem clique",text:"Sem clique"},{label:"Painel apaga",text:"O painel apaga"}];
+      }else if(!observations["no-start-battery"]){
+        answer.awaiting="no-start-battery";
+        answer.question="Anotado. Com um multímetro nos polos da bateria, qual tensão aparece antes e durante a tentativa de partida? Confira também se os terminais estão firmes.";
+      }else{
+        answer.explanation="Leitura informada: "+observations["no-start-battery"].slice(0,180)+".";
+        answer.awaiting="no-start-power-diagram";
+        answer.question="Agora precisamos conferir a queda de tensão dos cabos e o comando do arranque pelo esquema desse motor. Envie o código de identificação do motor ou o esquema para localizar os pontos corretos.";
+      }
+    }else if(data.rpm===null&&!data.rpmPresent&&!data.rpmUnavailable){
+      answer.awaiting="no-start-rpm";
+      answer.question="Qual rotação (RPM) o scanner mostra enquanto o motor gira na partida? Envie o valor observado.";
+      answer.actions=[{label:"0 RPM",text:"0 RPM"},{label:"Mostra rotação",text:"O scanner mostra rotação"},{label:"Não consigo medir",text:"Não consigo medir a rotação"}];
+    }else if(data.rpmUnavailable&&!observations["no-start-tools"]){
+      answer.awaiting="no-start-tools";
+      answer.question="Sem essa leitura, vamos escolher um teste possível. Você tem multímetro, testador de centelha ou outro scanner disponível?";
+    }else if(data.rpmUnavailable){
+      answer.awaiting="no-start-battery";
+      answer.explanation="Equipamento informado: "+observations["no-start-tools"].slice(0,120)+".";
+      answer.question="Se houver multímetro, envie a tensão da bateria antes e durante a partida. Se não houver, precisamos de um scanner ou equipamento de medição para continuar sem adivinhar.";
+    }else if(data.rpm===0){
+      answer.explanation="Anotei 0 RPM durante a partida. Isso ainda não confirma sensor defeituoso.";
+      if(!data.ecuCommunication){
+        answer.awaiting="no-start-communication";
+        answer.question="O scanner continua comunicando com a ECU do motor enquanto você tenta dar partida?";
+        answer.actions=[{label:"Sim",text:"Sim, comunica normalmente"},{label:"Não",text:"Não, perde comunicação"}];
+      }else if(data.ecuCommunication==="no"&&!observations["no-start-ecu-power"]){
+        answer.awaiting="no-start-ecu-power";
+        answer.question="A comunicação cai durante a partida. Meça a tensão da bateria nessa tentativa e envie o menor valor. Antes de testar sensor, precisamos conferir alimentação e aterramento da ECU pelo esquema desse motor.";
+      }else if(data.ecuCommunication==="yes"&&!observations["no-start-rotation-signal"]){
+        answer.awaiting="no-start-rotation-signal";
+        answer.question="A ECU comunica, mas não registra rotação. Confira conector e chicote do sensor de rotação com a ignição desligada. Envie os códigos atuais e o código do motor para localizar o teste de sinal correto.";
+      }else{
+        answer.awaiting="no-start-signal-reference";
+        answer.explanation+=" Registrei a informação enviada: "+(observations["no-start-rotation-signal"]||observations["no-start-ecu-power"]||"").slice(0,160)+".";
+        answer.question="O próximo passo é comparar o sinal e a alimentação com o esquema e o procedimento desse motor. Envie essa referência ou a forma de onda medida; 0 RPM sozinho não condena o sensor.";
+      }
+    }else{
+      answer.explanation=data.rpm!==null?"Anotei "+data.rpm+" RPM durante a partida.":"O scanner registra rotação durante a partida.";
+      if(!data.startAuthorized){
+        answer.awaiting="no-start-authorization";
+        answer.question="No scanner, o imobilizador mostra partida autorizada ou bloqueada?";
+        answer.actions=[{label:"Autorizada",text:"Partida autorizada"},{label:"Bloqueada",text:"Partida bloqueada"},{label:"Não achei",text:"Não achei esse parâmetro"}];
+      }else if(data.startAuthorized==="blocked"&&!observations["no-start-immobilizer-codes"]){
+        answer.awaiting="no-start-immobilizer-codes";
+        answer.question="A partida está bloqueada. Leia os códigos do imobilizador e do motor e envie a descrição completa. Não vamos condenar chave ou módulo só por esse estado.";
+      }else if(!observations["no-start-next-evidence"]&&!observations["no-start-immobilizer-codes"]){
+        answer.awaiting="no-start-next-evidence";
+        answer.question="A rotação foi registrada. Informe os códigos atuais do motor e diga se já verificou faísca com testador e comando dos injetores. Com isso, escolhemos o próximo teste compatível com o motor.";
+      }else{
+        answer.awaiting="no-start-engine-procedure";
+        answer.explanation+=" Dados informados: "+(observations["no-start-immobilizer-codes"]||observations["no-start-next-evidence"]).slice(0,180)+".";
+        answer.question="Ainda não há causa confirmada. Precisamos do código de identificação do motor e do procedimento de teste para conferir alimentação, sinal ou autorização de partida nos pontos corretos. Envie essa referência para continuar.";
+      }
+    }
   }
 
   function practicalAnswer(diag){
@@ -394,22 +577,20 @@
     var vehicleKnown=!!(c.model&&c.engine);
     var noStart=data.symptom==="no-start";
     var shortCode=String(c.question).toUpperCase().match(/\b[PBCU]\d{3}\b/);
-    if(data.candidateCode&&(shortCode||!data.symptom||data.temperature)){
+    if(noStart){
+      noStartStep(diag,answer);
+    }else if(data.candidateCode&&(shortCode||!data.symptom||data.temperature)){
+      answer.awaiting="code-confirmation";
       answer.lead="Código incompleto: "+data.incompleteCode+".";
       answer.question=(data.temperature?"Anotei: falha a "+data.temperature+". ":"")+"O código completo no scanner é "+data.candidateCode+"? Confirme sem adivinhar.";
       answer.actions=[{label:"Confirmar "+data.candidateCode,text:data.candidateCode},{label:"Digitar código",input:true}];
-    }else if(noStart&&!data.cranking&&!/\bclique\b/.test(q)){
-      answer.lead="O motor não pega.";
-      answer.question="Quando você tenta ligar, o motor gira ou nem gira?";
-      answer.actions=[{label:"Gira",text:"O motor gira, mas não pega."},{label:"Não gira",text:"O motor não gira ao tentar ligar."}];
     }else if(diag.dtcs.length&&!vehicleKnown){
       answer.question="Qual é o veículo? Informe modelo, ano e motor para eu escolher o teste correto.";
       answer.needsVehicle=true;
-    }else if(diag.dtcs.some(function(d){return !d.label;})){
+    }else if(diag.dtcs.some(function(d){return !d.label&&!data.dtcDescriptions[d.code];})){
+      answer.awaiting="dtc-description";
+      answer.awaitingDtc=diag.dtcs.find(function(d){return !d.label&&!data.dtcDescriptions[d.code];}).code;
       answer.question="Qual é a descrição completa desse código no scanner e em qual módulo ele aparece?";
-    }else if((noStart||/motor nao gira/.test(q))&&!vehicleKnown){
-      answer.question="Qual é o veículo? Informe modelo, ano e motor.";
-      answer.needsVehicle=true;
     }else if(diag.ruleId==="baseline"&&(data.symptom==="misfire"||c.dtcs.some(function(code){return /^P030[0-8]$/.test(code);}))) {
       if(!diag.dtcs.length) answer.lead="Vamos localizar a falha.";
       misfireStep(diag,answer);
@@ -417,15 +598,9 @@
       answer.question="Além da luz de injeção, o carro perde força? P0420 sozinho não comprova catalisador entupido.";
     }else if(diag.ruleId==="baseline"){
       answer.lead=known.length?lead:"Vamos por partes.";
-      if(data.cranking==="nao gira"){
-        answer.question="Ao tentar ligar, você ouve algum clique ou as luzes do painel enfraquecem?";
-      }else if(noStart){
-        answer.question="Qual rotação (RPM) o scanner mostra enquanto o motor gira na partida?";
-      }else{
-        answer.question=/falha|falhando|rateia|engasga/.test(q)
-          ?"A falha acontece a frio, a quente ou o tempo todo? Se houver código no scanner, envie também."
-          :"Me diga o sintoma e a descrição do scanner. Ainda não tenho dados suficientes para indicar um teste específico.";
-      }
+      answer.question=/falha|falhando|rateia|engasga/.test(q)
+        ?"A falha acontece a frio, a quente ou o tempo todo? Se houver código no scanner, envie também."
+        :"Me diga o sintoma e a descrição do scanner. Ainda não tenho dados suficientes para indicar um teste específico.";
     }else{
       answer.explanation=known.length?"O código indica uma condição de falha; sozinho, não confirma uma peça defeituosa.":"Comece por este teste e me diga o resultado.";
       answer.test=diag.tests[0]||null;
@@ -436,6 +611,7 @@
   }
 
   function diagnosticSearchQuery(diag){
+    if(diag.context.caseData.symptom==="no-start")return "";
     if(!diag.context.model||!diag.context.dtcs.length) return "";
     if(practicalAnswer(diag).actions.length) return "";
     return diag.context.dtcs.join(" ");
@@ -498,6 +674,7 @@
 
   function appendDiagnosis(diag){
     var answer=practicalAnswer(diag);
+    state.caseContext=Object.assign({},state.caseContext,{awaiting:answer.awaiting||"",awaitingDtc:answer.awaitingDtc||""});
     var article=document.createElement("article");article.className="message bot";
     article.innerHTML='<div class="message-avatar" aria-hidden="true"></div>';
     var bubble=document.createElement("div");bubble.className="bubble practical-answer";
@@ -566,7 +743,10 @@
     var choice=(t.choices||[]).find(function(item){return item.value===result;});
     if(t.choices&&!choice)return;
     var label=choice?choice.label:result==="good"?firstNonEmpty(t.good,"normal"):firstNonEmpty(t.bad,"alterado");
-    state.testResults.push({id:t.id,title:t.title,result:label,outcome:result,code:t.code||"",at:now()});
+    state.testResults.push({id:t.id,title:t.title,result:label,outcome:result,code:t.code||"",flowVersion:state.caseContext.flowVersion||0,at:now()});
+    if(/^misfire-live-/.test(t.id)&&result==="single"&&t.cylinder){
+      state.caseContext=Object.assign({},state.caseContext,{observedCylinders:[t.cylinder],observedCylinder:t.cylinder});
+    }
     var userText=observedText||t.title+": "+label+".";
     appendTextMessage("user",userText);recordMessage("user",userText,{testResult:true});
     if(choice){
@@ -599,6 +779,8 @@
     var exact=test.choices.find(function(choice){return norm(choice.label)===q;});
     if(exact)return exact.value;
     if(/^misfire-live-/.test(test.id)){
+      var cylinders=cylinderReply(text,state.caseContext.awaiting==="misfire-cylinders");
+      if(cylinders.length>1)return "multiple";
       if(/^(?:em )?(?:varios(?: cilindros)?|mais de um(?: cilindro)?)$/.test(q))return "multiple";
       var single=q.match(/^(?:so|somente|apenas) (?:no |o )?(?:cilindro )?(\d)$/);
       if(single&&test.code==="P030"+single[1])return "single";
@@ -607,6 +789,10 @@
       if(/^(?:a falha )?(?:mudou de cilindro|acompanhou a bobina)$/.test(q))return "moved";
       if(/^(?:a falha )?(?:continuou|continua|ficou) (?:no mesmo cilindro|no (?:cilindro )?\d)$/.test(q))return "stayed";
     }
+    if(test.id==="misfire-connections"){
+      if(/^(?:conexoes firmes|tudo firme|normal|sem dano|sem danos)$/.test(q))return "intact";
+      if(/mau contato|fio danificado|conector solto/.test(q))return "damaged";
+    }
     return "";
   }
 
@@ -614,13 +800,22 @@
     options=options||{};
     text=String(text||"").trim();
     if(!text) return;
+    var previousFlow=state.caseContext.flowVersion||0;
+    state.caseContext=extendCaseContext(state.caseContext,text);
+    var statedVehicle=state.caseContext.vehicleDetails;
+    if(!state.vehicle.model||statedVehicle.model&&norm(state.vehicle.model)===norm(statedVehicle.model)){
+      ["brand","model","year","engine"].forEach(function(key){if(!state.vehicle[key]&&statedVehicle[key])state.vehicle[key]=statedVehicle[key];});
+      saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();
+    }
+    if((state.caseContext.flowVersion||0)!==previousFlow){state.activeTests=[];state.activeTestIndex=0;state.currentDiagnosis=null;}
     var testChoice=options.testReply?"":testReplyChoice(text);
     if(testChoice){
       $("chatInput").value="";autoResize();
       handleTestResult(testChoice,text);return;
     }
-    state.caseContext=extendCaseContext(state.caseContext,text);
+    var caseData=state.caseContext;
     var caseId=state.sessionId;
+    var requestId=++state.requestSequence;
 
     if(!options.silentUser){
       appendTextMessage("user",text);recordMessage("user",text);
@@ -629,7 +824,7 @@
 
     var typing=appendTextMessage("bot","Consultando a base técnica interna",{typing:true});
     setTimeout(async function(){
-      if(state.sessionId!==caseId){typing.remove();return;}
+      if(state.sessionId!==caseId||state.requestSequence!==requestId){typing.remove();return;}
       if(isGreeting(text)){
         typing.remove();
         var greeting=vehicleText(state.vehicle)
@@ -644,7 +839,7 @@
         appendTextMessage("bot",who);recordMessage("bot",who);persistSession();return;
       }
 
-      var diag=buildDiagnosis(text);
+      var diag=buildDiagnosis(text,caseData);
       diag.fromMedia=options.fromMedia===true;
       var query=diagnosticSearchQuery(diag);
       if(query&&window.ORACLE_REMOTE_KNOWLEDGE){
@@ -652,7 +847,7 @@
           diag.remoteEvidence=await ORACLE_REMOTE_KNOWLEDGE.search(query,diag.context,2);
         }catch(err){console.warn("[Knowledge search]",err);}
       }
-      if(state.sessionId!==caseId){typing.remove();return;}
+      if(state.sessionId!==caseId||state.requestSequence!==requestId){typing.remove();return;}
       typing.remove();
       appendDiagnosis(diag);
       recordMessage("bot",practicalAnswer(diag).text,{diagnosis:diag.ruleId,knowledgeHits:diag.remoteEvidence?diag.remoteEvidence.length:0});
@@ -726,6 +921,7 @@
   }
 
   function loadHistoryItem(item){
+    state.requestSequence++;
     closeDialog($("historyDialog"));
     state.sessionId=item.id||newSessionId();
     state.createdAt=item.createdAt||now();
@@ -735,6 +931,10 @@
     state.pendingQuestion=null;
     state.testResults=(item.tests||[]).slice();
     state.mediaAnalyses=(item.mediaAnalysis||[]).map(function(m){return Object.assign({status:"Análise recuperada do histórico"},m);});
+    if(!state.caseContext.awaiting){
+      var resumed=practicalAnswer(buildDiagnosis(""));
+      state.caseContext=Object.assign({},state.caseContext,{awaiting:resumed.awaiting||"",awaitingDtc:resumed.awaitingDtc||""});
+    }
     state.currentDiagnosis=null;state.activeTests=[];state.activeTestIndex=0;
     saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();renderMediaQueue();
 
@@ -749,6 +949,7 @@
   }
 
   function startNewCase(){
+    state.requestSequence++;
     state.sessionId=newSessionId();state.createdAt=now();state.messages=[];state.mediaAnalyses=[];state.currentDiagnosis=null;
     state.activeTests=[];state.activeTestIndex=0;state.testResults=[];state.pendingQuestion=null;
     state.caseContext=emptyCaseContext();
