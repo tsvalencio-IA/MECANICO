@@ -615,7 +615,10 @@
     text=String(text||"").trim();
     if(!text) return;
     var testChoice=options.testReply?"":testReplyChoice(text);
-    if(testChoice){handleTestResult(testChoice,text);return;}
+    if(testChoice){
+      $("chatInput").value="";autoResize();
+      handleTestResult(testChoice,text);return;
+    }
     state.caseContext=extendCaseContext(state.caseContext,text);
     var caseId=state.sessionId;
 

@@ -145,7 +145,9 @@ test('a mechanic can type a test result instead of pressing the result button', 
   const h = harness(golf);
   await say(h, 'P0301 falhando a quente');
   assert.match(await say(h, 'Só no 1'), /Comparar a bobina do cilindro 1/);
+  h.get('chatInput').value = 'Continua no mesmo cilindro';
   const reply = await say(h, 'Continua no mesmo cilindro');
+  assert.equal(h.get('chatInput').value, '');
   assert.match(reply, /bobina ainda não foi confirmada[\s\S]*vela/);
   assert.equal(h.state.testResults.length, 2);
   assert.equal(h.state.messages.filter(m => m.role === 'user' && m.text === 'Só no 1').length, 1);
