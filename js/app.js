@@ -367,7 +367,7 @@
       var battery=startingBatteryReport(c.startingBattery,text,slot);
       if(battery){c.startingBattery=battery;if(!battery.unavailable)c.observations["no-start-battery"]=battery.raw||text;}
       else c.noStartFeedback=noStartInputFeedback(text);
-    }else if(/\b(?:bateria|polos)\b/.test(q)&&/\b(?:antes|durante|repouso)\b/.test(q)&&/\d+(?:[.,]\d+)?\s*v(?:olts?)?\b/.test(q)){
+    }else if(/\bbateria\b/.test(q)&&/\b(?:antes|durante|repouso)\b/.test(q)&&/\d+(?:[.,]\d+)?\s*v(?:olts?)?\b/.test(q)){
       // A later battery correction must replace its current value, not only its transcript.
       var correction=startingBatteryReport(c.startingBattery,text,"");
       if(correction&&!correction.unavailable){

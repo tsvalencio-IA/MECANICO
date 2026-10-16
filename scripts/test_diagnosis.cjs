@@ -1030,6 +1030,8 @@ test('a later battery correction replaces the structured voltage without borrowi
   assert.doesNotMatch(reply, /10 V durante/);
   await say(h, 'Medi 5 V no sensor durante a tentativa');
   assert.equal(h.state.caseContext.startingBattery.during, 8);
+  await say(h, 'Medi 6 V nos polos do arranque durante a tentativa');
+  assert.equal(h.state.caseContext.startingBattery.during, 8);
 });
 
 test('misfire without a stored code advances to operating conditions without fabricating a cylinder', async () => {
