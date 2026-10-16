@@ -67,6 +67,118 @@ function harness(vehicle = {}) {
 const golf = { brand: 'Volkswagen', model: 'Golf', year: '2014', engine: '1.4 TSI', transmission: 'Automático' };
 async function say(h, text) { h.handleQuestion(text); await h.flush(); return h.state.messages.at(-1).text; }
 
+async function afterCoilStayed(h) {
+  await say(h, 'P301'); await say(h, 'P0301'); await say(h, 'A falha acontece o tempo todo.');
+  h.handleTestResult('single'); await h.flush();
+  h.handleTestResult('stayed'); await h.flush();
+}
+
+test('the reported sequence keeps VELA OK, separates the green coil note and retains the confirmed P0301', async () => {
+  const h = harness({ ...golf, brand: 'vw', model: 'golf', engine: '1.4 tsi' });
+  await afterCoilStayed(h);
+  const plug = await say(h, 'VELA OK');
+  assert.match(plug, /comparar|Comparar/);
+  assert.match(h.state.activeTests[0].id, /^misfire-plug-/);
+  await say(h, 'BOBINA VERDE NO PRIMEIRO CILINDRO');
+  assert.equal(h.state.caseContext.observations['misfire-plug-observation'], 'VELA OK');
+  assert.match(h.state.messages.at(-1).text, /cor|oxidação/);
+  assert.doesNotMatch(h.state.messages.at(-1).text, /Anotei sobre a vela: BOBINA/);
+  for (const text of ['P301 UAI JA FALEI', 'P0301']) {
+    const reply = await say(h, text);
+    assert.doesNotMatch(reply, /Código incompleto|Confirme sem adivinhar|falha a sempre|Anotei sobre a vela: P301/);
+    assert.match(reply, /P0301[\s\S]*confirmado/);
+    assert.equal(h.state.caseContext.observations['misfire-plug-observation'], 'VELA OK');
+    assert.equal(h.state.caseContext.candidateCode, '');
+    assert.match(h.state.activeTests[0].id, /^misfire-plug-/);
+  }
+});
+
+test('a coil note cannot be silently recorded as a spark-plug result while that question is pending', async () => {
+  const h = harness(golf); await afterCoilStayed(h);
+  await say(h, 'Bobina verde no primeiro cilindro');
+  assert.equal(h.state.caseContext.observations['misfire-plug-observation'], undefined);
+  await say(h, 'P0301');
+  assert.equal(h.state.caseContext.observations['misfire-plug-observation'], undefined);
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), ['P0301']);
+});
+
+test('a new unknown abbreviated code still requires confirmation after a previous DTC was confirmed', async () => {
+  const h = harness(golf); await say(h, 'P0301');
+  assert.match(await say(h, 'P302'), /Código incompleto[\s\S]*P0302/);
+  assert.deepEqual(Array.from(h.state.caseContext.dtcs), ['P0301']);
+});
+
+test('the plug comparison can move the fault and the new code validates that result without restarting triage', async () => {
+  const h = harness(golf); await afterCoilStayed(h); await say(h, 'VELA OK');
+  assert.match(await say(h, 'Mudou com a vela'), /Qual cilindro passou/);
+  const confirmed = await say(h, 'P0302');
+  assert.match(confirmed, /Antes: cilindro 1[\s\S]*vela: cilindro 2/);
+  assert.doesNotMatch(confirmed, /Qual cilindro passou|A falha acontece|contador de falhas de combustão/);
+});
+
+test('a plug result that stays in cylinder one advances through engine identification, injector leak and compression', async () => {
+  const h = harness(golf); await afterCoilStayed(h); await say(h, 'VELA OK');
+  assert.match(await say(h, 'Continuou no 1'), /estanqueidade do injetor[\s\S]*identificação do motor/);
+  assert.match(await say(h, 'P301 UAI JA FALEI'), /P0301[\s\S]*confirmado/);
+  assert.equal(h.state.caseContext.engineCode, '');
+  const procedure = await say(h, 'Motor CHPA');
+  assert.match(procedure, /CHPA[\s\S]*manual[\s\S]*Não abra tubulações/);
+  h.handleTestResult('sealed'); await h.flush();
+  assert.match(h.state.messages.at(-1).text, /medir a compressão/);
+  const readings = await say(h, 'C1 8 bar; C2 12 bar; C3 12 bar; C4 12 bar');
+  assert.match(readings, /Compressão informada: C1 8 bar/);
+  assert.doesNotMatch(readings, /é normal|troque a bobina|pressão correta é/);
+});
+
+test('green plastic and confirmed connector corrosion take different paths without changing the plug observation', async () => {
+  for (const [description, contact] of [['Verde é a cor da peça', false], ['Há oxidação no conector', true]]) {
+    const h = harness(golf); await afterCoilStayed(h); await say(h, 'VELA OK');
+    await say(h, 'Bobina verde no primeiro cilindro'); await say(h, description);
+    assert.equal(h.state.caseContext.observations['misfire-plug-observation'], 'VELA OK');
+    assert.match(h.state.activeTests[0].id, contact ? /^misfire-coil-contact-/ : /^misfire-plug-/);
+    if (contact) {
+      h.handleTestResult('cleared'); await h.flush();
+      assert.match(await say(h, 'Continuou sem falhas'), /verificação sem falhas registrada/i);
+    }
+  }
+});
+
+test('an old polluted history snapshot recovers VELA OK from the mechanic messages, not bot quotations', async () => {
+  const h = harness(golf); await afterCoilStayed(h); await say(h, 'VELA OK');
+  const saved = JSON.parse(JSON.stringify(h.buildSessionPayload()));
+  delete saved.caseContext.factVersion;
+  saved.caseContext.observations['misfire-plug-observation'] = 'P301 UAI JA FALEI';
+  saved.messages.push({ role: 'bot', text: 'Vela danificada, não é VELA OK' });
+  saved.messages.push({ role: 'user', text: 'BOBINA VERDE NO PRIMEIRO CILINDRO' });
+  const restored = harness(); restored.loadHistoryItem(saved); await restored.flush();
+  const reply = await say(restored, 'P301 UAI JA FALEI');
+  assert.equal(restored.state.caseContext.observations['misfire-plug-observation'], 'VELA OK');
+  assert.doesNotMatch(reply, /Código incompleto|vela: P301|vela danificada/i);
+  assert.match(restored.state.activeTests[0].id, /^misfire-plug-/);
+});
+
+test('an unrelated component description cannot replace a requested voltage reading', async () => {
+  const h = harness(golf); await say(h, 'Não pega'); await say(h, 'Não gira'); await say(h, 'Dá clique');
+  await say(h, 'BOBINA VERDE');
+  assert.equal(h.state.caseContext.observations['no-start-battery'], undefined);
+  await say(h, '12,4 V antes e 9,4 V durante a partida');
+  assert.match(h.state.caseContext.observations['no-start-battery'], /12,4 V/);
+});
+
+test('a new tentative code uses correct Portuguese for the always-present failure condition', async () => {
+  const h = harness(golf); await say(h, 'P0301'); await say(h, 'O tempo todo');
+  const reply = await say(h, 'P302');
+  assert.match(reply, /falha o tempo todo[\s\S]*P0302/);
+  assert.doesNotMatch(reply, /falha a sempre/);
+});
+
+test('a result explicitly naming the coil cannot be recorded as a result of the plug comparison', async () => {
+  const h = harness(golf); await afterCoilStayed(h); await say(h, 'VELA OK');
+  await say(h, 'A falha acompanhou a bobina');
+  assert.equal(h.state.testResults.some(r => /^misfire-plug-/.test(r.id)), false);
+  assert.equal(h.state.caseContext.observations['misfire-plug-observation'], 'VELA OK');
+});
+
 test('the reported multi-cylinder conversation records 1 and 2, then switches to no-start and RPM', async () => {
   const h = harness({ ...golf, brand: 'vw', model: 'golf', engine: '1.4 tsi' });
   await say(h, 'golf 1.4 tsi 2014 codigo p301'); await say(h, 'P0301');

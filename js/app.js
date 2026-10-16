@@ -169,7 +169,33 @@
   function emptyCaseContext(){
     return {dtcs:[],symptom:"",temperature:"",cranking:"",details:[],candidateCode:"",incompleteCode:"",observedCylinder:0,
       observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
-      startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:""};
+      startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:"",
+      lastInputKind:"",confirmedCodeReminder:false,coilAppearance:null,engineCode:"",engineIdentificationUnavailable:false,repairVerified:false,factVersion:1};
+  }
+
+  function plugObservation(text,allowBare){
+    var q=norm(text), status="(?:ok|normal|normais|boas?|secas?|molhadas?|encharcadas?|danificadas?|trincadas?|quebradas?|novas?)";
+    var match=q.match(new RegExp("\\bvelas?\\s*(?:(?:esta|estao|ta|:|do cilindro \\d+)\\s*)?"+status+"\\b"));
+    if(match)return text.slice(match.index,match.index+match[0].length).trim();
+    if(allowBare&&new RegExp("^"+status+"[.! ]*$").test(q))return text;
+    return "";
+  }
+
+  function relevantObservation(slot,text){
+    var q=norm(text);
+    var patterns={
+      "misfire-common-data":/(?:stft|ltft|curto|longo).*\d|[+-]?\d+(?:[.,]\d+)?\s*%/,
+      "misfire-plug-fluid":/\b(?:combustivel|gasolina|oleo)\b/,
+      "misfire-compression-readings":/\d+(?:[.,]\d+)?\s*(?:bar|psi|kpa)\b/,
+      "misfire-ignition-layout":/bobinas? individuais?|codigo do motor|motor [a-z0-9]{3,6}\b/,
+      "no-start-tools":/multimetro|scanner|testador|osciloscopio|nenhum equipamento|nao tenho/,
+      "no-start-battery":/\d+(?:[.,]\d+)?\s*(?:v\b|volts?\b)|bateria.*\d|antes.*\d|durante.*\d/,
+      "no-start-ecu-power":/\d+(?:[.,]\d+)?\s*(?:v\b|volts?\b)|tensao.*\d/,
+      "no-start-next-evidence":/centelha|faisca|injetor|sem codigos|[pbcu][0-3][0-9a-f]{3}/,
+      "no-start-immobilizer-codes":/sem codigos|[pbcu][0-3][0-9a-f]{3}|imobilizador|chave/,
+      "no-start-rotation-signal":/conector|chicote|sensor|sinal|[pbcu][0-3][0-9a-f]{3}/
+    };
+    return !!(patterns[slot]&&patterns[slot].test(q));
   }
 
   function cylinderReply(text,allowBare){
@@ -190,15 +216,37 @@
     c.vehicleDetails=Object.assign({},c.vehicleDetails||{});
     c.observations=Object.assign({},c.observations||{});
     c.dtcDescriptions=Object.assign({},c.dtcDescriptions||{});
+    c.coilAppearance=c.coilAppearance?Object.assign({},c.coilAppearance):null;
+    if(c.observations["misfire-plug-observation"]&&!plugObservation(c.observations["misfire-plug-observation"],true))delete c.observations["misfire-plug-observation"];
+    if(c.candidateCode&&c.dtcs.indexOf(c.candidateCode)>=0){c.candidateCode="";c.incompleteCode="";}
     text=String(text||"").trim();
     var q=norm(text), codes=extractCodes(text);
     var noStart=/\bnao pega\b|\bsem partida\b|^nao liga\b|\b(?:motor|carro|veiculo|ele) nao liga\b|\bmotor nao gira\b/.test(q);
     var misfire=/\bfalhando\b|\brateia\b|\bengasga\b|\bfalha (?:de ignicao|de combustao|a |quando)/.test(q);
     var symptom=noStart?"no-start":misfire?"misfire":!c.symptom&&codes.some(function(code){return /^P030[0-8]$/.test(code);})?"misfire":"";
-    if(c.awaiting&&text&&!isGreeting(text)&&!(symptom&&symptom!==c.symptom))c.observations[c.awaiting]=text;
+    c.lastInputKind="";c.confirmedCodeReminder=false;
+    if(c.awaiting&&text&&!isGreeting(text)&&!(symptom&&symptom!==c.symptom)&&relevantObservation(c.awaiting,text))c.observations[c.awaiting]=text;
+    var plug=plugObservation(text,c.awaiting==="misfire-plug-observation");
+    if(plug){c.observations["misfire-plug-observation"]=plug;c.lastInputKind="plug-observation";}
+    if(/\bbobina\b.*\b(?:verde|azul|vermelha|preta|amarela|branca)\b|\bconector\b.*(?:verde|oxid|zinabre)/.test(q)){
+      c.coilAppearance={text:text,meaning:/oxid|zinabre/.test(q)?"corrosion":"unknown"};c.lastInputKind="coil-appearance";
+    }
+    if(c.awaiting==="coil-appearance"&&c.coilAppearance){
+      if(/cor da peca|cor do plastico|so a cor/.test(q))c.coilAppearance.meaning="piece-color";
+      else if(/oxidacao|zinabre/.test(q))c.coilAppearance.meaning="corrosion";
+      else if(/^nao sei[.! ]*$/.test(q))c.coilAppearance.meaning="unconfirmed";
+    }
+    if(/misfire-(?:engine-identification|engine-code|ignition-layout)/.test(c.awaiting)||/\bmotor\s+[a-z]{3,5}\b/.test(q)){
+      var motorCode=text.toUpperCase().match(/^(?:MOTOR\s+|CÓDIGO DO MOTOR[: ]+)?([A-Z][A-Z0-9]{2,5})[.! ]*$/);
+      if(motorCode&&!/^(?:[PBCU]\d|VELA|BOBINA|SCANNER|NORMAL|SEMPRE|QUENTE|MOTOR|TSI|SIM|NAO|ECU)/.test(motorCode[1])){
+        c.engineCode=motorCode[1];c.observations[c.awaiting]=motorCode[1];c.lastInputKind="engine-code";
+      }
+      if(/nao sei|nao consigo|nao achei/.test(q))c.engineIdentificationUnavailable=true;
+    }
+    if(c.awaiting==="misfire-repair-verification"&&!/\bnao\b/.test(q)&&/\bsem falhas?\b/.test(q))c.repairVerified=true;
     if(c.awaiting==="dtc-description"&&c.awaitingDtc&&text&&!isGreeting(text)&&!noStart){
       var description=text.replace(/\b(?:[PBCU][0-3][0-9A-F]{3}|DF\d{3,4})\b/gi,"").trim();
-      if(/[a-z\u00c0-\u024f]{3}/i.test(description))c.dtcDescriptions[c.awaitingDtc]=description.slice(0,500);
+      if(/circuito|pressao|tensao|sinal|mistura|comunicacao|resistencia|desempenho|fora da faixa|descricao.*modulo/.test(norm(description)))c.dtcDescriptions[c.awaitingDtc]=description.slice(0,500);
     }
     if(symptom&&symptom!==c.symptom){
       if(c.symptom)c.flowVersion++;
@@ -214,13 +262,18 @@
     if(engine)c.vehicleDetails.engine=engine[1].replace(",",".")+(engine[2]?" "+engine[2].toUpperCase():"");
     if(c.candidateCode&&c.awaiting==="code-confirmation"&&/^(sim|isso|correto|confirmo)[.! ]*$/.test(q)) codes=[c.candidateCode];
     if(codes.length){
+      c.confirmedCodeReminder=codes.every(function(code){return c.dtcs.indexOf(code)>=0;})&&!symptom;
       c.dtcs=c.awaiting==="misfire-other-codes"||/\b(tambem|outro codigo|mais o)\b/.test(q)?uniq(c.dtcs.concat(codes)):codes;
       c.candidateCode="";c.incompleteCode="";
-      c.observedCylinder=0;
+      if(!c.confirmedCodeReminder)c.observedCylinder=0;
       if(c.awaiting==="misfire-other-codes"||c.awaiting==="misfire-code-or-cylinder")c.otherCodesKnown=true;
     }else{
       var shortCode=text.toUpperCase().match(/\b([PBCU])(\d{3})\b/);
-      if(shortCode){c.incompleteCode=shortCode[0];c.candidateCode=shortCode[1]+"0"+shortCode[2];}
+      if(shortCode){
+        var candidate=shortCode[1]+"0"+shortCode[2];
+        if(c.dtcs.indexOf(candidate)>=0){c.confirmedCodeReminder=true;c.candidateCode="";c.incompleteCode="";}
+        else{c.incompleteCode=shortCode[0];c.candidateCode=candidate;}
+      }
       if(/^(nao|codigo incorreto|vou digitar)[.! ]*$/.test(q)){c.candidateCode="";c.incompleteCode="";}
     }
     if(/\b(tempo todo|sempre|frio e quente|frio ou quente)\b/.test(q)) c.temperature="sempre";
@@ -331,6 +384,9 @@
       .filter(function(x){return x.score>0;})
       .sort(function(a,b){return b.score-a.score;});
     if(c.caseData.symptom==="no-start")ranked=[];
+    if(c.caseData.symptom==="misfire"&&expandDtcs(c.dtcs,c).some(function(code){return /^P030[0-8]$/.test(code);})){
+      ranked=ranked.filter(function(item){return (item.rule.dtcs||[]).some(function(code){return /^P030[0-8]$/.test(code);});});
+    }
     if(!ranked.length) ranked=[{rule:fallbackRule(),score:10,reasons:["triagem"],dtcHits:[],keyHits:[]}];
 
     var top=ranked[0];
@@ -418,7 +474,14 @@
     var results=c.testResults||[], live=results.filter(function(r){return r.id===liveId;}).slice(-1)[0];
     var coil=results.filter(function(r){return r.id===coilId;}).slice(-1)[0];
     answer.customTest=true;
-    if(data.ambiguousCylinderReply){
+    var moved=results.filter(function(r){return /^misfire-(?:coil|plug)-/.test(r.id)&&r.outcome==="moved";}).slice(-1)[0];
+    var movedFrom=moved?(moved.cylinder||Number(String(moved.code||"").slice(-1))):0;
+    if(moved&&movedFrom&&codedCylinder&&codedCylinder!==movedFrom){
+      var component=/^misfire-plug-/.test(moved.id)?"vela":"bobina";
+      answer.awaiting="misfire-component-repair";
+      answer.explanation="Antes: cilindro "+movedFrom+". Após comparar somente a "+component+": cilindro "+codedCylinder+".";
+      answer.question="A mudança informada aponta para essa "+component+". Confirme a peça e a conexão envolvidas; após corrigir a causa, reproduza a condição original e confira contadores e códigos atuais.";
+    }else if(data.ambiguousCylinderReply){
       answer.awaiting="misfire-code-or-cylinder";
       answer.question="Esse número é uma correção para só o cilindro 1, ou você quis dizer que há só o código "+codes[0]+"?";
       answer.actions=[{label:"Só cilindro 1",text:"Só cilindro 1"},{label:"Só "+codes[0],text:"Só "+codes[0]}];
@@ -487,14 +550,105 @@
           answer.question="A falha acompanhou a bobina. Isso aponta para ela. Qual cilindro passou a falhar e qual código apareceu? Confirme antes de fechar o reparo.";
         }else{
           answer.explanation+=" A falha ficou no mesmo cilindro; a bobina ainda não foi confirmada como causa.";
-          answer.awaiting="misfire-plug-observation";
-          answer.question=data.observations["misfire-plug-observation"]
-            ?"Anotei sobre a vela: "+data.observations["misfire-plug-observation"].slice(0,150)+". A aparência sozinha não fecha o diagnóstico. Precisamos conferir a vela pelo procedimento do motor e depois separar injeção de condição mecânica; envie o código do motor ou o teste comparativo já realizado."
-            :"Agora confira a vela desse cilindro com o motor frio. Ela está seca, molhada de combustível/óleo ou danificada? Envie o que encontrou para escolher o próximo teste.";
+          misfirePlugStep(c,answer,cylinder,code,results);
         }
       }
     }
+    if(data.lastInputKind==="coil-appearance"&&data.coilAppearance&&data.coilAppearance.meaning==="unknown"){
+      answer.pendingTest=answer.test;answer.test=null;
+      answer.explanation=data.observations["misfire-plug-observation"]?"A vela permanece registrada: "+data.observations["misfire-plug-observation"]+".":"Anotei sua observação sobre a bobina.";
+      answer.question="Você está falando da cor da bobina ou encontrou oxidação no conector? A cor sozinha não confirma defeito.";
+      answer.awaiting="coil-appearance";
+      answer.actions=[{label:"Cor da peça",text:"Verde é a cor da peça"},{label:"Oxidação no conector",text:"Há oxidação no conector"},{label:"Não sei",text:"Não sei"}];
+    }
+    var contact=results.filter(function(r){return /^misfire-coil-contact-/.test(r.id);}).slice(-1)[0];
+    if(data.coilAppearance&&data.coilAppearance.meaning==="corrosion"&&!contact){
+      answer.awaiting="misfire-coil-contact";answer.pendingTest=null;answer.actions=[];
+      answer.explanation="Oxidação no conector registrada. Vamos verificar esse contato antes de continuar a comparação.";
+      answer.test={id:"misfire-coil-contact-"+code,title:"Conferir o conector da bobina",
+        procedure:"Com a ignição desligada, confira oxidação, danos nos terminais e firmeza do encaixe. Se houver reparo, siga o procedimento do conector e depois confira no scanner se a falha permanece. Não desconecte a bobina com o motor funcionando.",
+        good:"registrar o comportamento após conferir ou corrigir o contato",code:code,
+        choices:[{value:"remains",label:"Conector conferido; falha permanece"},{value:"cleared",label:"Contato corrigido; falha sumiu"}]};
+    }else if(contact&&contact.outcome==="cleared"){
+      answer.test=null;answer.pendingTest=null;answer.actions=[];answer.awaiting="misfire-repair-verification";
+      answer.explanation="Você informou que a falha sumiu após corrigir o contato.";
+      answer.question=data.repairVerified
+        ?"Verificação sem falhas registrada. O reparo ficou validado nas condições de teste que você informou; mantenha esses resultados no histórico."
+        :"Reproduza as condições originais e confira contadores e códigos atuais. Informe se continuou sem falhas para validar o reparo na condição testada.";
+    }
+    if(data.confirmedCodeReminder){
+      answer.explanation=codes.join(", ")+" já está confirmado."+(data.observations["misfire-plug-observation"]?" A vela segue registrada: "+data.observations["misfire-plug-observation"]+".":"");
+      // Keep the current test and its controls; do not restart code confirmation.
+      if(answer.test){answer.briefTest=true;answer.question="O que falta agora é o resultado deste teste: "+answer.test.title.toLowerCase()+".";}
+    }
     answer.warning="Se a luz de injeção piscar, interrompa o teste para evitar dano ao catalisador.";
+  }
+
+  function misfirePlugStep(c,answer,cylinder,code,results){
+    var data=c.caseData, visual=data.observations["misfire-plug-observation"];
+    var plugId="misfire-plug-"+code, plug=results.filter(function(r){return r.id===plugId;}).slice(-1)[0];
+    if(!visual){
+      answer.awaiting="misfire-plug-observation";
+      answer.question="Agora confira a vela desse cilindro com o motor frio. Ela está seca, molhada de combustível/óleo ou danificada? Envie o que encontrou para escolher o próximo teste.";
+      return;
+    }
+    if(!plug){
+      answer.explanation="Vela registrada: "+visual+". A inspeção visual não substitui o teste comparativo.";
+      answer.awaiting="misfire-plug-result";
+      answer.test={id:plugId,title:"Comparar a vela do cilindro "+cylinder,
+            procedure:"Motor desligado e frio: compare somente a vela do cilindro "+cylinder+" com a de um cilindro sem falha, da mesma especificação e sem dano. Siga a montagem e o torque do manual. Reproduza a falha e veja no scanner se ela acompanhou a vela.",
+        good:"registrar se a falha acompanha a vela ou fica no cilindro "+cylinder,code:code,cylinder:cylinder,component:"plug",
+        choices:[{value:"moved",label:"Mudou com a vela"},{value:"stayed",label:"Continuou no "+cylinder}]};
+      if(/danific|trinc|quebrad/.test(norm(visual))){
+        answer.test=null;answer.awaiting="misfire-plug-damage";
+        answer.question="Você relatou dano na vela. Não reinstale uma vela trincada ou quebrada para fazer a comparação. Confirme a especificação e envie uma foto do dano antes de decidir a substituição.";
+      }else if(/molhad|encharcad/.test(norm(visual))){
+        answer.test=null;answer.awaiting="misfire-plug-fluid";
+        var fluid=data.observations["misfire-plug-fluid"];
+        if(fluid&&/combustivel|gasolina/.test(norm(fluid))){
+          answer.explanation="Combustível na vela registrado; isso ainda não confirma injetor defeituoso.";
+          misfireInjectorStep(c,answer,cylinder,code,results);
+        }else if(fluid){
+          answer.awaiting="misfire-oil-evidence";
+          answer.question="Óleo na vela registrado. Antes de condenar componente, confira se há óleo no poço da vela ou na ponta que fica dentro do cilindro e envie uma foto do local.";
+        }else answer.question="Vela molhada registrada. Você identificou combustível ou óleo nela? Envie essa informação antes de continuar.";
+      }
+      return;
+    }
+    if(plug.outcome==="moved"){
+      answer.awaiting="misfire-plug-movement";
+      answer.explanation="A falha acompanhou a vela no teste informado.";
+      answer.question="Qual cilindro passou a acumular falhas e qual código apareceu depois da comparação? Vamos confirmar essa mudança antes de fechar o reparo.";
+      return;
+    }
+    answer.explanation="A falha permaneceu no cilindro "+cylinder+" após comparar bobina e vela.";
+    misfireInjectorStep(c,answer,cylinder,code,results);
+  }
+
+  function misfireInjectorStep(c,answer,cylinder,code,results){
+    var data=c.caseData;
+    var injector=results.filter(function(r){return r.id==="misfire-injector-leak-"+code;}).slice(-1)[0];
+    if(!data.engineCode){
+      answer.awaiting="misfire-engine-code";
+      answer.question=data.engineIdentificationUnavailable
+        ?"Veja se o scanner exibe a identificação do motor na tela de dados da ECU e envie essa tela. Se não aparecer, consulte a etiqueta ou os dados técnicos pelo chassi. Não precisamos confirmar de novo o código de falha."
+        :"O próximo teste é a estanqueidade do injetor. Para escolher o procedimento, qual é a identificação do motor na etiqueta ou no cadastro técnico? "+c.dtcs.join(", ")+" já é o código de falha confirmado.";
+      if(!data.engineIdentificationUnavailable)answer.actions=[{label:"Não sei identificar",text:"Não sei identificar o motor"}];
+    }else if(!injector){
+      answer.awaiting="misfire-injector-leak-result";
+      answer.test={id:"misfire-injector-leak-"+code,title:"Verificar estanqueidade do injetor "+cylinder,
+        procedure:"Motor informado: "+data.engineCode+". Use o procedimento e o equipamento especificados no manual desse motor para verificar vazamento interno do injetor "+cylinder+". Não abra tubulações de combustível pressurizadas. Se não tiver procedimento ou equipamento, marque ‘Não testei’.",
+        good:"registrar o resultado do ensaio de vazamento interno",code:code,cylinder:cylinder,
+        choices:[{value:"leak",label:"Vazamento confirmado no ensaio"},{value:"sealed",label:"Sem vazamento no ensaio"}]};
+    }else if(injector.outcome==="leak"){
+      answer.awaiting="misfire-injector-repair";
+      answer.question="O ensaio indicou vazamento interno no injetor "+cylinder+". Corrija a causa conforme o procedimento do motor e repita a leitura nas mesmas condições da falha. Informe os contadores e códigos após a verificação.";
+    }else{
+      answer.awaiting="misfire-compression-readings";
+      answer.question=data.observations["misfire-compression-readings"]
+        ?"Compressão informada: "+data.observations["misfire-compression-readings"]+". Vamos comparar com os limites e condições do manual do motor "+data.engineCode+" antes de concluir se há desvio mecânico. Envie a referência técnica ou o resultado do ensaio de estanqueidade do cilindro."
+        :"O ensaio do injetor não apontou vazamento. O próximo passo é medir a compressão dos cilindros pelo procedimento do motor "+data.engineCode+". Envie o valor de cada cilindro e a unidade; não vou inventar a pressão de referência.";
+    }
   }
 
   function noStartStep(diag,answer){
@@ -582,7 +736,7 @@
     }else if(data.candidateCode&&(shortCode||!data.symptom||data.temperature)){
       answer.awaiting="code-confirmation";
       answer.lead="Código incompleto: "+data.incompleteCode+".";
-      answer.question=(data.temperature?"Anotei: falha a "+data.temperature+". ":"")+"O código completo no scanner é "+data.candidateCode+"? Confirme sem adivinhar.";
+      answer.question=(data.temperature?"Anotei: falha "+(data.temperature==="sempre"?"o tempo todo":"a "+data.temperature)+". ":"")+"O código completo no scanner é "+data.candidateCode+"? Confirme sem adivinhar.";
       answer.actions=[{label:"Confirmar "+data.candidateCode,text:data.candidateCode},{label:"Digitar código",input:true}];
     }else if(diag.dtcs.length&&!vehicleKnown){
       answer.question="Qual é o veículo? Informe modelo, ano e motor para eu escolher o teste correto.";
@@ -606,7 +760,7 @@
       answer.test=diag.tests[0]||null;
       answer.warning=(diag.warnings||[]).find(function(w){return /nao abrir|ruido mecanico|pressao real baixa|atencao imediata|nao prova/.test(norm(w));})||"";
     }
-    answer.text=[answer.lead,answer.explanation,answer.question,answer.test?"Teste agora: "+answer.test.title+". "+answer.test.procedure+" Esperado: "+(answer.test.good||"informe a leitura observada")+".":"",answer.warning].filter(Boolean).join("\n\n");
+    answer.text=[answer.lead,answer.explanation,answer.question,answer.test&&!answer.briefTest?"Teste agora: "+answer.test.title+". "+answer.test.procedure+" Esperado: "+(answer.test.good||"informe a leitura observada")+".":"",answer.warning].filter(Boolean).join("\n\n");
     return answer;
   }
 
@@ -652,11 +806,11 @@
     return article;
   }
 
-  function appendTestBox(bubble,test){
+  function appendTestBox(bubble,test,brief){
     var box=document.createElement("div");box.className="test-box";
     var choices=test.choices||[{value:"good",label:"Normal"},{value:"bad",label:"Alterado"}];
-    box.innerHTML='<b>Teste agora: '+esc(test.title)+'</b><p>'+esc(test.procedure)+'</p>'+
-      '<p class="test-expected"><b>Esperado:</b> '+esc(test.good||"Informe a leitura observada.")+'</p>'+
+    box.innerHTML=(brief?'':'<b>Teste agora: '+esc(test.title)+'</b><p>'+esc(test.procedure)+'</p>'+
+      '<p class="test-expected"><b>Esperado:</b> '+esc(test.good||"Informe a leitura observada.")+'</p>')+
       '<div class="test-actions">'+choices.map(function(choice){
         return '<button type="button" data-test-result="'+esc(choice.value)+'">'+esc(choice.label)+'</button>';
       }).join("")+
@@ -674,6 +828,7 @@
 
   function appendDiagnosis(diag){
     var answer=practicalAnswer(diag);
+    $("messages").querySelectorAll("[data-test-result]").forEach(function(btn){btn.disabled=true;});
     state.caseContext=Object.assign({},state.caseContext,{awaiting:answer.awaiting||"",awaitingDtc:answer.awaitingDtc||""});
     var article=document.createElement("article");article.className="message bot";
     article.innerHTML='<div class="message-avatar" aria-hidden="true"></div>';
@@ -684,9 +839,9 @@
     });
 
     state.currentDiagnosis=diag;
-    state.activeTests=answer.test?(answer.customTest?[answer.test]:diag.tests.slice()):[];
+    state.activeTests=answer.test?(answer.customTest?[answer.test]:diag.tests.slice()):answer.pendingTest?[answer.pendingTest]:[];
     state.activeTestIndex=0;
-    if(answer.test) appendTestBox(bubble,answer.test);
+    if(answer.test) appendTestBox(bubble,answer.test,answer.briefTest);
     if(answer.warning){
       var warning=document.createElement("p");warning.className="diagnosis-warning";
       warning.textContent=answer.warning;bubble.appendChild(warning);
@@ -743,7 +898,7 @@
     var choice=(t.choices||[]).find(function(item){return item.value===result;});
     if(t.choices&&!choice)return;
     var label=choice?choice.label:result==="good"?firstNonEmpty(t.good,"normal"):firstNonEmpty(t.bad,"alterado");
-    state.testResults.push({id:t.id,title:t.title,result:label,outcome:result,code:t.code||"",flowVersion:state.caseContext.flowVersion||0,at:now()});
+    state.testResults.push({id:t.id,title:t.title,result:label,outcome:result,code:t.code||"",cylinder:t.cylinder||0,flowVersion:state.caseContext.flowVersion||0,at:now()});
     if(/^misfire-live-/.test(t.id)&&result==="single"&&t.cylinder){
       state.caseContext=Object.assign({},state.caseContext,{observedCylinders:[t.cylinder],observedCylinder:t.cylinder});
     }
@@ -785,8 +940,9 @@
       var single=q.match(/^(?:so|somente|apenas) (?:no |o )?(?:cilindro )?(\d)$/);
       if(single&&test.code==="P030"+single[1])return "single";
     }
-    if(/^misfire-coil-/.test(test.id)){
-      if(/^(?:a falha )?(?:mudou de cilindro|acompanhou a bobina)$/.test(q))return "moved";
+    if(/^misfire-(?:coil|plug)-/.test(test.id)){
+      var component=/^misfire-plug-/.test(test.id)?"vela":"bobina";
+      if(new RegExp("^(?:a falha )?(?:mudou de cilindro|mudou com a "+component+"|acompanhou a "+component+")$").test(q))return "moved";
       if(/^(?:a falha )?(?:continuou|continua|ficou) (?:no mesmo cilindro|no (?:cilindro )?\d)$/.test(q))return "stayed";
     }
     if(test.id==="misfire-connections"){
@@ -928,6 +1084,13 @@
     state.vehicle=item.vehicleData||{};
     state.messages=(item.messages||[]).slice();
     state.caseContext=item.caseContext?extendCaseContext(item.caseContext,""):recoverCaseContext(state.messages);
+    if(item.caseContext&&item.caseContext.factVersion!==1){
+      // Older snapshots may have overwritten a plug fact with an unrelated reply.
+      // Recover only explicit user statements, never generated bot text.
+      var recovered=recoverCaseContext(state.messages);
+      if(recovered.observations["misfire-plug-observation"])state.caseContext.observations["misfire-plug-observation"]=recovered.observations["misfire-plug-observation"];
+      if(recovered.coilAppearance)state.caseContext.coilAppearance=recovered.coilAppearance;
+    }
     state.pendingQuestion=null;
     state.testResults=(item.tests||[]).slice();
     state.mediaAnalyses=(item.mediaAnalysis||[]).map(function(m){return Object.assign({status:"Análise recuperada do histórico"},m);});
