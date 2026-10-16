@@ -1,0 +1,26 @@
+{
+  "dtcs": 294,
+  "heavy_shards_required_by_client": false,
+  "index_revision": "63115589ecb7731841ef8af3a7b173ce17c1768a8048cf49137fe952edc1147f",
+  "mode": "compact-lexical",
+  "record_buckets": 64,
+  "records": 20736,
+  "schema_version": 1,
+  "source_archive": "CONHECIMENTO.ZIP",
+  "source_archive_sha256": "c2b9578a5134f030e0e2a71188aa54ea85dcdcb4a5743a979ef690035adefb35",
+  "source_schema_version": 2,
+  "term_files": 1296,
+  "terms": 178305,
+  "text_preview_chars": 2600,
+  "truth_counts": {
+    "ocr_unverified": 6862,
+    "source_extracted": 9660,
+    "unverified_strings": 4214
+  },
+  "truth_policy": {
+    "metadata_only": "arquivo catalogado por caminho/hash/tamanho sem texto extraido",
+    "ocr_unverified": "OCR da imagem, nunca promovido sozinho a fato exato",
+    "source_extracted": "texto extraido diretamente sem correcao semantica",
+    "unverified_strings": "strings recuperadas de binario proprietario, nunca usadas sozinhas como fato exato"
+  }
+}
