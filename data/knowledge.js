@@ -20,7 +20,8 @@ window.ORACLE_KNOWLEDGE = {
   sources: [
     {id:"duster-workshop", vehicle:"Renault/Dacia Duster", system:"manual de oficina e diagnóstico", indexed:true},
     {id:"duster-v42", vehicle:"Renault Duster 1.6 16V", system:"injeção Valeo V42 / esquema elétrico", indexed:true},
-    {id:"lexus-ewd", vehicle:"Lexus IS 300", system:"diagramas elétricos EWD", indexed:true}
+    {id:"lexus-ewd", vehicle:"Lexus IS 300", system:"diagramas elétricos EWD", indexed:true},
+    {id:"vw-misfire-2033805", vehicle:"Volkswagen gasolina 2008–2023 (exceto Routan e ID.4)", system:"boletim 2033805/6, diagnóstico de falhas de combustão, págs. 2–4", url:"https://static.nhtsa.gov/odi/tsbs/2022/MC-10214471-0001.pdf", indexed:false}
   ],
 
   dtcs: {
@@ -29,6 +30,10 @@ window.ORACLE_KNOWLEDGE = {
     "P0302": {label:"Falha de combustão cilindro 2",aliases:["DF060"],scope:["renault","duster"]},
     "P0303": {label:"Falha de combustão cilindro 3",aliases:["DF061"],scope:["renault","duster"]},
     "P0304": {label:"Falha de combustão cilindro 4",aliases:["DF062"],scope:["renault","duster"]},
+    "P0305": {label:"Falha de combustão cilindro 5"},
+    "P0306": {label:"Falha de combustão cilindro 6"},
+    "P0307": {label:"Falha de combustão cilindro 7"},
+    "P0308": {label:"Falha de combustão cilindro 8"},
     "P0335": {label:"Sinal do sensor de rotação / PMS",aliases:["DF120"],scope:["renault","duster"]},
     "P0420": {label:"Eficiência do catalisador",aliases:["DF394"],scope:["renault","duster"]},
     "P0130": {label:"Circuito da sonda lambda antes do catalisador",aliases:["DF092"],scope:["renault","duster"]},

@@ -13,6 +13,7 @@
     activeTests: [],
     activeTestIndex: 0,
     testResults: [],
+    caseContext: emptyCaseContext(),
     deferredInstall: null,
     recognition: null,
     settings: loadJSON("thiaguinho_settings",{sound:true,autoSpeak:false,motion:true}),
@@ -63,7 +64,7 @@
   }
 
   function contextHay(c){
-    return norm([c.brand,c.model,c.engine,c.transmission,c.question,c.mediaText].join(" "));
+    return norm([c.brand,c.model,c.engine,c.transmission,c.caseText,c.question,c.mediaText].join(" "));
   }
 
   function scopeCompatible(scope,c){
@@ -99,7 +100,7 @@
   function scoreRule(rule,c){
     var score=0, reasons=[];
     var b=norm(c.brand),m=norm(c.model),e=norm(c.engine);
-    var text=norm([c.question,c.mediaText,c.testText,c.measurements].join(" "));
+    var text=norm([c.caseText,c.question,c.mediaText,c.testText,c.measurements].join(" "));
     var hay=contextHay(c);
     var allDtcs=expandDtcs(c.dtcs,c);
     if(/^duster-v42-/.test(rule.id)&&!scopeCompatible(["duster","v42"],c)) return {rule:rule,score:-999};
@@ -154,7 +155,7 @@
       if(c.engine && !matchesScope(fact.engines,c.engine)) return -999;
       if(matchesScope(fact.engines,c.engine)||textHas(fact.engines)) score+=14;
     }
-    var hay=norm([c.question,c.mediaText,c.measurements,c.dtcs.join(" ")].join(" "));
+    var hay=norm([c.caseText,c.question,c.mediaText,c.measurements,c.dtcs.join(" ")].join(" "));
     var hits=(fact.keywords||[]).filter(function(k){return hay.indexOf(norm(k))>=0;});
     if(!hits.length) return -999;
     if((fact.sourceIds||[]).indexOf("duster-workshop")>=0&&!scopeCompatible(["duster","v42"],c)) return -999;
@@ -164,10 +165,51 @@
     return score;
   }
 
+  function emptyCaseContext(){
+    return {dtcs:[],symptom:"",temperature:"",cranking:"",details:[],candidateCode:"",incompleteCode:"",observedCylinder:0};
+  }
+
+  // Only the mechanic's statements and explicitly confirmed media enter the case.
+  // Bot questions and suggested codes must never become diagnostic evidence.
+  function extendCaseContext(previous,text){
+    var c=Object.assign(emptyCaseContext(),previous||{});
+    c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();
+    text=String(text||"").trim();
+    var q=norm(text), codes=extractCodes(text);
+    if(c.candidateCode&&/^(sim|isso|correto|confirmo)[.! ]*$/.test(q)) codes=[c.candidateCode];
+    if(codes.length){
+      c.dtcs=/\b(tambem|outro codigo|mais o)\b/.test(q)?uniq(c.dtcs.concat(codes)):codes;
+      c.candidateCode="";c.incompleteCode="";
+      c.observedCylinder=0;
+    }else{
+      var shortCode=text.toUpperCase().match(/\b([PBCU])(\d{3})\b/);
+      if(shortCode){c.incompleteCode=shortCode[0];c.candidateCode=shortCode[1]+"0"+shortCode[2];}
+      if(/^(nao|codigo incorreto|vou digitar)[.! ]*$/.test(q)){c.candidateCode="";c.incompleteCode="";}
+    }
+    if(/nao (?:pega|liga)|sem partida/.test(q)) c.symptom="no-start";
+    else if(/falhando|falha (?:de|na|a|quando)|rateia|engasga|ignicao/.test(q)) c.symptom="misfire";
+    if(/\b(tempo todo|sempre|frio e quente|frio ou quente)\b/.test(q)) c.temperature="sempre";
+    else if(/\bquente\b/.test(q)) c.temperature="quente";
+    else if(/\bfrio\b/.test(q)) c.temperature="frio";
+    if(/\bnao gira\b|\bnem gira\b/.test(q)) c.cranking="nao gira";
+    else if(/\bgira\b|\bgirando\b/.test(q)) c.cranking="gira";
+    var observed=q.replace(/[.!?]+$/g,"").match(/^(?:so|somente|apenas) (?:no |o )?(?:cilindro )?(\d)$/);
+    if(observed)c.observedCylinder=Number(observed[1]);
+    if(text&&!isGreeting(text)&&c.details[c.details.length-1]!==text) c.details.push(text);
+    c.details=c.details.slice(-12);
+    return c;
+  }
+
+  function recoverCaseContext(messages){
+    return (messages||[]).filter(function(m){return m.role==="user"&&!m.testResult;})
+      .reduce(function(c,m){return extendCaseContext(c,m.text);},emptyCaseContext());
+  }
+
   function buildContext(question){
     var mediaText=state.mediaAnalyses.map(function(x){return x.text||"";}).join("\n");
     var mediaCodes=extractCodes(mediaText);
-    var qCodes=extractCodes(question);
+    var caseData=extendCaseContext(state.caseContext,question);
+    if(!caseData.dtcs.length&&!caseData.candidateCode) caseData.dtcs=mediaCodes;
     var testText=state.testResults.map(function(x){return x.title+" "+x.result;}).join(" ");
     var context={
       brand:state.vehicle.brand||"",
@@ -177,12 +219,15 @@
       transmission:state.vehicle.transmission||"",
       mileage:state.vehicle.mileage||"",
       question:String(question||"").trim(),
+      caseData:caseData,
+      caseText:caseData.details.join("\n"),
       mediaText:mediaText,
       measurements:"",
       testText:testText,
-      dtcs:qCodes.length?qCodes:mediaCodes
+      dtcs:caseData.dtcs,
+      testResults:state.testResults.slice()
     };
-    var provided=norm(String(question||"")+" "+mediaText);
+    var provided=norm(context.caseText+" "+mediaText);
     if(!context.model){
       var models=uniq([].concat.apply([],(KB.rules||[]).map(function(rule){return rule.models||[];})));
       context.model=models.find(function(model){return provided.indexOf(norm(model))>=0;})||"";
@@ -286,15 +331,74 @@
     };
   }
 
+  function misfireStep(diag,answer){
+    var c=diag.context, data=c.caseData, codes=c.dtcs.filter(function(code){return /^P030[0-8]$/.test(code);});
+    var cylinder=codes.length===1&&/^P030[1-8]$/.test(codes[0])?Number(codes[0].slice(-1)):0;
+    if(!data.temperature){
+      answer.question="A falha acontece a frio, a quente ou o tempo todo?";
+      answer.actions=[{label:"A frio",text:"A falha acontece a frio."},{label:"A quente",text:"A falha acontece a quente."},{label:"O tempo todo",text:"A falha acontece o tempo todo."}];
+      return;
+    }
+    var condition=data.temperature==="sempre"?"o tempo todo":"a "+data.temperature;
+    answer.explanation=[c.model,c.engine].filter(Boolean).join(" ")+": falha "+condition+".";
+    if(!codes.length){
+      answer.question="Qual código aparece no scanner? Se não houver código, diga ‘sem código’.";
+      return;
+    }
+    var code=codes.join("-"), liveId="misfire-live-"+code, coilId="misfire-coil-"+code;
+    var results=c.testResults||[], live=results.filter(function(r){return r.id===liveId;}).slice(-1)[0];
+    var coil=results.filter(function(r){return r.id===coilId;}).slice(-1)[0];
+    answer.customTest=true;
+    if(cylinder&&data.observedCylinder&&data.observedCylinder!==cylinder){
+      answer.question="Anotei falhas atuais no cilindro "+data.observedCylinder+", mas "+codes[0]+" indica o cilindro "+cylinder+". Faça uma nova leitura e envie os códigos atuais para separar falha presente de histórico.";
+    }else if(!live){
+      answer.test={id:liveId,title:cylinder?"Confirmar a falha no cilindro "+cylinder:"Localizar os cilindros com falha",
+        procedure:"Com o motor "+(data.temperature==="frio"?"frio":data.temperature==="quente"?"quente":"na condição da falha")+", veja no scanner o contador de falhas de combustão. Anote quais cilindros acumulam falhas agora e os outros códigos, sem apagar.",
+        good:"identificar se a falha está em um cilindro ou em vários",code:code,
+        choices:cylinder?[{value:"single",label:"Só no "+cylinder},{value:"multiple",label:"Em vários"}]:[{value:"single",label:"Um cilindro"},{value:"multiple",label:"Vários cilindros"}]};
+    }else if(live.outcome==="multiple"){
+      answer.question="Quais cilindros acumulam falhas e quais outros códigos aparecem? Vamos conferir o que afeta todos eles antes de testar uma peça isolada.";
+    }else if(!cylinder){
+      answer.question="Qual cilindro está acumulando falhas? Envie o número ou o código específico mostrado no scanner.";
+    }else{
+      // This bulletin covers VW gasoline engines, model years 2008–2023.
+      // Do not apply its coil procedure to diesel engines or unknown ignition systems.
+      var vwGas=/volkswagen|^vw$/.test(norm(c.brand))&&!/routan|id\.?4/.test(norm(c.model))&&/\b(?:tsi|tfsi|gasolina)\b/.test(norm(c.engine))&&Number(c.year)>=2008&&Number(c.year)<=2023;
+      if(!vwGas){
+        answer.question="Falha localizada no cilindro "+cylinder+". Qual é o código do motor e ele usa bobinas individuais? Isso define o próximo teste sem aplicar o procedimento de outro sistema.";
+      }else{
+        answer.sourceIds=["vw-misfire-2033805"];
+        if(!coil){
+          answer.explanation+=" Vamos verificar se a falha acompanha a bobina.";
+          answer.test={id:coilId,title:"Comparar a bobina do cilindro "+cylinder,
+            procedure:"Com o motor desligado e frio, confira o conector. Se estiver firme e as bobinas forem iguais, troque só a bobina do cilindro "+cylinder+" de posição com outra. Confirme a numeração no manual. Reproduza a condição da falha e confira os contadores atuais no scanner.",
+            good:"observar se a falha muda de cilindro ou permanece no "+cylinder,code:code,
+            choices:[{value:"moved",label:"Mudou de cilindro"},{value:"stayed",label:"Continuou no "+cylinder}]};
+        }else if(coil.outcome==="moved"){
+          answer.question="A falha acompanhou a bobina. Isso aponta para ela. Qual cilindro passou a falhar e qual código apareceu? Confirme antes de fechar o reparo.";
+        }else{
+          answer.explanation+=" A falha ficou no mesmo cilindro; a bobina ainda não foi confirmada como causa.";
+          answer.question="Agora confira a vela desse cilindro com o motor frio. Ela está seca, molhada de combustível/óleo ou danificada? Envie o que encontrou para escolher o próximo teste.";
+        }
+      }
+    }
+    answer.warning="Se a luz de injeção piscar, interrompa o teste para evitar dano ao catalisador.";
+  }
+
   function practicalAnswer(diag){
-    var c=diag.context, q=norm(c.question), known=diag.dtcs.filter(function(d){return !!d.label;});
+    var c=diag.context, data=c.caseData, q=norm(c.caseText+" "+c.question), known=diag.dtcs.filter(function(d){return !!d.label;});
     var lead=diag.dtcs.length?diag.dtcs.slice(0,3).map(function(d){return d.code+(d.label?" — "+d.label:"");}).join("\n"):diag.title;
     if(diag.fromMedia&&diag.dtcs.length) lead="Li na tela:\n"+lead;
     if(diag.dtcs.length>3) lead+="\nMais "+(diag.dtcs.length-3)+" código(s) na leitura.";
     var answer={lead:lead,explanation:"",question:"",actions:[],needsVehicle:false,test:null,warning:""};
     var vehicleKnown=!!(c.model&&c.engine);
-    var noStart=/nao (?:pega|liga)|sem partida/.test(q);
-    if(noStart&&!/\bgira\b|\bgirando\b|\bclique\b/.test(q)){
+    var noStart=data.symptom==="no-start";
+    var shortCode=String(c.question).toUpperCase().match(/\b[PBCU]\d{3}\b/);
+    if(data.candidateCode&&(shortCode||!data.symptom||data.temperature)){
+      answer.lead="Código incompleto: "+data.incompleteCode+".";
+      answer.question=(data.temperature?"Anotei: falha a "+data.temperature+". ":"")+"O código completo no scanner é "+data.candidateCode+"? Confirme sem adivinhar.";
+      answer.actions=[{label:"Confirmar "+data.candidateCode,text:data.candidateCode},{label:"Digitar código",input:true}];
+    }else if(noStart&&!data.cranking&&!/\bclique\b/.test(q)){
       answer.lead="O motor não pega.";
       answer.question="Quando você tenta ligar, o motor gira ou nem gira?";
       answer.actions=[{label:"Gira",text:"O motor gira, mas não pega."},{label:"Não gira",text:"O motor não gira ao tentar ligar."}];
@@ -306,11 +410,14 @@
     }else if((noStart||/motor nao gira/.test(q))&&!vehicleKnown){
       answer.question="Qual é o veículo? Informe modelo, ano e motor.";
       answer.needsVehicle=true;
+    }else if(diag.ruleId==="baseline"&&(data.symptom==="misfire"||c.dtcs.some(function(code){return /^P030[0-8]$/.test(code);}))) {
+      if(!diag.dtcs.length) answer.lead="Vamos localizar a falha.";
+      misfireStep(diag,answer);
     }else if(c.dtcs.indexOf("P0420")>=0&&!/sem forca|perda|entup|abaf|nao sobe/.test(q)){
       answer.question="Além da luz de injeção, o carro perde força? P0420 sozinho não comprova catalisador entupido.";
     }else if(diag.ruleId==="baseline"){
       answer.lead=known.length?lead:"Vamos por partes.";
-      if(/motor nao gira/.test(q)){
+      if(data.cranking==="nao gira"){
         answer.question="Ao tentar ligar, você ouve algum clique ou as luzes do painel enfraquecem?";
       }else if(noStart){
         answer.question="Qual rotação (RPM) o scanner mostra enquanto o motor gira na partida?";
@@ -371,11 +478,12 @@
 
   function appendTestBox(bubble,test){
     var box=document.createElement("div");box.className="test-box";
+    var choices=test.choices||[{value:"good",label:"Normal"},{value:"bad",label:"Alterado"}];
     box.innerHTML='<b>Teste agora: '+esc(test.title)+'</b><p>'+esc(test.procedure)+'</p>'+
       '<p class="test-expected"><b>Esperado:</b> '+esc(test.good||"Informe a leitura observada.")+'</p>'+
-      '<div class="test-actions">'+
-      '<button type="button" class="good" data-test-result="good">Normal</button>'+
-      '<button type="button" class="bad" data-test-result="bad">Alterado</button>'+
+      '<div class="test-actions">'+choices.map(function(choice){
+        return '<button type="button" data-test-result="'+esc(choice.value)+'">'+esc(choice.label)+'</button>';
+      }).join("")+
       '<button type="button" class="skip" data-test-result="skip">Não testei</button></div>';
     var caseId=state.sessionId;
     box.querySelectorAll("[data-test-result]").forEach(function(btn){
@@ -399,7 +507,7 @@
     });
 
     state.currentDiagnosis=diag;
-    state.activeTests=answer.test?diag.tests.slice():[];
+    state.activeTests=answer.test?(answer.customTest?[answer.test]:diag.tests.slice()):[];
     state.activeTestIndex=0;
     if(answer.test) appendTestBox(bubble,answer.test);
     if(answer.warning){
@@ -410,25 +518,36 @@
       var actions=document.createElement("div");actions.className="test-actions";
       answer.actions.forEach(function(action){
         var btn=document.createElement("button");btn.type="button";btn.textContent=action.label;
-        btn.addEventListener("click",function(){handleQuestion(action.text);});actions.appendChild(btn);
+        var caseId=state.sessionId;
+        btn.addEventListener("click",function(){
+          if(state.sessionId!==caseId||state.currentDiagnosis!==diag)return;
+          if(action.input){$("chatInput").focus();return;}
+          actions.querySelectorAll("button").forEach(function(b){b.disabled=true;});
+          handleQuestion(action.text);
+        });actions.appendChild(btn);
       });
       if(answer.needsVehicle){
         var vehicleBtn=document.createElement("button");vehicleBtn.type="button";vehicleBtn.textContent="Informar veículo";
-        vehicleBtn.addEventListener("click",function(){state.pendingQuestion=diag.context.question;$("vehicleBtn").click();});
+        vehicleBtn.addEventListener("click",function(){
+          if(state.currentDiagnosis!==diag)return;
+          state.pendingQuestion=diag.context.question;$("vehicleBtn").click();
+        });
         actions.appendChild(vehicleBtn);
       }
       bubble.appendChild(actions);
     }
     var refs=(diag.remoteEvidence||[]).slice(0,2).map(function(e){
-      return (e.sourcePath||"Documento técnico").split(/[\\/]/).pop()+(e.page?" • pág. "+e.page:"");
+      return {text:(e.sourcePath||"Documento técnico").split(/[\\/]/).pop()+(e.page?" • pág. "+e.page:"")};
     });
-    (diag.sourceIds||[]).forEach(function(id){
+    uniq((diag.sourceIds||[]).concat(answer.sourceIds||[])).forEach(function(id){
       var source=(KB.sources||[]).find(function(x){return x.id===id;});
-      if(source) refs.push(source.vehicle+" — "+source.system);
+      if(source) refs.push({text:source.vehicle+" — "+source.system,url:source.url});
     });
     if(refs.length){
       var details=document.createElement("details");details.className="diagnosis-sources";
-      details.innerHTML='<summary>Ver referências</summary><ul>'+uniq(refs).map(function(ref){return '<li>'+esc(ref)+'</li>';}).join("")+'</ul>';
+      details.innerHTML='<summary>Ver referências</summary><ul>'+refs.map(function(ref){
+        return '<li>'+(ref.url&&/^https:\/\//.test(ref.url)?'<a href="'+esc(ref.url)+'" target="_blank" rel="noopener noreferrer">'+esc(ref.text)+'</a>':esc(ref.text))+'</li>';
+      }).join("")+'</ul>';
       bubble.appendChild(details);
     }
     article.appendChild(bubble);$("messages").appendChild(article);
@@ -437,17 +556,24 @@
     scrollMessages();
   }
 
-  function handleTestResult(result){
+  function handleTestResult(result,observedText){
     var t=state.activeTests[state.activeTestIndex];
     if(!t) return;
     if(result==="skip"){
       var skipped="Tudo bem. Diga o que impede esse teste ou o que você consegue medir agora.";
       appendTextMessage("bot",skipped);recordMessage("bot",skipped);persistSession();return;
     }
-    var label=result==="good"?firstNonEmpty(t.good,"normal"):firstNonEmpty(t.bad,"alterado");
-    state.testResults.push({id:t.id,title:t.title,result:label,at:now()});
-    var userText=t.title+": "+label+".";
+    var choice=(t.choices||[]).find(function(item){return item.value===result;});
+    if(t.choices&&!choice)return;
+    var label=choice?choice.label:result==="good"?firstNonEmpty(t.good,"normal"):firstNonEmpty(t.bad,"alterado");
+    state.testResults.push({id:t.id,title:t.title,result:label,outcome:result,code:t.code||"",at:now()});
+    var userText=observedText||t.title+": "+label+".";
     appendTextMessage("user",userText);recordMessage("user",userText,{testResult:true});
+    if(choice){
+      state.activeTests=[];state.activeTestIndex=0;
+      handleQuestion(userText,{silentUser:true,immediate:true,testReply:true});
+      return;
+    }
     state.activeTestIndex++;
     var next=state.activeTests[state.activeTestIndex];
     if(next){
@@ -463,13 +589,35 @@
   }
 
   function isGreeting(text){
-    return /^(oi|ola|olá|e ai|eai|bom dia|boa tarde|boa noite|fala)\b/.test(norm(text));
+    return /^(?:oi|ola|e ai|eai|bom dia|boa tarde|boa noite|fala)(?:[!,.:\s]+(?:thiaguinho|amigo|cara))?[!.?\s]*$/.test(norm(text));
+  }
+
+  function testReplyChoice(text){
+    var test=state.activeTests[state.activeTestIndex];
+    if(!test||!test.choices)return "";
+    var q=norm(text).replace(/[.!?]+$/g,"");
+    var exact=test.choices.find(function(choice){return norm(choice.label)===q;});
+    if(exact)return exact.value;
+    if(/^misfire-live-/.test(test.id)){
+      if(/^(?:em )?(?:varios(?: cilindros)?|mais de um(?: cilindro)?)$/.test(q))return "multiple";
+      var single=q.match(/^(?:so|somente|apenas) (?:no |o )?(?:cilindro )?(\d)$/);
+      if(single&&test.code==="P030"+single[1])return "single";
+    }
+    if(/^misfire-coil-/.test(test.id)){
+      if(/^(?:a falha )?(?:mudou de cilindro|acompanhou a bobina)$/.test(q))return "moved";
+      if(/^(?:a falha )?(?:continuou|continua|ficou) (?:no mesmo cilindro|no (?:cilindro )?\d)$/.test(q))return "stayed";
+    }
+    return "";
   }
 
   function handleQuestion(text,options){
     options=options||{};
     text=String(text||"").trim();
     if(!text) return;
+    var testChoice=options.testReply?"":testReplyChoice(text);
+    if(testChoice){handleTestResult(testChoice,text);return;}
+    state.caseContext=extendCaseContext(state.caseContext,text);
+    var caseId=state.sessionId;
 
     if(!options.silentUser){
       appendTextMessage("user",text);recordMessage("user",text);
@@ -478,9 +626,12 @@
 
     var typing=appendTextMessage("bot","Consultando a base técnica interna",{typing:true});
     setTimeout(async function(){
+      if(state.sessionId!==caseId){typing.remove();return;}
       if(isGreeting(text)){
         typing.remove();
-        var greeting="Estou pronto. Me diga o veículo e o defeito. Se tiver código, tensão, pressão, temperatura ou algo já trocado, mande junto.";
+        var greeting=vehicleText(state.vehicle)
+          ?"Estou acompanhando o "+vehicleText(state.vehicle)+". Me diga o sintoma ou o resultado do teste para continuar."
+          :"Estou pronto. Me diga o sintoma e o veículo. Se tiver um código no scanner, mande junto.";
         appendTextMessage("bot",greeting);recordMessage("bot",greeting);persistSession();return;
       }
 
@@ -498,6 +649,7 @@
           diag.remoteEvidence=await ORACLE_REMOTE_KNOWLEDGE.search(query,diag.context,2);
         }catch(err){console.warn("[Knowledge search]",err);}
       }
+      if(state.sessionId!==caseId){typing.remove();return;}
       typing.remove();
       appendDiagnosis(diag);
       recordMessage("bot",practicalAnswer(diag).text,{diagnosis:diag.ruleId,knowledgeHits:diag.remoteEvidence?diag.remoteEvidence.length:0});
@@ -507,7 +659,7 @@
 
   function buildSessionPayload(){
     var allCodes=[];
-    state.messages.forEach(function(m){allCodes=allCodes.concat(extractCodes(m.text));});
+    state.messages.filter(function(m){return m.role==="user";}).forEach(function(m){allCodes=allCodes.concat(extractCodes(m.text));});
     state.mediaAnalyses.forEach(function(m){allCodes=allCodes.concat(m.codes||[]);});
     var firstUser=state.messages.find(function(m){return m.role==="user" && !m.testResult;});
     return {
@@ -516,8 +668,9 @@
       updatedAt:now(),
       vehicle:vehicleText(state.vehicle)||"Veículo não informado",
       vehicleData:state.vehicle,
+      caseContext:state.caseContext,
       title:(firstUser?firstUser.text:"Novo diagnóstico").slice(0,140),
-      messages:state.messages.slice(-60).map(function(m){return {role:m.role,text:(m.text||"").slice(0,5000),at:m.at};}),
+      messages:state.messages.slice(-60).map(function(m){return {role:m.role,text:(m.text||"").slice(0,5000),at:m.at,testResult:m.testResult===true};}),
       dtcs:uniq(allCodes),
       tests:state.testResults.slice(-20),
       lastDiagnosis:state.currentDiagnosis?{
@@ -575,6 +728,8 @@
     state.createdAt=item.createdAt||now();
     state.vehicle=item.vehicleData||{};
     state.messages=(item.messages||[]).slice();
+    state.caseContext=item.caseContext?extendCaseContext(item.caseContext,""):recoverCaseContext(state.messages);
+    state.pendingQuestion=null;
     state.testResults=(item.tests||[]).slice();
     state.mediaAnalyses=(item.mediaAnalysis||[]).map(function(m){return Object.assign({status:"Análise recuperada do histórico"},m);});
     state.currentDiagnosis=null;state.activeTests=[];state.activeTestIndex=0;
@@ -593,6 +748,7 @@
   function startNewCase(){
     state.sessionId=newSessionId();state.createdAt=now();state.messages=[];state.mediaAnalyses=[];state.currentDiagnosis=null;
     state.activeTests=[];state.activeTestIndex=0;state.testResults=[];state.pendingQuestion=null;
+    state.caseContext=emptyCaseContext();
     $("messages").innerHTML='<article class="message bot welcome"><div class="message-avatar" aria-hidden="true"></div><div class="bubble"><strong>th<span class="ia">IA</span>guinho</strong><p>Novo diagnóstico. Me diga o sintoma, DTC ou mande a tela do scanner.</p></div></article>';
     renderMediaQueue();$("chatInput").focus();toast("Novo diagnóstico");
   }
@@ -626,6 +782,16 @@
     ["brand","model","year","engine","transmission","mileage"].forEach(function(k){$(k).value=v[k]||"";});
   }
 
+  function applyVehicle(v){
+    var different=["brand","model","engine"].some(function(key){
+      var oldValue=norm(state.vehicle[key]),newValue=norm(v[key]);
+      return oldValue&&newValue&&oldValue.indexOf(newValue)<0&&newValue.indexOf(oldValue)<0;
+    });
+    if(different&&state.messages.length){persistSession();startNewCase();}
+    state.vehicle=Object.assign({},v);
+    saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();
+  }
+
   function renderSavedVehicles(){
     var box=$("savedVehiclesList"); if(!box)return;
     var list=loadSavedVehicles();
@@ -637,7 +803,7 @@
     box.querySelectorAll("[data-use-vehicle]").forEach(function(btn){
       btn.addEventListener("click",function(){
         var v=loadSavedVehicles()[Number(btn.dataset.useVehicle)];
-        if(!v)return;fillVehicleForm(v);state.vehicle=Object.assign({},v);saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();toast("Veículo carregado");
+        if(!v)return;fillVehicleForm(v);applyVehicle(v);toast("Veículo carregado");
       });
     });
     box.querySelectorAll("[data-delete-vehicle]").forEach(function(btn){
@@ -693,8 +859,8 @@
     $("vehicleComposerBtn").addEventListener("click",open);
     $("saveVehicleBtn").addEventListener("click",function(e){
       e.preventDefault();
-      state.vehicle=vehicleFromForm();
-      saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();closeDialog($("vehicleDialog"));
+      applyVehicle(vehicleFromForm());
+      closeDialog($("vehicleDialog"));
       toast("Veículo aplicado");
       if(state.messages.length) persistSession();
       if(state.pendingQuestion){
@@ -703,6 +869,7 @@
       }
     });
     $("clearVehicleBtn").addEventListener("click",function(){
+      if(state.messages.length){persistSession();startNewCase();}
       state.vehicle={};saveJSON("thiaguinho_vehicle",state.vehicle);updateVehicleUI();fillVehicleForm({});
     });
     if($("saveVehicleProfileBtn")) $("saveVehicleProfileBtn").addEventListener("click",saveCurrentVehicleProfile);
