@@ -579,7 +579,13 @@
     if(data.confirmedCodeReminder){
       answer.explanation=codes.join(", ")+" já está confirmado."+(data.observations["misfire-plug-observation"]?" A vela segue registrada: "+data.observations["misfire-plug-observation"]+".":"");
       // Keep the current test and its controls; do not restart code confirmation.
-      if(answer.test){answer.briefTest=true;answer.question="O que falta agora é o resultado deste teste: "+answer.test.title.toLowerCase()+".";}
+      if(answer.test){
+        answer.briefTest=true;
+        if(/^misfire-(?:coil|plug)-P/.test(answer.test.id)){
+          var compared=/^misfire-plug-/.test(answer.test.id)?"vela":"bobina";
+          answer.question="Após trocar somente a "+compared+" de posição, a falha mudou de cilindro ou continuou no "+(answer.test.cylinder||cylinder)+"?";
+        }else answer.question="Qual foi o resultado de ‘"+answer.test.title+"’?";
+      }
     }
     answer.warning="Se a luz de injeção piscar, interrompa o teste para evitar dano ao catalisador.";
   }
@@ -593,10 +599,10 @@
       return;
     }
     if(!plug){
-      answer.explanation="Vela registrada: "+visual+". A inspeção visual não substitui o teste comparativo.";
+      answer.explanation="Vela registrada: "+visual+". Se já fez a comparação com outra vela, informe o resultado abaixo.";
       answer.awaiting="misfire-plug-result";
       answer.test={id:plugId,title:"Comparar a vela do cilindro "+cylinder,
-            procedure:"Motor desligado e frio: compare somente a vela do cilindro "+cylinder+" com a de um cilindro sem falha, da mesma especificação e sem dano. Siga a montagem e o torque do manual. Reproduza a falha e veja no scanner se ela acompanhou a vela.",
+            procedure:"Com o motor desligado e frio, troque de posição somente a vela do cilindro "+cylinder+" com a de um cilindro sem falha, da mesma especificação e sem dano. Siga a montagem e o torque do manual. Reproduza a falha e veja no scanner se ela acompanhou a vela.",
         good:"registrar se a falha acompanha a vela ou fica no cilindro "+cylinder,code:code,cylinder:cylinder,component:"plug",
         choices:[{value:"moved",label:"Mudou com a vela"},{value:"stayed",label:"Continuou no "+cylinder}]};
       if(/danific|trinc|quebrad/.test(norm(visual))){
