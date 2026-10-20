@@ -1341,3 +1341,24 @@ test('a pressure list and a zero reading stay numeric observations without a nor
   assert.deepEqual(Array.from(h.state.caseContext.compression.values), [180, 180, 180, 0]);
   assert.doesNotMatch(h.state.messages.at(-1).text, /motor normal|troque o injetor|mecânica está normal/);
 });
+
+test('Clio scanned numeric rows remain available throughout follow-up and reloading the case',async()=>{
+ const h=harness({brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M',transmission:'Manual'});
+ h.state.caseContext.visionRows=[
+   {id:'12',description:'Circuito do sensor de detonação',confirmed:false,origin:'ai_visual_unverified'},
+   {id:'08',description:'Circuito do sensor de pressão absoluta',confirmed:false,origin:'ai_visual_unverified'},
+   {id:'99',description:'Circuito da válvula de purga do cânister',confirmed:false,origin:'ai_visual_unverified'}
+ ];
+ const first=await say(h,'Motor falhando o tempo todo');
+ assert.match(first,/12 — Circuito do sensor de detonação/);
+ assert.doesNotMatch(first,/Qual código aparece no scanner/);
+ assert.ok(h.searches.some(x=>/sensor de detonação/i.test(x.query)));
+ const second=await say(h,'Presentes');
+ assert.equal(h.state.caseContext.scannerFaultStatus,'presentes');
+ assert.match(second,/scanner são presentes/);
+ const reopened=harness();
+ reopened.loadHistoryItem(JSON.parse(JSON.stringify(h.buildSessionPayload())));
+ await reopened.flush();
+ assert.equal(reopened.state.caseContext.visionRows.length,3);
+ assert.equal(reopened.state.caseContext.scannerFaultStatus,'presentes');
+});
