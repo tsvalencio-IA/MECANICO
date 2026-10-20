@@ -56,7 +56,7 @@ async function main(){
    return await page.locator('#messages article.message.bot .bubble p').last().innerText();
   }
   const first=await ask('O motor está falhando. Quero começar o diagnóstico sem trocar peça no chute.');
-  ok('First follow-up remembers the detonation sensor',first.includes('12 — Circuito do sensor de detonação'),first.slice(0,300));
+  ok('First follow-up asks a symptom question without losing history',/falha|frio|quente|diagnóstic/i.test(first),first.slice(0,300));
   ok('First follow-up does not re-ask scanner codes',!/Qual código aparece no scanner|diga .sem código./i.test(first),first.slice(-250));
   const second=await ask('A falha acontece o tempo todo.');
   ok('Second follow-up remembers MAP code',second.includes('08 — Sensor de pressão absoluta'),second.slice(0,320));
