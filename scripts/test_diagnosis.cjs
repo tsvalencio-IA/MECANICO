@@ -1387,6 +1387,8 @@ test('Gemini actual prose: Identificador scanner rows survive OCR mismatch, foll
   +'- Identificador 99 com a descrição "Circuito da válvula de purga do canister"\n'
   +'Essas múltiplas falhas podem ter causas independentes ou em comum.';
  const parsed=h.context.window.ORACLE_GEMINI.extractVisionRows(reply);
+ // Simulated browser global: preserve the parser but disable real cloud calls.
+ h.context.ORACLE_GEMINI={ready:async()=>false};
  assert.deepEqual(Array.from(parsed,x=>x.id),['12','08','13','99','99']);
  assert.equal(parsed.every(x=>x.confirmed===false),true);
  h.loadHistoryItem({
