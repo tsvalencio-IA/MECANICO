@@ -1502,6 +1502,24 @@
       appendDiagnosis(diag);
       recordMessage("bot",practicalAnswer(diag).text,{diagnosis:diag.ruleId,knowledgeHits:diag.remoteEvidence?diag.remoteEvidence.length:0});
       persistSession();
+      // Consented external analysis is supplementary; a failure cannot erase the local diagnosis.
+      if(window.ORACLE_AI){
+        try{
+          if(await ORACLE_AI.ready()&&ORACLE_AI.consent()){
+            var reply=await ORACLE_AI.diagnose({
+              question:text,vehicle:state.vehicle,history:state.messages.slice(-12),
+              tests:state.testResults.slice(-10),
+              mediaText:state.mediaAnalyses.map(function(m){return m.text||"";}).slice(-2).join("\n").slice(0,2400),
+              scannerRows:state.caseContext.scannerRows||[],
+              evidence:(diag.remoteEvidence||[]).slice(0,6)
+            });
+            if(state.sessionId===caseId&&state.requestSequence===requestId){
+              var note="Análise complementar por IA (confirme os testes):\n"+reply.answer;
+              appendTextMessage("bot",note);recordMessage("bot",note,{aiAssisted:true});persistSession();
+            }
+          }
+        }catch(error){console.warn("[IA externa] mantendo diagnóstico local",error);}
+      }
     },options.immediate?20:180);
   }
 
@@ -1865,6 +1883,27 @@
           var raw=document.createElement("p");raw.textContent=result.text.slice(0,240);reading.appendChild(raw);bubble.appendChild(reading);
         }
         recordMessage("bot",message,{mediaRead:true});persistSession();
+        if(scannerRows.length&&window.ORACLE_AI){
+          try{
+            if(await ORACLE_AI.ready()&&ORACLE_AI.consent()){
+              var lookups=window.ORACLE_REMOTE_KNOWLEDGE
+                ?await Promise.all([
+                  ORACLE_REMOTE_KNOWLEDGE.search("sensor detonação knock",state.vehicle,3),
+                  ORACLE_REMOTE_KNOWLEDGE.search("sensor pressão coletor MAP lambda canister",state.vehicle,3)
+                ]):[[],[]];
+              var aiReply=await ORACLE_AI.diagnose({
+                question:"Interprete o scanner sem transformar identificadores numéricos do equipamento em DTCs por suposição.",
+                vehicle:state.vehicle,mediaText:result.text,scannerRows:scannerRows,
+                evidence:lookups[0].concat(lookups[1]).slice(0,6),
+                history:state.messages.slice(-10),tests:state.testResults.slice(-10)
+              });
+              if(state.mediaAnalyses[idx]&&state.mediaAnalyses[idx].text===result.text){
+                var note="Análise complementar por IA (confirme os dados):\n"+aiReply.answer;
+                appendTextMessage("bot",note);recordMessage("bot",note,{aiAssisted:true});persistSession();
+              }
+            }
+          }catch(error){console.warn("[Scanner IA] leitura local preservada",error);}
+        }
       }
 
     }catch(err){
