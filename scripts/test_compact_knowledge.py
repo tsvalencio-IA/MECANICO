@@ -173,6 +173,34 @@ class CompactKnowledgeTests(unittest.TestCase):
         self.assertIn("Invalid record", result.stderr)
         self.assertEqual(self.snapshot(), snapshot)
 
+
+    def test_focused_windows_recover_component_after_preview_without_changing_source(self):
+        full = ("introductory material " * 200) + (
+            "Renault Clio 2003 motor K4M circuito do sensor de detonação: "
+            "verificar conexões e comparar com esquema de injeção correspondente."
+        )
+        self.write_source([
+            {"path":"Renault/Clio_2003_K4M.pdf","page":34,"chunk":2,
+             "text":full,"method":"pdf_text","truth_status":"source_extracted",
+             "confidence":0.99,"sha256":"f"*64},
+            {"path":"Renault/Clio_1999_K7M.pdf","page":8,
+             "text":"Circuito do sensor de detonação K7M",
+             "method":"ocr","truth_status":"ocr_unverified",
+             "sha256":"c"*64},
+        ])
+        self.build()
+        found=self.load("focus/detonacao.json")
+        self.assertEqual(len(found),2)
+        self.assertEqual(found[0]["path"],"Renault/Clio_2003_K4M.pdf")
+        self.assertEqual(found[0]["page"],34)
+        self.assertEqual(found[0]["truth_status"],"source_extracted")
+        self.assertEqual(found[0]["sha256"],"f"*64)
+        self.assertIn("sensor de detonação",found[0]["snippet"])
+        self.assertNotIn("sensor de detonação",self.record(0)["text"])
+        self.assertEqual(self.load("manifest.json")["focused_topics"]["detonacao"],2)
+        # The less reliable page is still explicitly labelled unverified.
+        self.assertEqual(found[1]["truth_status"],"ocr_unverified")
+
     def test_empty_corpus_clears_previous_index(self):
         self.write_source([{"path": "old.txt", "text": "P0301 sensor"}])
         self.build()
