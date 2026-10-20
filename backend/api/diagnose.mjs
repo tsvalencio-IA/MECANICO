@@ -82,7 +82,8 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Vary", "Origin");
   if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return; }
-  const active = !!(process.env.GROQ_API_KEY || process.env.VERCEL_OIDC_TOKEN || process.env.AI_GATEWAY_API_KEY);
+  const oidc = clean(req.headers["x-vercel-oidc-token"] || process.env.VERCEL_OIDC_TOKEN || "",4096);
+  const active = !!(process.env.GROQ_API_KEY || oidc || process.env.AI_GATEWAY_API_KEY);
   if (req.method === "GET") return json(res,200,{service:"mecanico-ia",ready:active,mode:active?"gateway":"not-configured",version:"1.0"});
   if (req.method !== "POST") return json(res,405,{error:"method-not-allowed"});
   if (req.headers.origin !== ORIGIN) return json(res,403,{error:"origin-not-allowed"});
@@ -103,7 +104,7 @@ export default async function handler(req, res) {
     return json(res,422,{error:"missing-diagnostic-data"});
   const apiKey = process.env.GROQ_API_KEY || "";
   const useGroq = !!apiKey;
-  const token = apiKey || process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const token = apiKey || process.env.AI_GATEWAY_API_KEY || oidc;
   const endpoint = useGroq
     ? "https://api.groq.com/openai/v1/chat/completions"
     : "https://ai-gateway.vercel.sh/v1/chat/completions";
