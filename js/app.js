@@ -1518,12 +1518,20 @@
               [diag.context.engine,row.description].filter(Boolean).join(" ").slice(0,220),diag.context,3
             );});
             var portions=await Promise.all(searches);
-            var seenPaths=new Set();
-            diag.remoteEvidence=[].concat.apply([],portions).filter(function(item){
-              var key=[item.sourcePath,item.page,item.snippet].join("|");
-              if(!item.sourcePath||!item.snippet||seenPaths.has(key))return false;
-              seenPaths.add(key);return true;
-            }).slice(0,5);
+            var seenPaths=new Set(),balanced=[];
+            // Select one reference from each identified circuit first.
+            // Otherwise three detonation excerpts could crowd out the MAP,
+            // lambda and purge-valve circuits in the five-source budget.
+            for(var rank=0;rank<3&&balanced.length<5;rank++){
+              for(var group=0;group<portions.length&&balanced.length<5;group++){
+                var item=portions[group][rank];
+                if(!item||!item.sourcePath||!item.snippet)continue;
+                var key=[item.sourcePath,item.page,item.snippet].join("|");
+                if(seenPaths.has(key))continue;
+                seenPaths.add(key);balanced.push(item);
+              }
+            }
+            diag.remoteEvidence=balanced;
           }else diag.remoteEvidence=await ORACLE_REMOTE_KNOWLEDGE.search(query,diag.context,2);
         }catch(err){console.warn("[Knowledge search]",err);}
       }
@@ -1549,7 +1557,11 @@
               var entries=(diag.remoteEvidence||[]).slice(0,5);
               var audit=entries.length
                 ?"Trechos do acervo encaminhados à IA (não equivalem a diagnóstico confirmado): "+entries.map(function(e,i){
-                    return "F"+(i+1)+": "+e.sourcePath+(e.page?" · p. "+e.page:"")+" ["+(e.truthStatus||"extração não classificada")+"]";
+                    var scope=e.compatibility||{};
+                    var application=scope.model==="matched"&&scope.year==="matched"&&scope.engine==="matched"
+                      ?"modelo/ano/motor identificados"
+                      :"aplicação incompleta — NÃO confirmar ano/motor por esta fonte";
+                    return "F"+(i+1)+": "+e.sourcePath+(e.page?" · p. "+e.page:"")+" ["+(e.truthStatus||"extração não classificada")+"; "+application+"]";
                   }).join("; ")+"."
                 :"Consulta ao acervo: nenhuma referência compatível foi recuperada nesta busca. Não há fonte técnica específica confirmada para esta resposta.";
               var guidance="Análise Gemini gratuita (conferir evidências):\n"+geminiReply.answer+"\n\n"+audit;
