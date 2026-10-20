@@ -53,7 +53,7 @@ async function main(){
    await page.locator('#chatInput').press('Enter');
    await page.waitForFunction(previous=>{
      const nodes=Array.from(document.querySelectorAll('#messages article.message'));
-     const pending=nodes.some(node=>node.innerText.trim()==='Consultando a base técnica interna');
+     const pending=nodes.some(node=>(node.textContent||'').includes('Consultando a base técnica interna'));
      return nodes.length>previous+1&&!pending;
    },n,{timeout:35000});
    await page.waitForTimeout(150);
