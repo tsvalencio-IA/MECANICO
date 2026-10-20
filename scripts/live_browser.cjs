@@ -51,8 +51,12 @@ async function main(){
    const n=await page.locator('#messages article.message').count();
    await page.locator('#chatInput').fill(text);
    await page.locator('#chatInput').press('Enter');
-   await page.waitForFunction(previous=>document.querySelectorAll('#messages article.message').length>previous+1,n,{timeout:24000});
-   await page.waitForTimeout(1500);
+   await page.waitForFunction(previous=>{
+     const nodes=Array.from(document.querySelectorAll('#messages article.message'));
+     const pending=nodes.some(node=>node.innerText.trim()==='Consultando a base técnica interna');
+     return nodes.length>previous+1&&!pending;
+   },n,{timeout:35000});
+   await page.waitForTimeout(150);
    return await page.locator('#messages article.message.bot .bubble p').last().innerText();
   }
   const first=await ask('O motor está falhando. Quero começar o diagnóstico sem trocar peça no chute.');
