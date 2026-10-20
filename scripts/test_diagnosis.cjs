@@ -1455,3 +1455,48 @@ test('after a synthetic scanner photo, the actual recognized rows drive knowledg
  assert.ok(h.state.messages.some(m=>/Consulta ao acervo após identificar os circuitos:/.test(m.text||'')));
  assert.equal(h.state.caseContext.dtcs.length,0);
 });
+
+test('real Clio dialog: canister harness break and completed services shift investigation to persistent idle stall',async()=>{
+ const h=harness({brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M',transmission:'Manual'});
+ vm.runInContext(read('js/ai-gemini.js'),h.context);
+ const vision='Leitura e orientação por Gemini gratuito (imagem original; conferir):\n'
+  +'Com base na fotografia original do scanner, observam-se os seguintes identificadores e descrições textuais exibidos na tela, '
+  +'mantendo cada linha separada: linha 12 com "Circuito do sensor de detonação", '
+  +'linha 08 com "Sensor de pressão absoluta do coletor do circuito", '
+  +'linha 13 com "Circuito do sensor de Lambda Sensor dianteiro com defeito", '
+  +'linha 99 com "Circuito da válvula de purga do canister Circuito de controle aberto" '
+  +'e linha 99 com "Circuito da válvula de purga do canister". A base não recuperou referência compatível.';
+ const parsed=h.context.window.ORACLE_GEMINI.extractVisionRows(vision);
+ assert.deepEqual(Array.from(parsed,r=>r.id),['12','08','13','99','99']);
+ h.state.messages.push({role:'bot',text:vision,at:'2026-10-20T15:00:00Z'});
+ const damaged=await say(h,'O CHICOTE DO CANISTER ESTAVA QUEBRADO');
+ assert.match(damaged,/chicote.*quebrad|chicote.*reparado/i);
+ assert.equal(h.state.caseContext.canisterHarnessDamage,'relatado');
+ assert.equal(h.state.caseContext.canisterHarnessRepaired,'');
+ assert.deepEqual(Array.from(h.state.caseContext.visionRows,r=>r.id),['12','08','13','99','99']);
+ const idle=await say(h,'TROCAMOS VELA,,BOBINA, FIZEMOS LIMPEZA DE BICOS, E LIMPEZA DE TBI.. ELE MELHOROU MAS NAO PARA EM MARCHA LENTA');
+ assert.equal(h.state.caseContext.idleComplaint,true);
+ assert.equal(h.state.caseContext.improvedAfterService,true);
+ assert.deepEqual(Array.from(h.state.caseContext.serviceLog,r=>r.component).sort(),
+    ['velas','bobina','limpeza de bicos','limpeza de TBI'].sort());
+ assert.match(idle,/marcha lenta/i);
+ assert.match(idle,/pedal|acelerador/i);
+ assert.doesNotMatch(idle,/Manipulação monitorada|Comece por este teste e me diga o resultado/i);
+ assert.doesNotMatch(idle,/chicote do cânister já foi reparado|trocar bobina/i);
+ assert.equal(h.state.caseContext.canisterHarnessRepaired,'');
+ const pedal=await say(h,'Com o pedal pressionado ele fica ligado.');
+ assert.match(pedal,/admissão|mangueira/i);
+ assert.match(pedal,/motor desligado/i);
+ assert.doesNotMatch(pedal,/Manipulação monitorada/i);
+ const inspected=await say(h,'Conferimos as mangueiras e dutos de admissão, sem vazamento, tudo normal.');
+ assert.match(inspected,/scanner|rotação|borboleta/i);
+ assert.doesNotMatch(inspected,/Manipulação monitorada/i);
+ const old=h.buildSessionPayload();
+ const restored=harness();
+ vm.runInContext(read('js/ai-gemini.js'),restored.context);
+ restored.loadHistoryItem(JSON.parse(JSON.stringify(old)));
+ await restored.flush();
+ assert.equal(restored.state.caseContext.idleComplaint,true);
+ assert.equal(restored.state.caseContext.visionRows.length,5);
+ assert.equal(restored.state.caseContext.serviceLog.length,4);
+});
