@@ -1,0 +1,36 @@
+name: Live browser Clio test
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/test_live_browser.cjs'
+      - '.github/workflows/test-live-browser.yml'
+      - 'js/app.js'
+      - 'js/ai-gemini.js'
+      - 'js/knowledge-remote.js'
+      - 'app-v134.html'
+permissions:
+  contents: read
+jobs:
+  live-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Chrome and Playwright
+        run: |
+          command -v google-chrome
+          npm install --no-audit --no-fund --prefix /tmp/mecanico-browser playwright-core@1.56.1
+      - name: Exercise published app with isolated Clio history
+        env:
+          NODE_PATH: /tmp/mecanico-browser/node_modules
+          CHROME_BIN: /usr/bin/google-chrome
+        run: node scripts/test_live_browser.cjs
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clio-live-browser-evidence
+          path: artifacts/
+          retention-days: 7
