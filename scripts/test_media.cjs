@@ -96,7 +96,7 @@ test('switching from video to photo does not keep the previous picker type', () 
 test('numeric PDL5500 scanner rows are preserved without inventing P/DF codes', () => {
   const w = {};
   vm.runInNewContext(fs.readFileSync(path.join(root, 'js/media.js'), 'utf8'), {window:w});
-  const source = '2003 Renault Clio II 1.6 K4M\\n12 Circuito do sensor de detonação\\n08 Sensor de pressão absoluta do coletor do circuito\\n13 Circuito do sensor de Lambda dianteiro com defeito\\n99 Circuito da válvula de purga do cânister Circuito de controle aberto\\n99 Circuito da válvula de purga do cânister';
+  const source = '2003 Renault Clio II 1.6 K4M\n12 Circuito do sensor de detonação\n08 Sensor de pressão absoluta do coletor do circuito\n13 Circuito do sensor de Lambda dianteiro com defeito\n99 Circuito da válvula de purga do cânister Circuito de controle aberto\n99 Circuito da válvula de purga do cânister';
   const rows = w.ORACLE_MEDIA.scannerRows(source);
   assert.deepEqual(Array.from(rows, x => x.id), ['12','08','13','99','99']);
   assert.match(rows[0].description, /detonação/);
