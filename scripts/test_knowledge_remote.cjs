@@ -277,3 +277,29 @@ test('focused OCR evidence keeps its unverified label, never becomes authoritati
  assert.match(r[0].statusLabel,/OCR/);
  assert.equal(r[0].sourceSha256,'ocr-source');
 });
+
+test('a table-of-contents page cannot masquerade as a Clio MAP diagnostic procedure',async()=>{
+ const vehicle={brand:'Renault',model:'Clio',year:'2003',engine:'1.6 K4M'};
+ const fake={
+  id:45,path:'Treinamento/Oficina/INJECAO/ind12.htm',page:null,
+  snippet:'Índice Megane 1.4: esquema elétrico do Clio. 10)- Como testar sensor de Pressão Absoluta (MAP).',
+  truth_status:'source_extracted',method:'html_text'
+ };
+ const h=harness({focus:{map:[fake]},records:{45:record(45,fake.snippet,{path:fake.path})},
+   terms:{clio:[45],sensor:[45],pressao:[45],map:[45]}});
+ const out=await h.api.search('sensor de pressão absoluta MAP',vehicle);
+ assert.equal(out.length,0);
+ assert.ok(h.calls.includes('focus/map.json'));
+});
+test('a genuine Clio MAP procedure is not excluded by the table-of-contents filter',async()=>{
+ const vehicle={brand:'Renault',model:'Clio',year:'2003',engine:'1.6 K4M'};
+ const snippet='Renault Clio 2003 K4M: sensor de pressão absoluta MAP. Inspecionar o chicote e conector antes de trocar peças.';
+ const source={id:45,path:'Renault/Clio_2003_K4M/procedimento-map.pdf',
+   page:8,chunk:1,snippet,truth_status:'source_extracted',method:'pdf_text',sha256:'real-src'};
+ const h=harness({focus:{map:[source]}});
+ const hits=await h.api.search('sensor MAP pressão absoluta',vehicle);
+ assert.equal(hits.length,1);
+ assert.equal(hits[0].sourceSha256,'real-src');
+ assert.equal(hits[0].compatibility.model,'matched');
+ assert.match(hits[0].snippet,/Inspecionar o chicote/);
+});
