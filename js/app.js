@@ -182,7 +182,7 @@
       observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
       startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:"",
       lastInputKind:"",confirmedCodeReminder:false,coilAppearance:null,engineCode:"",engineIdentificationUnavailable:false,repairVerified:false,
-      componentRepair:"",noCodesReported:false,fuelType:"",interventions:[],noCodeScannerDataUnavailable:false,visionRows:[],scannerFaultStatus:"",compression:null,startingBattery:null,starterConnections:"",noStartReference:null,noStartFeedback:"",factVersion:1,continuityVersion:2};
+      componentRepair:"",noCodesReported:false,fuelType:"",interventions:[],noCodeScannerDataUnavailable:false,visionRows:[],scannerFaultStatus:"",compression:null,startingBattery:null,starterConnections:"",noStartReference:null,noStartFeedback:"",factVersion:1,continuityVersion:2,idleComplaint:false,idlePedalStatus:"",idleAirInspection:"",canisterHarnessDamage:"",canisterHarnessRepaired:"",improvedAfterService:false,serviceLog:[]};
   }
 
   function plugObservation(text,allowBare){
@@ -194,6 +194,47 @@
   }
 
   // Preserve reported fuel and workshop services without treating hypothetical work as performed.
+
+  // Preserve chronological *mechanic-reported* facts. They are not verified
+  // measurements and do not imply a broken harness was subsequently repaired.
+  function captureCurrentWorkshopFacts(c,text){
+    var q=norm(text),oldIdle=!!c.idleComplaint;
+    var uncertain=/\b(?:se eu|se fosse|seria|poderia|deveria|talvez|sera que)\b/.test(q);
+    if(/\b(?:chicote|fio|fiacao)\b/.test(q)&&/\bcanist(?:er|ro)?\b/.test(q)){
+      if(/\b(?:quebrad|rompid|partid|cortad|danific)/.test(q))c.canisterHarnessDamage="relatado";
+      if(!uncertain&&/\b(?:reparamos|reparei|consertamos|consertei|refizemos|emendamos)\b/.test(q))
+        c.canisterHarnessRepaired="reparo relatado; funcionamento não verificado";
+    }
+    var made=!uncertain&&/\b(?:trocamos|troquei|substituimos|substitui|colocamos|instalamos|fizemos|efetuamos|limpamos|limpei|realizamos)\b/.test(q);
+    function add(item,pattern){
+      if(made&&pattern.test(q)&&!c.serviceLog.some(function(x){return x.component===item;}))
+        c.serviceLog.push({component:item,status:"executado segundo relato; resultado não medido"});
+    }
+    add("velas",/\bvelas?\b/);
+    add("bobina",/\bbobinas?\b/);
+    add("limpeza de bicos",/\b(?:limpeza|limpamos|limpei)\b.{0,35}\b(?:bicos?|injetores?)\b/);
+    add("limpeza de TBI",/\b(?:limpeza|limpamos|limpei)\b.{0,35}\b(?:tbi|borboleta|corpo de borboleta)\b/);
+    if(/\b(?:melhorou|melhoria|melhora)\b/.test(q)&&!uncertain)c.improvedAfterService=true;
+    if(/\b(?:marcha lenta)\b/.test(q)&&/\b(?:nao (?:para|segura|fica|mantem|sustenta)|morre|apaga|apagando|oscil|irregular|cai|caindo|instavel)\b/.test(q)
+       ||/\b(?:apaga|morre)\b.{0,35}\b(?:lenta|sem acelerar|solto o acelerador)\b/.test(q)){
+      c.idleComplaint=true;
+    }
+    if(!oldIdle&&c.idleComplaint){
+      c.flowVersion=(c.flowVersion||0)+1;c.awaiting="";
+    }
+    if(c.idleComplaint){
+      if(/\b(?:so|somente|apenas)\b.{0,35}\b(?:acelerad|pedal)\b|\b(?:fica|mantem|continua|permanece)\b.{0,30}\b(?:acelerando|acelerador pressionado)\b/.test(q)
+         &&!/\b(?:nem|nao)\b.{0,25}\b(?:acelerando|acelerador pressionado)\b/.test(q))c.idlePedalStatus="mantém com pedal — relato";
+      else if(/\b(?:nem acelerando|mesmo acelerando|mesmo com o pedal|com pedal pressionado apaga)\b/.test(q))
+        c.idlePedalStatus="apaga mesmo acelerando — relato";
+      if(/\b(?:mangueiras?|dutos?|admissao|entrada falsa de ar|tomada de ar|vedacao)\b/.test(q)
+         &&/\b(?:verificamos|conferimos|inspecionamos|testamos|achei|encontrei|sem vazamento|normal|furada|solta)\b/.test(q)){
+        c.idleAirInspection=/\b(?:solt|furad|vazamento|rachad|rompid)\b/.test(q)?"anomalia relatada":"inspeção sem anomalia relatada";
+      }
+    }
+    c.serviceLog=c.serviceLog.slice(-14);
+  }
+
   function captureWorkshopFacts(c,text){
     var parts=norm(text).split(/[,;]|\s+e\s+(?=(?:as?|os?)?\s*(?:velas?|bicos?|injetores?|cabos?))/);
     parts.forEach(function(part){
@@ -425,7 +466,7 @@
   // Bot questions and suggested codes must never become diagnostic evidence.
   function extendCaseContext(previous,text){
     var c=Object.assign(emptyCaseContext(),previous||{});
-    c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();c.interventions=(c.interventions||[]).slice();c.visionRows=(c.visionRows||[]).slice();
+    c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();c.interventions=(c.interventions||[]).slice();c.visionRows=(c.visionRows||[]).slice();c.serviceLog=(c.serviceLog||[]).slice();
     c.observedCylinders=(c.observedCylinders||[]).slice();
     c.vehicleDetails=Object.assign({},c.vehicleDetails||{});
     c.observations=Object.assign({},c.observations||{});
@@ -481,6 +522,7 @@
       }
     }
     if(c.symptom==="misfire")captureWorkshopFacts(c,text);
+    captureCurrentWorkshopFacts(c,text);
     if(c.visionRows.length){
       if(/^(?:presente|presentes|ativa|ativas|ativo|ativos|estao presentes|estao ativos)[.! ]*$/.test(q)||/\bfalhas? (?:presentes?|ativas?)\b/.test(q))c.scannerFaultStatus="presentes";
       else if(/^(?:memorizado|memorizados|historico|armazenado|armazenados|passado|passados)[.! ]*$/.test(q)||/\bfalhas? (?:memorizadas?|armazenadas?)\b/.test(q))c.scannerFaultStatus="memorizados";
