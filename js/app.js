@@ -1206,7 +1206,38 @@
     var vehicleKnown=!!(c.model&&c.engine);
     var noStart=data.symptom==="no-start";
     var shortCode=String(c.question).toUpperCase().match(/\b[PBCU]\d{3}\b/);
-    if(noStart){
+    if(data.idleComplaint&&!noStart){
+      answer.lead="Motor não sustenta marcha lenta — sintoma atual";
+      var services=(data.serviceLog||[]).map(function(row){return row.component;});
+      answer.explanation="Relato: o veículo melhorou após intervenções, porém ainda não mantém a marcha lenta. "+
+        (services.length?"Serviços informados: "+services.join(", ")+". ":"")+
+        (data.canisterHarnessDamage?"Chicote do cânister danificado segundo o mecânico; "+
+          (data.canisterHarnessRepaired?"reparo informado, eficácia não verificada. ":"não foi confirmado que já foi reparado. "):"")+
+        "A melhora não prova que o defeito foi resolvido, nem autoriza condenar TBI, sensor ou central.";
+      if(!data.idlePedalStatus){
+        answer.awaiting="idle-pedal-observation";
+        answer.question="Com o motor funcionando e o acelerador levemente pressionado, ele permanece ligado ou apaga mesmo assim? Faça somente se for seguro, com o veículo parado, em local ventilado.";
+      }else if(!data.idleAirInspection){
+        answer.awaiting="idle-intake-inspection";
+        answer.explanation+=" Você relatou: "+data.idlePedalStatus+".";
+        answer.test={
+          id:"idle-intake-visual",title:"Inspeção visual da admissão e EVAP",
+          procedure:"Motor desligado: conferir encaixe do duto após a limpeza da TBI, mangueiras do coletor, mangueira e conexões da purga do cânister e conectores acessíveis. Não desconectar ECU nem energizar circuitos.",
+          good:"mangueiras, conectores e duto bem encaixados, sem danos aparentes"
+        };
+        answer.question="Encontrou alguma mangueira solta, rachada, entrada falsa de ar visível ou conector danificado? Informe o que foi inspecionado.";
+      }else{
+        answer.awaiting="idle-live-scanner-data";
+        answer.explanation+=" Inspeção visual: "+data.idleAirInspection+".";
+        answer.question="No scanner, com o motor nas condições em que apaga, quais leituras de rotação e posição da borboleta aparecem? Há algum erro atual da válvula de purga, MAP ou adaptação de marcha lenta? Não presuma valores ou procedimentos de outro sistema.";
+      }
+    }else if(data.canisterHarnessDamage&&!data.idleComplaint&&!noStart&&
+      !data.canisterHarnessRepaired){
+      answer.lead="Circuito do cânister — dano no chicote relatado";
+      answer.explanation="O chicote estava quebrado segundo seu relato. Isso pode explicar o registro elétrico da purga, mas não prova causa comum para MAP, lambda e detonação.";
+      answer.question="O fio ou conector do cânister já foi reparado e o defeito voltou após apagar os registros? Se ainda está rompido, primeiro é necessário corrigir e testar a integridade desse circuito sem presumir a pinagem da ECU.";
+      answer.awaiting="canister-repair-status";
+    }else if(noStart){
       noStartStep(diag,answer);
     }else if(data.candidateCode&&(shortCode||!data.symptom||data.temperature)){
       answer.awaiting="code-confirmation";
