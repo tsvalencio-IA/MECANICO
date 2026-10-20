@@ -1459,6 +1459,7 @@ test('after a synthetic scanner photo, the actual recognized rows drive knowledg
 test('real Clio dialog: canister harness break and completed services shift investigation to persistent idle stall',async()=>{
  const h=harness({brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M',transmission:'Manual'});
  vm.runInContext(read('js/ai-gemini.js'),h.context);
+ h.context.ORACLE_GEMINI={ready:async()=>false}; // Parser remains on window; no cloud requests in deterministic test.
  const vision='Leitura e orientação por Gemini gratuito (imagem original; conferir):\n'
   +'Com base na fotografia original do scanner, observam-se os seguintes identificadores e descrições textuais exibidos na tela, '
   +'mantendo cada linha separada: linha 12 com "Circuito do sensor de detonação", '
