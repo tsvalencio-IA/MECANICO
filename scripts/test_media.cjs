@@ -101,7 +101,7 @@ test('numeric PDL5500 scanner rows are preserved without inventing P/DF codes', 
   assert.deepEqual(Array.from(rows, x => x.id), ['12','08','13','99','99']);
   assert.match(rows[0].description, /detonação/);
   assert.match(rows[3].description, /controle aberto/);
-  assert.deepEqual(w.ORACLE_MEDIA.detectCodes(source),[]);
+  assert.deepEqual(Array.from(w.ORACLE_MEDIA.detectCodes(source)),[]);
   assert.ok(rows.every(x=>x.verified===false));
 });
 
