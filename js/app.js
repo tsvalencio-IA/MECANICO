@@ -223,7 +223,7 @@
       c.flowVersion=(c.flowVersion||0)+1;c.awaiting="";
     }
     if(c.idleComplaint){
-      if(/\b(?:so|somente|apenas)\b.{0,35}\b(?:acelerad|pedal)\b|\b(?:fica|mantem|continua|permanece)\b.{0,30}\b(?:acelerando|acelerador pressionado)\b/.test(q)
+      if(/\b(?:so|somente|apenas)\b.{0,35}\b(?:acelerad|pedal)\b|\b(?:fica|mantem|continua|permanece)\b.{0,30}\b(?:acelerando|acelerador pressionado)\b|\b(?:pedal|acelerador) pressionado\b.{0,35}\b(?:fica|mantem|continua|permanece)\b|\bsegurando (?:o )?acelerador\b.{0,35}\b(?:fica|mantem|continua|permanece)\b/.test(q)
          &&!/\b(?:nem|nao)\b.{0,25}\b(?:acelerando|acelerador pressionado)\b/.test(q))c.idlePedalStatus="mantém com pedal — relato";
       else if(/\b(?:nem acelerando|mesmo acelerando|mesmo com o pedal|com pedal pressionado apaga)\b/.test(q))
         c.idlePedalStatus="apaga mesmo acelerando — relato";
