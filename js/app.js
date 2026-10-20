@@ -1672,12 +1672,12 @@
     state.caseContext=item.caseContext?extendCaseContext(item.caseContext,""):recoverCaseContext(state.messages);
     // Previous builds stored Gemini's readable scanner results as a bot message.
     // Recover only explicitly labelled visual reports; never promote OCR or hypotheses.
-    if(!(state.caseContext.visionRows||[]).length&&window.ORACLE_GEMINI&&ORACLE_GEMINI.extractVisionRows){
+    if(!(state.caseContext.visionRows||[]).length&&window.ORACLE_GEMINI&&window.ORACLE_GEMINI.extractVisionRows){
       var oldVisual=state.messages.filter(function(m){
         return m.role==="bot"&&/^Leitura e orientação por Gemini gratuito \(imagem original; conferir\):/.test(m.text||"");
       }).slice(-1)[0];
       if(oldVisual){
-        var recoveredVisual=ORACLE_GEMINI.extractVisionRows(oldVisual.text||"");
+        var recoveredVisual=window.ORACLE_GEMINI.extractVisionRows(oldVisual.text||"");
         if(recoveredVisual.length)state.caseContext.visionRows=recoveredVisual;
       }
     }
