@@ -103,18 +103,22 @@
   }
 
   async function imageForRemoteVision(file){
-    var canvas=await imageToCanvas(file);
-    var maxWidth=1450,maxHeight=1100;
-    if(canvas.width>maxWidth||canvas.height>maxHeight){
-      var factor=Math.min(maxWidth/canvas.width,maxHeight/canvas.height);
-      var resized=makeCanvas(canvas.width*factor,canvas.height*factor);
-      resized.getContext("2d").drawImage(canvas,0,0,resized.width,resized.height);
-      canvas=resized;
-    }
-    var payload=canvas.toDataURL("image/jpeg",.72);
-    if(payload.length>1450000) payload=canvas.toDataURL("image/jpeg",.48);
-    if(payload.length>1450000)throw new Error("Foto grande demais para análise remota");
-    return payload;
+    // Preserve actual colors/details for the visual model; OCR enhancement is separate.
+    var url=URL.createObjectURL(file);
+    try{
+      var img=new Image();
+      await new Promise(function(resolve,reject){
+        img.onload=resolve;img.onerror=function(){reject(new Error("Imagem inválida"));};img.src=url;
+      });
+      var w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+      var factor=Math.min(1,1450/w,1100/h);
+      var canvas=makeCanvas(w*factor,h*factor);
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      var payload=canvas.toDataURL("image/jpeg",.72);
+      if(payload.length>1450000)payload=canvas.toDataURL("image/jpeg",.48);
+      if(payload.length>1450000)throw new Error("Foto grande demais para análise remota");
+      return payload;
+    }finally{URL.revokeObjectURL(url);}
   }
 
   async function analyzeImage(file,onProgress){

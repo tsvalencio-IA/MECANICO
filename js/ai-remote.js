@@ -35,7 +35,8 @@ async function diagnose(payload){
  var r=await fetch(ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},body:JSON.stringify(payload),signal:AbortSignal.timeout(25000)});
  if(!r.ok){
   var info={};try{info=await r.json();}catch(e){}
-  var code=String(info.error||"erro-de-rede").slice(0,80);
+  var code=String(info.upstreamCode||info.error||"erro-de-rede").slice(0,80);
+  if(code==="customer_verification_required")throw Error("O Vercel exige verificação de pagamento para liberar a IA (HTTP 403)");
   throw Error("Serviço IA: "+code+" (HTTP "+r.status+").");
  }
  var data=await r.json();
