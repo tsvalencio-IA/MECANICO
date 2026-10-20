@@ -40,7 +40,7 @@
   // Only unambiguous numeric scanner IDs may be considered candidates; never derive a P/DF mapping.
   function scannerRowsWithConfidence(text){
     return scannerRows(text).map(function(row){
-      var valid=/^\\d{2,3}$/.test(row.id)&&row.description.length>=20;
+      var valid=/^\d{2,3}$/.test(row.id)&&row.description.length>=20;
       return Object.assign({},row,{confidence:valid?"partial":"low"});
     });
   }
