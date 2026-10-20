@@ -1502,26 +1502,24 @@
       appendDiagnosis(diag);
       recordMessage("bot",practicalAnswer(diag).text,{diagnosis:diag.ruleId,knowledgeHits:diag.remoteEvidence?diag.remoteEvidence.length:0});
       persistSession();
-      // Consented external analysis is supplementary; a failure cannot erase the local diagnosis.
+      // Optional local Chrome AI augments the existing deterministic diagnosis, without cloud billing.
       if(window.ORACLE_AI){
         try{
-          if(await ORACLE_AI.ready()&&ORACLE_AI.consent()){
-            var reply=await ORACLE_AI.diagnose({
-              question:text,vehicle:state.vehicle,history:state.messages.slice(-12),
-              tests:state.testResults.slice(-10),
-              mediaText:state.mediaAnalyses.map(function(m){return m.text||"";}).slice(-2).join("\n").slice(0,2400),
-              scannerRows:state.caseContext.scannerRows||[],
-              evidence:(diag.remoteEvidence||[]).slice(0,6)
-            });
-            if(state.sessionId===caseId&&state.requestSequence===requestId){
-              var note="Análise complementar por IA (confirme os testes):\n"+reply.answer;
-              appendTextMessage("bot",note);recordMessage("bot",note,{aiAssisted:true});persistSession();
-            }
+          var localAnswer=await ORACLE_AI.analyze({
+            question:text,vehicle:state.vehicle,history:state.messages.slice(-12),
+            tests:state.testResults.slice(-10),
+            mediaText:state.mediaAnalyses.map(function(m){return m.text||"";}).slice(-2).join("\n").slice(0,1400),
+            scannerRows:state.caseContext.scannerRows||[],
+            evidence:(diag.remoteEvidence||[]).slice(0,3)
+          });
+          if(state.sessionId===caseId&&state.requestSequence===requestId&&localAnswer.available){
+            var localNote="IA local gratuita (conferir testes):\n"+localAnswer.answer+(localAnswer.translationAvailable?"":"\nTradução automática para português não disponível neste dispositivo.");
+            appendTextMessage("bot",localNote);
+            recordMessage("bot",localNote,{aiAssisted:true,aiMode:"on-device",knowledgeHits:localAnswer.sourceCount});
+            persistSession();
           }
         }catch(error){
-          console.warn("[IA externa] mantendo diagnóstico local",error);
-          var warning="A análise complementar por IA não foi concluída: "+String(error.message||"erro técnico")+". O diagnóstico local continua disponível.";
-          appendTextMessage("bot",warning);recordMessage("bot",warning,{aiError:true});persistSession();
+          console.warn("[IA local] mantendo diagnóstico técnico",error);
         }
       }
     },options.immediate?20:180);
@@ -1887,49 +1885,45 @@
           var raw=document.createElement("p");raw.textContent=result.text.slice(0,240);reading.appendChild(raw);bubble.appendChild(reading);
         }
         recordMessage("bot",message,{mediaRead:true});persistSession();
-        // External vision is a separate opt-in; the photograph is never persisted in the case.
+        // Local multimodal analysis sees original file only if Chrome supports it.
         if(file.type&&file.type.indexOf("image/")===0&&window.ORACLE_AI){
-          var waiting=null;
+          var pending=null;
           try{
-            if(await ORACLE_AI.ready()&&ORACLE_AI.consent()){
-              waiting=appendTextMessage("bot","Consultando a IA técnica; a leitura local continua disponível.");
-              var imageDataUrl="";
-              if(ORACLE_AI.consentImage())imageDataUrl=await ORACLE_MEDIA.imageForRemoteVision(file);
-              var references=[];
+            var localState=await ORACLE_AI.availability(true);
+            var textualState=localState==="unavailable"?await ORACLE_AI.availability(false):localState;
+            if(textualState!=="unavailable"){
+              pending=appendTextMessage("bot","Analisando a imagem com a IA local gratuita do navegador...");
+              var refs=[];
               if(window.ORACLE_REMOTE_KNOWLEDGE){
-                try{
-                  references=await Promise.race([
-                    Promise.all([
-                      ORACLE_REMOTE_KNOWLEDGE.search("sensor detonacao K4M",state.vehicle,3),
-                      ORACLE_REMOTE_KNOWLEDGE.search("sensor MAP lambda canister Clio",state.vehicle,3)
-                    ]).then(function(rows){return rows[0].concat(rows[1]).slice(0,6);}),
-                    new Promise(function(resolve){setTimeout(function(){resolve([]);},5000);})
-                  ]);
-                }catch(e){references=[];}
+                try{refs=await Promise.race([
+                  Promise.all([
+                    ORACLE_REMOTE_KNOWLEDGE.search("sensor detonação motor",state.vehicle,3),
+                    ORACLE_REMOTE_KNOWLEDGE.search("MAP lambda cânister circuito elétrico",state.vehicle,3)
+                  ]).then(function(rows){return rows[0].concat(rows[1]).slice(0,3);}),
+                  new Promise(function(resolve){setTimeout(function(){resolve([]);},4000);})
+                ]);}catch(e){refs=[];}
               }
-              var response=await ORACLE_AI.diagnose({
-                question:"Leia a imagem original, se disponibilizada; compare os identificadores com o OCR, que pode estar errado. Identifique somente informações realmente visíveis. Não invente códigos universais nem especificações técnicas.",
-                vehicle:state.vehicle,mediaText:result.text,
-                imageDataUrl:imageDataUrl,scannerRows:scannerRows,
-                evidence:references,history:state.messages.slice(-10),tests:state.testResults.slice(-10)
+              var localResult=await ORACLE_AI.analyze({
+                imageFile:localState!=="unavailable"?file:null,
+                question:"Leia a fotografia de scanner preservando cada linha visível. Não invente DTCs ou números ocultos.",
+                vehicle:state.vehicle,mediaText:result.text,scannerRows:scannerRows,
+                evidence:refs,history:state.messages.slice(-10),tests:state.testResults.slice(-10)
               });
-              if(state.mediaAnalyses[idx]&&state.mediaAnalyses[idx].text===result.text){
-                var note="Análise complementar por IA (conferir com a foto):\n"+response.answer;
-                if(waiting){waiting.querySelector(".bubble p").textContent=note;scrollMessages();}
-                else appendTextMessage("bot",note);
-                recordMessage("bot",note,{aiAssisted:true,visionUsed:!!imageDataUrl});persistSession();
-              }else if(waiting){waiting.remove();}
-            }else if(await ORACLE_AI.ready()){
-              // User declined; keep OCR only without unnecessary messages.
+              if(localResult.available&&state.mediaAnalyses[idx]&&state.mediaAnalyses[idx].text===result.text){
+                var answerText="Análise pela IA local gratuita"+(localResult.vision?" (imagem original)":" (texto OCR)")+":\n"+localResult.answer+(localResult.translationAvailable?"":"\nTradução para português indisponível neste navegador.");
+                if(pending){pending.remove();pending=null;}
+                appendTextMessage("bot",answerText);
+                recordMessage("bot",answerText,{aiAssisted:true,aiMode:"on-device",visionUsed:localResult.vision});persistSession();
+              }else if(pending){pending.remove();pending=null;}
             }else{
-              appendTextMessage("bot","IA externa indisponível. A leitura acima é apenas OCR e precisa de conferência.");
+              var note=ORACLE_AI.takeUnavailableNotice();
+              if(note){appendTextMessage("bot",note);recordMessage("bot",note,{aiStatus:"unavailable"});persistSession();}
             }
           }catch(error){
-            console.warn("[Scanner IA]",error);
-            var notice="Não consegui concluir a análise por IA externa: "+String(error.message||"erro técnico")+". A leitura OCR acima não é um diagnóstico confirmado.";
-            if(waiting){waiting.querySelector(".bubble p").textContent=notice;scrollMessages();}
-            else appendTextMessage("bot",notice);
-            recordMessage("bot",notice,{aiError:true});persistSession();
+            console.warn("[IA local: scanner]",error);
+            if(pending){pending.remove();pending=null;}
+            var notice="A IA local não concluiu a análise: "+String(error.message||"erro do navegador")+". A leitura OCR não foi confirmada.";
+            appendTextMessage("bot",notice);recordMessage("bot",notice,{aiStatus:"error"});persistSession();
           }
         }
       }
