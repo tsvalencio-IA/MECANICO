@@ -20,6 +20,23 @@
     }).filter(function(code){return detectCodes(code).indexOf(code)>=0;}))).slice(0,2);
   }
 
+  // Scanner-specific numeric identifiers are NOT universal OBD-II codes.
+  // Preserve them exactly as displayed instead of fabricating P/DF conversions.
+  function scannerRows(text){
+    var source=String(text||"").replace(/\r/g," ").replace(/\n/g," ");
+    var re=/\b(\d{1,3})\s+(?=(?:circuito|sensor|sonda|falha|v[aá]lvula|valvula|comando)\b)/gi;
+    var positions=[],hit;
+    while((hit=re.exec(source))&&positions.length<40)positions.push({id:hit[1],start:hit.index,from:re.lastIndex});
+    var rows=[];
+    positions.forEach(function(pos,index){
+      var end=index+1<positions.length?positions[index+1].start:source.length;
+      var description=source.slice(pos.from,end).replace(/\s+/g," ").trim().slice(0,210);
+      if(/\b(?:circuito|sensor|sonda|falha|valvula|válvula|comando)\b/i.test(description))
+        rows.push({id:pos.id,description:description,source:"ocr",verified:false});
+    });
+    return rows.slice(0,15);
+  }
+
   function normalize(text){
     return String(text||"")
       .replace(/\r/g,"")
@@ -131,5 +148,5 @@
     throw new Error("Formato não suportado");
   }
 
-  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,codeCandidates:codeCandidates,analyzeFile:analyzeFile};
+  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,codeCandidates:codeCandidates,scannerRows:scannerRows,analyzeFile:analyzeFile};
 })();

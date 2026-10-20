@@ -1525,7 +1525,7 @@
         nextTest:state.currentDiagnosis.tests&&state.currentDiagnosis.tests[0]?state.currentDiagnosis.tests[0].title:""
       }:null,
       mediaAnalysis:state.mediaAnalyses.map(function(m){
-        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],frames:m.frames||1};
+        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],scannerRows:m.scannerRows||[],frames:m.frames||1};
       })
     };
   }
@@ -1834,7 +1834,14 @@
         handleQuestion(question,{immediate:true,silentUser:true,fromMedia:true});
       }else{
         var candidates=ORACLE_MEDIA.codeCandidates(result.text||"");
-        var message=candidates.length
+        var scannerRows=ORACLE_MEDIA.scannerRows?ORACLE_MEDIA.scannerRows(result.text||""):[];
+        if(scannerRows.length){
+          state.mediaAnalyses[idx].scannerRows=scannerRows;
+          state.caseContext.scannerRows=(state.caseContext.scannerRows||[]).concat(scannerRows).slice(-30);
+        }
+        var message=scannerRows.length
+          ?"Encontrei "+scannerRows.length+" registro(s) na tela do scanner:\n"+scannerRows.map(function(row){return row.id+" — "+row.description;}).join("\n")+"\nOs números são identificadores exibidos por esse aparelho; não converti nenhum deles em DTC P/DF. Confirme os textos que ficaram legíveis. Os defeitos são presentes ou memorizados? Qual sintoma o veículo apresenta?"
+          :candidates.length
           ?"A leitura ficou incerta. Você confirma o código "+candidates.join(" ou ")+"?"
           :result.text?"Li texto, mas não consegui confirmar um código. Digite o código e a descrição que aparecem no scanner."
           :"Não consegui ler a tela. Envie uma foto mais próxima, nítida e sem reflexo.";

@@ -92,3 +92,22 @@ test('switching from video to photo does not keep the previous picker type', () 
   h.click('mediaCameraBtn');
   assert.deepEqual(h.picks, ['photoCameraInput']);
 });
+
+test('numeric PDL5500 scanner rows are preserved without inventing P/DF codes', () => {
+  const w = {};
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'js/media.js'), 'utf8'), {window:w});
+  const source = '2003 Renault Clio II 1.6 K4M\\n12 Circuito do sensor de detonação\\n08 Sensor de pressão absoluta do coletor do circuito\\n13 Circuito do sensor de Lambda dianteiro com defeito\\n99 Circuito da válvula de purga do cânister Circuito de controle aberto\\n99 Circuito da válvula de purga do cânister';
+  const rows = w.ORACLE_MEDIA.scannerRows(source);
+  assert.deepEqual(Array.from(rows, x => x.id), ['12','08','13','99','99']);
+  assert.match(rows[0].description, /detonação/);
+  assert.match(rows[3].description, /controle aberto/);
+  assert.deepEqual(w.ORACLE_MEDIA.detectCodes(source),[]);
+  assert.ok(rows.every(x=>x.verified===false));
+});
+
+test('scanner identifiers and unrelated measurements never become generic DTCs', () => {
+  const w = {};
+  vm.runInNewContext(fs.readFileSync(path.join(root, 'js/media.js'), 'utf8'), {window:w});
+  assert.equal(w.ORACLE_MEDIA.scannerRows('Motor 2003 com 12 volts e 99 graus').length,0);
+  assert.deepEqual(Array.from(w.ORACLE_MEDIA.detectCodes('P0301 e DF026')),['P0301','DF026']);
+});
