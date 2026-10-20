@@ -1502,8 +1502,35 @@
       appendDiagnosis(diag);
       recordMessage("bot",practicalAnswer(diag).text,{diagnosis:diag.ruleId,knowledgeHits:diag.remoteEvidence?diag.remoteEvidence.length:0});
       persistSession();
+      // The cloud option is free-tier-only, explicit opt-in, with no paid fallback.
+      var geminiAnswered=false;
+      if(window.ORACLE_GEMINI){
+        try{
+          if(await ORACLE_GEMINI.ready()&&ORACLE_GEMINI.consentText()){
+            var geminiReply=await ORACLE_GEMINI.diagnose({
+              question:text,vehicle:state.vehicle,history:state.messages.slice(-12),
+              tests:state.testResults.slice(-10),
+              mediaText:state.mediaAnalyses.map(function(m){return m.text||"";}).slice(-2).join("\n").slice(0,2200),
+              scannerRows:state.caseContext.scannerRows||[],
+              evidence:(diag.remoteEvidence||[]).slice(0,5)
+            });
+            if(state.sessionId===caseId&&state.requestSequence===requestId){
+              var guidance="Análise Gemini gratuita (conferir evidências):\n"+geminiReply.answer;
+              appendTextMessage("bot",guidance);
+              recordMessage("bot",guidance,{aiAssisted:true,provider:"gemini-free",knowledgeHits:geminiReply.sourceCount});
+              persistSession();geminiAnswered=true;
+            }
+          }
+        }catch(error){
+          console.warn("[Gemini gratuito] diagnóstico determinístico preservado",error);
+          if(state.sessionId===caseId&&state.requestSequence===requestId){
+            var note="A consulta Gemini gratuita não foi concluída: "+String(error.message||"erro não identificado")+". O diagnóstico técnico local continua disponível.";
+            appendTextMessage("bot",note);recordMessage("bot",note,{aiError:true});persistSession();
+          }
+        }
+      }
       // Optional local Chrome AI augments the existing deterministic diagnosis, without cloud billing.
-      if(window.ORACLE_AI){
+      if(!geminiAnswered&&window.ORACLE_AI){
         try{
           var localAnswer=await ORACLE_AI.analyze({
             question:text,vehicle:state.vehicle,history:state.messages.slice(-12),
@@ -1885,8 +1912,47 @@
           var raw=document.createElement("p");raw.textContent=result.text.slice(0,240);reading.appendChild(raw);bubble.appendChild(reading);
         }
         recordMessage("bot",message,{mediaRead:true});persistSession();
+        // Visual Gemini free tier: original image ONLY after separate consent.
+        var geminiRead=false;
+        if(file.type&&file.type.indexOf("image/")===0&&window.ORACLE_GEMINI){
+          var waitGemini=null;
+          try{
+            if(await ORACLE_GEMINI.ready()&&ORACLE_GEMINI.consentText()&&ORACLE_GEMINI.consentImage()){
+              waitGemini=appendTextMessage("bot","Consultando Gemini gratuito para ler a fotografia do scanner...");
+              var externalRefs=[];
+              if(window.ORACLE_REMOTE_KNOWLEDGE){
+                try{externalRefs=await Promise.race([
+                  Promise.all([
+                    ORACLE_REMOTE_KNOWLEDGE.search("sensor detonação motor",state.vehicle,3),
+                    ORACLE_REMOTE_KNOWLEDGE.search("MAP lambda cânister circuito elétrico",state.vehicle,3)
+                  ]).then(function(xs){return xs[0].concat(xs[1]).slice(0,5);}),
+                  new Promise(function(resolve){setTimeout(function(){resolve([]);},4500);})
+                ]);}catch(e){externalRefs=[];}
+              }
+              var imageDataUrl=await ORACLE_MEDIA.imageForRemoteVision(file);
+              var geminiImage=await ORACLE_GEMINI.diagnose({
+                question:"Interprete cada linha visível na fotografia ORIGINAL do scanner. O OCR enviado pode estar severamente errado. Preserve números repetidos e não traduza para P/DF sem tabela comprovada.",
+                vehicle:state.vehicle,mediaText:result.text,scannerRows:scannerRows,
+                evidence:externalRefs,history:state.messages.slice(-9),
+                tests:state.testResults.slice(-8),imageDataUrl:imageDataUrl
+              });
+              if(state.mediaAnalyses[idx]&&state.mediaAnalyses[idx].text===result.text){
+                var visionText="Leitura e orientação por Gemini gratuito (imagem original; conferir):\n"+geminiImage.answer;
+                if(waitGemini){waitGemini.remove();waitGemini=null;}
+                appendTextMessage("bot",visionText);
+                recordMessage("bot",visionText,{aiAssisted:true,provider:"gemini-free",visionUsed:true});
+                persistSession();geminiRead=true;
+              }else if(waitGemini){waitGemini.remove();}
+            }
+          }catch(error){
+            if(waitGemini){waitGemini.remove();waitGemini=null;}
+            console.warn("[Gemini gratuito: foto]",error);
+            var visionErr="Gemini gratuito não concluiu a leitura visual: "+String(error.message||"erro técnico")+". O OCR acima permanece não confirmado.";
+            appendTextMessage("bot",visionErr);recordMessage("bot",visionErr,{aiError:true});persistSession();
+          }
+        }
         // Local multimodal analysis sees original file only if Chrome supports it.
-        if(file.type&&file.type.indexOf("image/")===0&&window.ORACLE_AI){
+        if(!geminiRead&&file.type&&file.type.indexOf("image/")===0&&window.ORACLE_AI){
           var pending=null;
           try{
             var localState=await ORACLE_AI.availability(true);

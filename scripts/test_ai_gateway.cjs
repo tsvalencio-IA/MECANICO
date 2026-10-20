@@ -72,3 +72,40 @@ test("backend retained for possible future opt-in but never called by frontend",
  await mod.default({method:"POST",headers:{origin:"https://tsvalencio-ia.github.io"},body:{question:"Falha"}},res);
  assert.ok([401,503].includes(res.statusCode));
 });
+test('Gemini free bridge has no API key and does not call when no free project configured',async()=>{
+ const code=fs.readFileSync(path.join(root,'js/ai-gemini.js'),'utf8');
+ assert.doesNotMatch(code,/AIza[A-Za-z0-9_-]{25,}|x-goog-api-key|GEMINI_API_KEY|ai-gateway\.vercel\.sh/);
+ const win={};
+ vm.runInNewContext(code,{window:win,fetch:async()=>({ok:true,json:async()=>({ready:false,mode:'free-tier-only'})}),Date,AbortSignal});
+ assert.equal(await win.ORACLE_GEMINI.ready(),false);
+});
+test('Gemini text and image each require user permission',()=>{
+ const code=fs.readFileSync(path.join(root,'js/ai-gemini.js'),'utf8');
+ const calls=[];
+ const w={confirm:msg=>{calls.push(msg);return true;}};
+ const store={};
+ vm.runInNewContext(code,{window:w,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v}}});
+ assert.equal(w.ORACLE_GEMINI.consentText(),true);
+ assert.equal(w.ORACLE_GEMINI.consentImage(),true);
+ assert.equal(calls.length,2);
+ assert.match(calls[0],/melhorar seus produtos/);
+ assert.match(calls[1],/DESTA fotografia/);
+});
+test('Gemini photo is sent only to protected endpoint and not persisted',()=>{
+ const html=fs.readFileSync(path.join(root,'app-v134.html'),'utf8');
+ const f=html.indexOf('src="./js/firebase.js'),g=html.indexOf('src="./js/ai-gemini.js'),a=html.indexOf('src="./js/app.js');
+ assert.ok(f>=0&&g>f&&a>g);
+ const app=fs.readFileSync(path.join(root,'js/app.js'),'utf8');
+ const start=app.indexOf('function buildSessionPayload()'),end=app.indexOf('function mergeHistory(',start);
+ assert.ok(start>=0&&end>start);
+ assert.doesNotMatch(app.slice(start,end),/imageDataUrl/);
+ assert.match(app,/ORACLE_GEMINI\.consentText\(\)&&ORACLE_GEMINI\.consentImage\(\)/);
+});
+test('Gemini backend is free-tier only with no paid AI Gateway fallback',()=>{
+ const content=fs.readFileSync(path.join(root,'backend/api/diagnose.mjs'),'utf8');
+ assert.match(content,/const MODEL="gemini-2\.5-flash"/);
+ assert.match(content,/process\.env\.GEMINI_API_KEY/);
+ assert.doesNotMatch(content,/ai-gateway\.vercel\.sh|api\.groq\.com|GROQ_API_KEY/);
+ assert.match(content,/inline_data/);
+ assert.match(content,/firebaseUser\(auth\.slice\(7\)\)/);
+});

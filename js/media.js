@@ -115,8 +115,9 @@
       var canvas=makeCanvas(w*factor,h*factor);
       canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
       var payload=canvas.toDataURL("image/jpeg",.72);
-      if(payload.length>1450000)payload=canvas.toDataURL("image/jpeg",.48);
-      if(payload.length>1450000)throw new Error("Foto grande demais para análise remota");
+      if(payload.length>1100000)payload=canvas.toDataURL("image/jpeg",.48);
+      if(payload.length>1100000)payload=canvas.toDataURL("image/jpeg",.34);
+      if(payload.length>1100000)throw new Error("Foto grande demais para o nível gratuito; aproxime a câmera");
       return payload;
     }finally{URL.revokeObjectURL(url);}
   }
