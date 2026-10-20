@@ -87,7 +87,7 @@ jobs:
           grep -q "Fotos e vídeos são analisados localmente" app-v134.html
           grep -q "A IA local gratuita funciona no computador compatível" app-v134.html
           grep -q "js/ai-local.js" app-v134.html
-          grep -q "js/ai-remote.js" app-v134.html
+          ! grep -q "js/ai-remote.js" app-v134.html
           grep -q "avatarCriticalStyle" app-v134.html
           grep -q "manifest-v134.json" app-v134.html
           grep -q 'id="installDialog"' app-v134.html
