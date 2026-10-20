@@ -14,6 +14,18 @@ STOP={
 "mais","menos","muito","muita","muitos","muitas","ser","ter","tem","foi","sao","são","the","and","for","with","from",
 "this","that","into","not","are","has","have","you","your","page","pagina","página","manual","treinamento"
 }
+# Dedicated literal source windows keep component evidence beyond truncated previews.
+# Extraction status and application identity must still be checked by the client.
+FOCUS_PATTERNS={
+    "detonacao": re.compile(r"\b(?:detonac[a-z]*|knock\s+sens(?:or|ors)|sensor\s+de\s+picado)\b"),
+    "map": re.compile(r"\b(?:sensor\s+(?:de\s+)?pressao\s+absoluta|pressao\s+absoluta\s+(?:do\s+)?coletor|manifold\s+absolute\s+pressure|sensor\s+map)\b"),
+    "lambda": re.compile(r"\b(?:sonda\s+lambda|sensor\s+(?:de\s+)?lambda|sensor\s+(?:de\s+)?oxigenio|oxygen\s+sensor)\b"),
+    "canister": re.compile(r"\b(?:canister|canistor|valvula\s+(?:de\s+)?purga|evaporative\s+purge)\b"),
+    "alimentacao": re.compile(r"\b(?:rele\s+principal|alimentacao\s+(?:da\s+)?(?:ecu|uce|central|computador)|aterramento\s+(?:da\s+)?(?:ecu|uce|central)|fusivel\s+(?:da\s+)?injecao)\b"),
+    "injetor": re.compile(r"\b(?:injetor(?:es)?|injector(?:s)?|bico\s+injetor)\b"),
+    "ignicao": re.compile(r"\b(?:bobina(?:s)?\s+(?:de\s+)?ignicao|ignition\s+coil)\b"),
+}
+
 MAX_TERMS_PER_RECORD=170
 MAX_POSTINGS_PER_TERM=160
 RECORD_BUCKETS=64
@@ -117,6 +129,7 @@ def main():
     n=max(1,len(recs))
     postings=defaultdict(list)
     dtc_entries=defaultdict(list)
+    focus_entries=defaultdict(list)
     buckets=[{} for _ in range(RECORD_BUCKETS)]
     record_map=[0]*len(recs)
 
@@ -140,6 +153,19 @@ def main():
         evidence=compact_record(idx,r)
         buckets[b][str(idx)]=evidence
 
+        # Preserve the source's actual text around a named component, without
+        # claiming the passage is necessarily applicable to this vehicle.
+        full_text=str(r.get("text",""))
+        normalized=norm(full_text)
+        for topic,pattern in FOCUS_PATTERNS.items():
+            match=pattern.search(normalized)
+            if not match: continue
+            entry={k:evidence[k] for k in (
+                "id","path","page","chunk","method","confidence","truth_status","sha256"
+            )}
+            entry["snippet"]=window_around(full_text,match.group(0),850)
+            focus_entries[topic].append(entry)
+
         for t in selected:
             arr=postings[t]
             if len(arr)<MAX_POSTINGS_PER_TERM: arr.append(idx)
@@ -162,6 +188,13 @@ def main():
             print("indexed",idx,"/",n,flush=True)
 
     out.mkdir(parents=True,exist_ok=True)
+    focus_dir=out/"focus";focus_dir.mkdir(exist_ok=True)
+    for topic,rows in sorted(focus_entries.items()):
+        (focus_dir/f"{topic}.json").write_text(
+            json.dumps(rows,ensure_ascii=False,separators=(",",":")),encoding="utf-8"
+        )
+    remove_stale_outputs(focus_dir,r"[a-z]+\.json",
+                         {f"{name}.json" for name in focus_entries})
     records_dir=out/"records";records_dir.mkdir(exist_ok=True)
     for b,data in enumerate(buckets):
         (records_dir/f"r{b:02d}.json").write_text(json.dumps(data,ensure_ascii=False,separators=(",",":"),sort_keys=True),encoding="utf-8")
@@ -184,7 +217,7 @@ def main():
 
     revision=hashlib.sha256()
     generated=[out/"record-map.json"]
-    for directory in (records_dir,terms_dir,dtc_dir):
+    for directory in (records_dir,terms_dir,dtc_dir,focus_dir):
         generated.extend(directory.glob("*.json"))
     for artifact in sorted(generated):
         revision.update(artifact.relative_to(out).as_posix().encode("utf-8")+b"\0")
@@ -206,6 +239,7 @@ def main():
         "terms":len(postings),
         "dtcs":len(dtc_entries),
         "text_preview_chars":TEXT_PREVIEW,
+        "focused_topics":{name:len(rows) for name,rows in sorted(focus_entries.items())},
         "truth_counts":dict(truth_counts),
         "truth_policy":source_manifest.get("truth_policy",{}),
         "heavy_shards_required_by_client":False
