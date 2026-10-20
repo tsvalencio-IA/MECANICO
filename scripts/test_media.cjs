@@ -111,3 +111,25 @@ test('scanner identifiers and unrelated measurements never become generic DTCs',
   assert.equal(w.ORACLE_MEDIA.scannerRows('Motor 2003 com 12 volts e 99 graus').length,0);
   assert.deepEqual(Array.from(w.ORACLE_MEDIA.detectCodes('P0301 e DF026')),['P0301','DF026']);
 });
+
+test('multi-pass OCR accepts rows from separate crops without inventing DTCs',()=>{
+ const w={};
+ vm.runInNewContext(fs.readFileSync(path.join(root,'js/media.js'),'utf8'),{window:w});
+ const reading=[
+ '2003 Renault Clio II K4M 12 Circuito do sensor de detonação',
+ '08 Sensor de pressão absoluta do coletor 13 Circuito do sensor de Lambda com defeito',
+ '99 Circuito da válvula de purga do cânister Circuito de controle aberto 99 Circuito da válvula de purga do cânister'
+ ];
+ const rows=w.ORACLE_MEDIA.mergeScannerReadings(reading);
+ assert.deepEqual(Array.from(rows,r=>r.id),['12','08','13','99','99']);
+ assert.equal(rows.filter(r=>r.id==='99').length,2);
+ assert.ok(rows.every(r=>r.verified===false));
+ assert.deepEqual(Array.from(w.ORACLE_MEDIA.detectCodes(reading.join(' '))),[]);
+});
+test('multi-pass OCR does not convert fragmented digits into confirmed numeric codes',()=>{
+ const w={};vm.runInNewContext(fs.readFileSync(path.join(root,'js/media.js'),'utf8'),{window:w});
+ const rows=w.ORACLE_MEDIA.mergeScannerReadings(['6 Circuito válvula de purga','6 Circuito válvula de purga']);
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].id,'6');
+ assert.equal(rows[0].confidence,'low');
+});

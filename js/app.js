@@ -1854,13 +1854,13 @@
         handleQuestion(question,{immediate:true,silentUser:true,fromMedia:true});
       }else{
         var candidates=ORACLE_MEDIA.codeCandidates(result.text||"");
-        var scannerRows=ORACLE_MEDIA.scannerRows?ORACLE_MEDIA.scannerRows(result.text||""):[];
+        var scannerRows=Array.isArray(result.scannerRows)?result.scannerRows:(ORACLE_MEDIA.scannerRows?ORACLE_MEDIA.scannerRows(result.text||""):[]);
         if(scannerRows.length){
           state.mediaAnalyses[idx].scannerRows=scannerRows;
           state.caseContext.scannerRows=(state.caseContext.scannerRows||[]).concat(scannerRows).slice(-30);
         }
         var message=scannerRows.length
-          ?"Leitura local parcial (OCR), sujeita a erros. Reconheci "+scannerRows.length+" possível(is) registro(s):\n"+scannerRows.map(function(row){return row.id+" — "+row.description+(row.confidence==="low"?" [número incerto]":"");}).join("\n")+"\nNão converti esses números em DTC P/DF. A IA visual poderá confrontar a imagem, após autorização. Os defeitos são presentes ou memorizados?"
+          ?"Leitura local parcial do scanner ("+(result.ocrPasses||1)+" etapa(s) de OCR). Identificadores POSSÍVEIS, ainda não confirmados:\n"+scannerRows.map(function(row){return row.id+" — "+row.description+(row.confidence==="low"?" [leitura incerta]":" [conferir na foto]");}).join("\n")+"\nA leitura pode omitir linhas ou confundir números, especialmente com reflexos. Não converti identificadores do aparelho em DTC P/DF. Confira os registros; os defeitos são presentes ou memorizados?"
           :candidates.length
           ?"A leitura ficou incerta. Você confirma o código "+candidates.join(" ou ")+"?"
           :result.text?"Li texto, mas não consegui confirmar um código. Digite o código e a descrição que aparecem no scanner."

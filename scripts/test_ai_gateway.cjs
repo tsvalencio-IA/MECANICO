@@ -19,7 +19,7 @@ test("unsupported browsers do not simulate an AI response",async()=>{
  assert.equal(await ai.ready(),false);
  const answer=await ai.analyze({question:"teste"});
  assert.equal(answer.available,false);
- assert.match(ai.takeUnavailableNotice(),/não está disponível/);
+ assert.match(ai.takeUnavailableNotice(),/não disponibilizou uma configuração executável/);
  assert.equal(ai.takeUnavailableNotice(),"");
 });
 test("model download is opt-in and cancelling keeps diagnosis free",async()=>{

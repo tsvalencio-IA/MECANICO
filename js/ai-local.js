@@ -33,7 +33,7 @@ function requestDownload(state){
 function takeUnavailableNotice(){
  if(shownUnavailable)return "";
  shownUnavailable=true;
- return "A IA local do Chrome não está disponível neste computador/navegador. O sistema continua com OCR e conhecimento técnico interno, sem gerar despesas ou enviar dados a provedores de IA.";
+ return "O Chrome não disponibilizou uma configuração executável para a IA local nesta sessão (pode depender do modelo, das opções do navegador ou do equipamento). Verifique chrome://on-device-internals, guia Model Status. O OCR e o conhecimento técnico interno continuam disponíveis, sem API paga.";
 }
 function reportStatus(p){
  try{if(typeof window.dispatchEvent==="function"&&typeof window.CustomEvent==="function")window.dispatchEvent(new window.CustomEvent("oracle:local-ai",{detail:{message:p}}));}catch(e){}

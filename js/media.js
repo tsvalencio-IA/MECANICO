@@ -121,10 +121,100 @@
     }finally{URL.revokeObjectURL(url);}
   }
 
+
+  function cropScannerBand(canvas,topFraction,bottomFraction){
+    var top=Math.max(0,Math.round(canvas.height*topFraction));
+    var bottom=Math.min(canvas.height,Math.round(canvas.height*bottomFraction));
+    var width=canvas.width,height=bottom-top;
+    var scale=Math.min(1.65,2150/width);
+    var out=makeCanvas(width*scale,height*scale);
+    var ctx=out.getContext("2d",{willReadFrequently:true});
+    ctx.drawImage(canvas,0,top,width,height,0,0,out.width,out.height);
+    // A white background with dark text is easier to segment for many scanners.
+    // This is only a second pass; preserve the original OCR output independently.
+    try{
+      var img=ctx.getImageData(0,0,out.width,out.height),pixels=img.data;
+      var tile=28,cols=Math.ceil(out.width/tile),rows=Math.ceil(out.height/tile),means=new Float32Array(cols*rows);
+      var counts=new Uint32Array(cols*rows);
+      for(var y=0;y<out.height;y++){
+        for(var x=0;x<out.width;x++){
+          var idx=(y*out.width+x)*4,cell=Math.floor(y/tile)*cols+Math.floor(x/tile);
+          means[cell]+=.299*pixels[idx]+.587*pixels[idx+1]+.114*pixels[idx+2];counts[cell]++;
+        }
+      }
+      for(var c=0;c<means.length;c++)means[c]/=counts[c]||1;
+      for(var yy=0;yy<out.height;yy++){
+        for(var xx=0;xx<out.width;xx++){
+          var p=(yy*out.width+xx)*4;
+          var l=.299*pixels[p]+.587*pixels[p+1]+.114*pixels[p+2];
+          var local=means[Math.floor(yy/tile)*cols+Math.floor(xx/tile)];
+          var darkBackground=local<140;
+          var diff=darkBackground?(l-local):(local-l);
+          var result=Math.max(0,Math.min(255,225-diff*3.2));
+          pixels[p]=pixels[p+1]=pixels[p+2]=result;
+        }
+      }
+      ctx.putImageData(img,0,0);
+    }catch(e){}
+    return out;
+  }
+
+  function mergeScannerReadings(readings){
+    var unique=[];
+    (readings||[]).forEach(function(reading){
+      scannerRowsWithConfidence(reading||"").forEach(function(row){
+        var descr=String(row.description||"").toLowerCase().replace(/[^a-z0-9à-ú]+/gi," ").trim();
+        var existing=unique.some(function(previous){
+          var other=String(previous.description||"").toLowerCase().replace(/[^a-z0-9à-ú]+/gi," ").trim();
+          if(previous.id!==row.id)return false;
+          if(descr===other)return true;
+          // Similar repeated crops must not duplicate one row. Distinct open-circuit
+          // records (e.g. two 99 entries on PDL5500) must NOT be merged.
+          if(/controle aberto|circuito aberto/.test(descr)!==/controle aberto|circuito aberto/.test(other))return false;
+          return descr.length>20&&other.length>20&&
+            (descr.startsWith(other)||other.startsWith(descr)) &&
+            Math.min(descr.length,other.length)/Math.max(descr.length,other.length)>.84;
+        });
+        if(!existing)unique.push(row);
+      });
+    });
+    return unique.slice(0,20);
+  }
+
   async function analyzeImage(file,onProgress){
     var canvas=await imageToCanvas(file);
-    var text=await recognize(canvas,onProgress);
-    return {kind:"foto",text:text,codes:detectCodes(text),frames:1};
+    if(!window.Tesseract)throw new Error("Motor OCR não carregou");
+    // Use one OCR worker for the whole photo and the adaptive regional rereads.
+    var worker=await Tesseract.createWorker("por+eng",1,{
+      logger:function(m){
+        if(m&&m.status==="recognizing text"&&onProgress)
+          onProgress(Math.round((m.progress||0)*60));
+      }
+    });
+    var parts=[],passCount=0;
+    try{
+      var first=await worker.recognize(canvas);
+      parts.push(normalize(first&&first.data?first.data.text:""));
+      passCount++;
+      var confident=mergeScannerReadings(parts).filter(function(row){return row.confidence==="partial";});
+      if(!detectCodes(parts[0]).length&&confident.length<3){
+        // A single full-frame pass can miss scanner rows behind reflections.
+        // Overlap two bands slightly; never infer unreadable numbers.
+        var bands=[[.24,.63],[.54,.93]];
+        for(var i=0;i<bands.length;i++){
+          var band=cropScannerBand(canvas,bands[i][0],bands[i][1]);
+          var extra=await worker.recognize(band);
+          parts.push(normalize(extra&&extra.data?extra.data.text:""));
+          passCount++;
+          if(onProgress)onProgress(60+Math.round(40*(i+1)/bands.length));
+        }
+      }
+      var scanRows=mergeScannerReadings(parts);
+      var merged=normalize(parts.filter(Boolean).join("\n"));
+      if(onProgress)onProgress(100);
+      return {kind:"foto",text:merged,codes:detectCodes(merged),scannerRows:scanRows,
+        ocrPasses:passCount,frames:1};
+    }finally{await worker.terminate();}
   }
 
   function seek(video,time){
@@ -175,5 +265,5 @@
     throw new Error("Formato não suportado");
   }
 
-  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,codeCandidates:codeCandidates,scannerRows:scannerRowsWithConfidence,imageForRemoteVision:imageForRemoteVision,analyzeFile:analyzeFile};
+  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,codeCandidates:codeCandidates,scannerRows:scannerRowsWithConfidence,mergeScannerReadings:mergeScannerReadings,imageForRemoteVision:imageForRemoteVision,analyzeFile:analyzeFile};
 })();
