@@ -1,0 +1,9 @@
+{
+  "name": "mecanico-ia-inteligencia",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "engines": {
+    "node": ">=22"
+  }
+}
