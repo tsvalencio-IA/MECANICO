@@ -600,6 +600,14 @@
     return c;
   }
 
+  function recoverPriorVisionRows(messages){
+    if(!window.ORACLE_GEMINI||!window.ORACLE_GEMINI.extractVisionRows)return [];
+    var previous=(messages||[]).filter(function(m){
+      return m.role==="bot"&&/^Leitura e orientação por Gemini gratuito \(imagem original; conferir\):/.test(m.text||"");
+    }).slice(-1)[0];
+    return previous?window.ORACLE_GEMINI.extractVisionRows(previous.text||""):[];
+  }
+
   function recoverCaseContext(messages){
     return (messages||[]).filter(function(m){return m.role==="user"&&!m.testResult;})
       .reduce(function(c,m){return extendCaseContext(c,m.text);},emptyCaseContext());
@@ -1305,6 +1313,9 @@
   }
 
   function diagnosticSearchQuery(diag){
+    if(diag.context.caseData.idleComplaint){
+      return [diag.context.engine,"marcha lenta entrada falsa de ar corpo borboleta TBI cânister"].filter(Boolean).join(" ");
+    }
     if((diag.context.caseData.visionRows||[]).length){
       return [diag.context.engine,diag.context.caseData.visionRows.slice(0,3).map(function(r){return r.description;}).join(" ")].filter(Boolean).join(" ").slice(0,300);
     }
@@ -1524,6 +1535,10 @@
     text=String(text||"").trim();
     if(!text) return;
     var previousFlow=state.caseContext.flowVersion||0;
+    if(!(state.caseContext.visionRows||[]).length){
+      var recoveredRows=recoverPriorVisionRows(state.messages);
+      if(recoveredRows.length)state.caseContext.visionRows=recoveredRows;
+    }
     state.caseContext=extendCaseContext(state.caseContext,text);
     var statedVehicle=state.caseContext.vehicleDetails;
     if(!state.vehicle.model||statedVehicle.model&&norm(state.vehicle.model)===norm(statedVehicle.model)){
@@ -1621,9 +1636,18 @@
             var geminiReply=await ORACLE_GEMINI.diagnose({
               question:text,vehicle:state.vehicle,history:state.messages.slice(-12),
               tests:state.testResults.slice(-10),
-              mediaText:state.mediaAnalyses.map(function(m){return m.text||"";}).slice(-2).join("\n").slice(0,2200),
-              scannerRows:state.caseContext.scannerRows||[],
+              mediaText:(state.caseContext.visionRows||[]).length?"":state.mediaAnalyses.map(function(m){return m.text||"";}).slice(-2).join("\n").slice(0,2200),
+              scannerRows:(state.caseContext.visionRows||[]).length?[]:state.caseContext.scannerRows||[],
               visionRows:state.caseContext.visionRows||[],
+              caseFacts:{
+                idleComplaint:!!state.caseContext.idleComplaint,
+                idlePedalStatus:state.caseContext.idlePedalStatus||"",
+                idleAirInspection:state.caseContext.idleAirInspection||"",
+                canisterHarnessDamage:state.caseContext.canisterHarnessDamage||"",
+                canisterHarnessRepaired:state.caseContext.canisterHarnessRepaired||"",
+                improvedAfterService:!!state.caseContext.improvedAfterService,
+                serviceLog:(state.caseContext.serviceLog||[]).slice(-10)
+              },
               evidence:(diag.remoteEvidence||[]).slice(0,5)
             });
             if(state.sessionId===caseId&&state.requestSequence===requestId){
