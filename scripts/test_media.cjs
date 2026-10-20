@@ -133,3 +133,37 @@ test('multi-pass OCR does not convert fragmented digits into confirmed numeric c
  assert.equal(rows[0].id,'6');
  assert.equal(rows[0].confidence,'low');
 });
+
+test('image OCR reuses one worker for regional rereads and releases it',async()=>{
+ const responses=[
+  '6 Circuito válvula de purga',
+  '12 Circuito do sensor de detonação 08 Sensor de pressão absoluta do coletor',
+  '13 Circuito do sensor de Lambda dianteiro com defeito 99 Circuito de controle aberto da válvula purga do canister'
+ ];
+ let calls=0,terminated=0,revoked=0,created=0;
+ const fakeCtx={
+  drawImage(){},putImageData(){},
+  getImageData(){return {data:new Uint8ClampedArray(4*48*48)};}
+ };
+ const makeCanvas=()=>({width:48,height:48,getContext:()=>fakeCtx});
+ const doc={createElement:()=>makeCanvas()};
+ function Image(){this.naturalWidth=48;this.naturalHeight=48;this.width=48;this.height=48;}
+ Object.defineProperty(Image.prototype,'src',{set(){this.onload();}});
+ const W={
+  Tesseract:{createWorker:async()=>{created++;return {
+   recognize:async()=>({data:{text:responses[calls++]||''}}),
+   terminate:async()=>{terminated++;}
+  };}}
+ };
+ const ctx={
+  window:W,document:doc,Image,Uint8ClampedArray,Uint32Array,Float32Array,
+  URL:{createObjectURL:()=>'blob:local',revokeObjectURL:()=>{revoked++;}}
+ };
+ vm.runInNewContext(fs.readFileSync(path.join(root,'js/media.js'),'utf8'),ctx);
+ const file={type:'image/jpeg'};
+ const result=await W.ORACLE_MEDIA.analyzeFile(file);
+ assert.equal(calls,3);assert.equal(result.ocrPasses,3);
+ assert.equal(created,1);assert.equal(terminated,1);assert.equal(revoked,1);
+ assert.deepEqual(Array.from(result.scannerRows,r=>r.id),['6','12','08','13','99']);
+ assert.ok(result.scannerRows.every(r=>r.verified===false));
+});
