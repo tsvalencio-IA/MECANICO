@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'scripts/test_live_browser.cjs'
+      - 'scripts/live_browser.cjs'
       - '.github/workflows/test-live-browser.yml'
       - 'js/app.js'
       - 'js/ai-gemini.js'
@@ -26,7 +26,7 @@ jobs:
         env:
           NODE_PATH: /tmp/mecanico-browser/node_modules
           CHROME_BIN: /usr/bin/google-chrome
-        run: node scripts/test_live_browser.cjs
+        run: node scripts/live_browser.cjs
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4
