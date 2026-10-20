@@ -138,3 +138,35 @@ test('new-project model compatibility: 404 only falls back to another free model
   assert.equal(calls.length,2);
  }finally{global.fetch=oldFetch;if(oldEnv===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldEnv;}
 });
+
+test('Gemini 503 switches once to the free Lite model without paid gateway',async()=>{
+ const {generateKeyPairSync,sign}=require('node:crypto');
+ const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});
+ const enc=v=>Buffer.from(JSON.stringify(v)).toString('base64url');
+ const epoch=Math.floor(Date.now()/1000),header=enc({alg:'RS256',kid:'fallback-test'}),body=enc({aud:'mecanico-b222e',iss:'https://securetoken.google.com/mecanico-b222e',sub:'mock',iat:epoch-1,exp:epoch+2000});
+ const signed=header+'.'+body;const token=signed+'.'+sign('RSA-SHA256',Buffer.from(signed),privateKey).toString('base64url');
+ const original=global.fetch,old=process.env.GEMINI_API_KEY;process.env.GEMINI_API_KEY='TEST-NO-REAL-CREDENTIAL';
+ const calls=[];
+ global.fetch=async(url)=>{
+  const u=String(url);
+  if(u.includes('service_accounts/v1/jwk'))return {ok:true,json:async()=>({keys:[{...publicKey.export({format:'jwk'}),kid:'fallback-test'}]})};
+  calls.push(u);
+  if(u.includes('gemini-3.8-flash'))return {ok:false,status:503,json:async()=>({error:{status:'UNAVAILABLE'}})};
+  if(u.includes('gemini-3.5-flash-lite'))return {ok:true,status:200,json:async()=>({candidates:[{content:{parts:[{text:'Resultado do scanner: não converter identificadores sem confirmar tabela.'}]}}]})};
+  throw Error('Unexpected network call');
+ };
+ try{
+  const mod=await import('../backend/api/diagnose.mjs');
+  const response={statusCode:0,setHeader(){},end(s){this.body=JSON.parse(s)}};
+  await mod.default({method:'POST',headers:{origin:'https://tsvalencio-ia.github.io',authorization:'Bearer '+token},body:{question:'Registro do Clio',visionRows:[{id:'99',description:'Circuito do cânister'}]}},response);
+  assert.equal(response.statusCode,200);
+  assert.equal(response.body.model,'gemini-3.5-flash-lite');
+  assert.equal(calls.length,2);
+ }finally{global.fetch=original;if(old===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=old;}
+});
+test('Gemini policies never seed a known screenshot with specific numeric scanner rows',()=>{
+ const source=fs.readFileSync(path.join(root,'backend/api/diagnose.mjs'),'utf8');
+ assert.doesNotMatch(source,/12\/08\/13\/99\/99/);
+ assert.match(source,/visionRows/);
+ assert.match(source,/origin:"ai_visual_unverified"/);
+});
