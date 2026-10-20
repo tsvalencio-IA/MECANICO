@@ -69,6 +69,16 @@ function structuredInput(body) {
     visionRows:(Array.isArray(body.visionRows)?body.visionRows:[]).slice(0,16).map(r=>({
       id:clean(r.id,8),description:clean(r.description,170),confirmed:false,origin:"ai_visual_unverified"
     })),
+    caseFacts:{
+      idleComplaint:body.caseFacts?.idleComplaint===true,
+      idlePedalStatus:clean(body.caseFacts?.idlePedalStatus,150),
+      idleAirInspection:clean(body.caseFacts?.idleAirInspection,160),
+      canisterHarnessDamage:clean(body.caseFacts?.canisterHarnessDamage,100),
+      canisterHarnessRepaired:clean(body.caseFacts?.canisterHarnessRepaired,140),
+      improvedAfterService:body.caseFacts?.improvedAfterService===true,
+      serviceLog:(Array.isArray(body.caseFacts?.serviceLog)?body.caseFacts.serviceLog:[]).slice(-10)
+        .map(r=>({component:clean(r.component,70),status:clean(r.status,100)}))
+    },
     history:(Array.isArray(body.history)?body.history:[]).slice(-9)
       .filter(m=>m.role==="user").map(m=>({role:"mecanico",text:clean(m.text,240)})),
     tests:(Array.isArray(body.tests)?body.tests:[]).slice(-8).map(t=>({
@@ -92,7 +102,7 @@ Formato em parágrafos concisos:
 3) Próximo teste seguro, prático, com equipamento e o que comparar, sem especificar valores desconhecidos.
 4) Uma única pergunta essencial para avançar.
 Considere os registros visionRows como interpretação visual anteriormente gerada por IA (NÃO confirmada), distinta do OCR scannerRows. Não repita perguntas já respondidas no histórico. Mencione referências documentais apenas quando houver trechos evidence com path, page e snippet; se inexistentes, explique que a base não recuperou referência compatível nesta consulta. Não assuma que um documento indexado foi integralmente analisado.
-Não peça que o mecânico informe novamente texto claramente legível da imagem. Não condene peças sem confirmação de teste.
+Quando visionRows estiver presente sem imagem nesta requisição, o scanner foi interpretado visualmente numa etapa ANTERIOR, não diga que nunca houve imagem; informe que os registros anteriores são leitura visual por IA ainda não confirmada. Se visionRows estiver preenchido e mediaText vazio, NÃO ressuscite OCR anterior do histórico. Leve em conta caseFacts e histórico como relatos do mecânico, distinguindo peças trocadas, limpeza realizada, melhora parcial e problema de marcha lenta persistente. Chicote anteriormente quebrado NÃO significa reparo concluído se canisterHarnessRepaired estiver vazio. Mudança de sintoma exige revisar hipótese e próximo teste: não repetir a mesma manipulação do chicote quando o motor melhora mas apaga em marcha lenta. Pergunte ou oriente um teste pertinente à marcha lenta e entrada de ar de forma segura. Não afirme leitura de scanner atual não fornecida. Não peça que o mecânico informe novamente texto claramente legível da imagem. Não condene peças sem confirmação de teste.
 Não execute ferramentas nem prometa consultar manuais adicionais se não estiverem nos trechos fornecidos.`;
 export default async function handler(req,res) {
   res.setHeader("Access-Control-Allow-Origin",ORIGIN);
