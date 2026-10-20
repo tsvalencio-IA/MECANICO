@@ -1362,3 +1362,14 @@ test('Clio scanned numeric rows remain available throughout follow-up and reload
  assert.equal(reopened.state.caseContext.visionRows.length,3);
  assert.equal(reopened.state.caseContext.scannerFaultStatus,'presentes');
 });
+
+test('reopening an older Gemini reading recovers its five numerical scanner IDs without photo upload', async()=>{
+ const h=harness({brand:'Renault',model:'Clio',year:'2003',engine:'K4M'});
+ vm.runInContext(read('js/ai-gemini.js'),h.context);
+ const olderMessage='Leitura e orientação por Gemini gratuito (imagem original; conferir):\n1) Observações confirmáveis:\n* **12**: "Circuito do sensor de detonação"\n* **08**: "Sensor de pressão absoluta do coletor"\n* **13**: "Circuito da sonda Lambda dianteira"\n* **99**: "Circuito da válvula de purga do cânister, controle aberto"\n* **99**: "Circuito da válvula de purga do cânister"';
+ h.loadHistoryItem({id:'historical-clio-1',createdAt:'2026-10-20T10:00:00.000Z',vehicleData:{brand:'Renault',model:'Clio',year:'2003',engine:'K4M'},messages:[{role:'user',text:'Falha o tempo todo',at:'2026-10-20T10:00:00.000Z'},{role:'bot',text:olderMessage,at:'2026-10-20T10:01:00.000Z'}]});
+ await h.flush();
+ assert.deepEqual(Array.from(h.state.caseContext.visionRows,r=>r.id),['12','08','13','99','99']);
+ assert.equal(h.state.caseContext.visionRows.every(r=>r.confirmed===false),true);
+ assert.equal(h.state.caseContext.dtcs.length,0);
+});
