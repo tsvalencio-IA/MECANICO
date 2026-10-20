@@ -1216,11 +1216,25 @@
         ?"O veículo e o código já estão registrados. Falta o resultado do ensaio de vazamento interno do injetor. Se ainda não conseguiu fazer, marque ‘Não testei’ e diga qual equipamento tem."
         :"Para seguir, falta o resultado de ‘"+answer.test.title+"’. Escolha abaixo ou conte o que encontrou; se não conseguiu fazer, marque ‘Não testei’.";
     }
+    if((data.visionRows||[]).length&&!data.dtcs.length){
+      var visualCodes=data.visionRows.map(function(row){return row.id+" — "+row.description;}).slice(0,8).join("; ");
+      answer.explanation=[answer.explanation,"Registros lidos na fotografia pela IA (ainda não confirmados pelo mecânico): "+visualCodes+"."].filter(Boolean).join(" ");
+      if(/qual (?:codigo|c[oó]digo)|diga.*sem c[oó]digo|c[oó]digo.*scanner|qual.*descri[cç][aã]o.*scanner/i.test(answer.question)){
+        answer.awaiting="vision-scanner-status";
+        answer.question=data.scannerFaultStatus
+          ?"Já registrei que os registros do scanner são "+data.scannerFaultStatus+". Qual o próximo teste medido, com resultado e condições?"
+          :"Já registrei os identificadores da fotografia. Eles estão presentes/ativos ou apenas memorizados? Nenhuma peça está condenada.";
+        answer.actions=[];
+      }
+    }
     answer.text=[answer.lead,answer.explanation,answer.question,answer.test&&!answer.briefTest?"Teste agora: "+answer.test.title+". "+answer.test.procedure+" Esperado: "+(answer.test.good||"informe a leitura observada")+".":"",answer.warning].filter(Boolean).join("\n\n");
     return answer;
   }
 
   function diagnosticSearchQuery(diag){
+    if((diag.context.caseData.visionRows||[]).length){
+      return [diag.context.engine,diag.context.caseData.visionRows.slice(0,3).map(function(r){return r.description;}).join(" ")].filter(Boolean).join(" ").slice(0,300);
+    }
     if(diag.context.caseData.symptom==="no-start")return "";
     if(!diag.context.model)return "";
     if(!diag.context.dtcs.length){
@@ -1498,7 +1512,19 @@
       var query=diagnosticSearchQuery(diag);
       if(query&&window.ORACLE_REMOTE_KNOWLEDGE){
         try{
-          diag.remoteEvidence=await ORACLE_REMOTE_KNOWLEDGE.search(query,diag.context,2);
+          var readings=(diag.context.caseData.visionRows||[]).slice(0,4);
+          if(readings.length){
+            var searches=readings.map(function(row){return ORACLE_REMOTE_KNOWLEDGE.search(
+              [diag.context.engine,row.description].filter(Boolean).join(" ").slice(0,220),diag.context,3
+            );});
+            var portions=await Promise.all(searches);
+            var seenPaths=new Set();
+            diag.remoteEvidence=[].concat.apply([],portions).filter(function(item){
+              var key=[item.sourcePath,item.page,item.snippet].join("|");
+              if(!item.sourcePath||!item.snippet||seenPaths.has(key))return false;
+              seenPaths.add(key);return true;
+            }).slice(0,5);
+          }else diag.remoteEvidence=await ORACLE_REMOTE_KNOWLEDGE.search(query,diag.context,2);
         }catch(err){console.warn("[Knowledge search]",err);}
       }
       if(state.sessionId!==caseId||state.requestSequence!==requestId){typing.remove();return;}
