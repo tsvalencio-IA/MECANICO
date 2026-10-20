@@ -26,11 +26,16 @@
    return !!window.confirm(msg);
  }
  function extractVisionRows(reply){
+ // Accept only explicit per-line scanner findings from the response; never infer IDs.
+ // Gemini may use a numeric list or "Identificador 12 com a descrição ...".
  var out=[];
  String(reply||"").split(/\r?\n/).forEach(function(line){
-  var m=line.match(/^\s*(?:[-*•]\s*)?(?:\*\*|__)?(\d{1,3})(?:\*\*|__)?\s*[:—–-]\s*["“]?([^"”\n]{12,220})/);
+  var trimmed=line.replace(/^\s*\\(?=[-*•])/,"").trim();
+  var m=trimmed.match(/^(?:[-*•]\s*)?(?:\*\*|__)?(\d{1,3})(?:\*\*|__)?\s*[:—–-]\s*["“]?(.+)$/);
+  if(!m)m=trimmed.match(/^(?:[-*•]\s*)?Identificador\s+(?:\*\*|__)?(\d{1,3})(?:\*\*|__)?\s+(?:com\s+a\s+descri(?:ção|cao)|[:—–-])\s*["“]?(.+)$/i);
   if(!m)return;
   var description=m[2].replace(/["”*]+\s*$/,"").trim();
+  if(description.length<12||description.length>220)return;
   if(!/circuito|sensor|sonda|lambda|detona|press[aã]o|coletor|v[aá]lvula|canister|c[aâ]nister|injetor/i.test(description))return;
   if(out.some(function(row){return row.id===m[1]&&row.description===description;}))return;
   out.push({id:m[1],description:description,confirmed:false,origin:"ai_visual_unverified"});
