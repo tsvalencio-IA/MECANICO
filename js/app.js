@@ -1546,7 +1546,13 @@
               evidence:(diag.remoteEvidence||[]).slice(0,5)
             });
             if(state.sessionId===caseId&&state.requestSequence===requestId){
-              var guidance="Análise Gemini gratuita (conferir evidências):\n"+geminiReply.answer;
+              var entries=(diag.remoteEvidence||[]).slice(0,5);
+              var audit=entries.length
+                ?"Trechos do acervo encaminhados à IA (não equivalem a diagnóstico confirmado): "+entries.map(function(e,i){
+                    return "F"+(i+1)+": "+e.sourcePath+(e.page?" · p. "+e.page:"")+" ["+(e.truthStatus||"extração não classificada")+"]";
+                  }).join("; ")+"."
+                :"Consulta ao acervo: nenhuma referência compatível foi recuperada nesta busca. Não há fonte técnica específica confirmada para esta resposta.";
+              var guidance="Análise Gemini gratuita (conferir evidências):\n"+geminiReply.answer+"\n\n"+audit;
               appendTextMessage("bot",guidance);
               recordMessage("bot",guidance,{aiAssisted:true,provider:"gemini-free",knowledgeHits:geminiReply.sourceCount});
               persistSession();geminiAnswered=true;
