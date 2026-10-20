@@ -59,7 +59,7 @@ async function main(){
   ok('First follow-up asks a symptom question without losing history',/falha|frio|quente|diagnóstic/i.test(first),first.slice(0,300));
   ok('First follow-up does not re-ask scanner codes',!/Qual código aparece no scanner|diga .sem código./i.test(first),first.slice(-250));
   const second=await ask('A falha acontece o tempo todo.');
-  ok('Second follow-up recognizes scanner was already read',/j[aá] registrei os identificadores|12 — Circuito do sensor de detonação/.test(second),second.slice(0,320));
+  ok('Second follow-up recognizes scanner was already read',/j[aá] registrei os identificadores|12 — Circuito do sensor de detonação/i.test(second),second.slice(0,320));
   ok('Second follow-up does not re-ask scanner codes',!/Qual código aparece no scanner|diga .sem código./i.test(second),second.slice(-250));
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('thiaguinho_history')).find(x=>x.id==='TESTE-ISOLADO-CLIO'));
   ok('History persists five lines',stored?.caseContext?.visionRows?.length===5,stored?.caseContext?.visionRows?.map(r=>r.id).join(','));
