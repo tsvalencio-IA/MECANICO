@@ -1,0 +1,16 @@
+name: One-time Gemini free backend probe
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gemini-live-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify real Gemini via Vercel using temporary Firebase auth
+        run: node scripts/gemini_once.cjs
