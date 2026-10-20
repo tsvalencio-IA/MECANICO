@@ -1373,3 +1373,44 @@ test('reopening an older Gemini reading recovers its five numerical scanner IDs 
  assert.equal(h.state.caseContext.visionRows.every(r=>r.confirmed===false),true);
  assert.equal(h.state.caseContext.dtcs.length,0);
 });
+
+test('Gemini actual prose: Identificador scanner rows survive OCR mismatch, followups, and restored history', async()=>{
+ const h=harness({brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M',transmission:'Manual'});
+ vm.runInContext(read('js/ai-gemini.js'),h.context);
+ const reply='Leitura e orientação por Gemini gratuito (imagem original; conferir):\n'
+  +'Aqui é o thIAguinho. A base não recuperou referência compatível nesta consulta.\n'
+  +'Com base na fotografia original do scanner, as observações confirmáveis são:\n'
+  +'\\- Identificador 12 com a descrição "Circuito do sensor de detonação"\n'
+  +'- Identificador 08 com a descrição "Sensor de pressão absoluta do coletor do circuito"\n'
+  +'- Identificador 13 com a descrição "Circuito do sensor de Lambda Sensor dianteiro com defeito"\n'
+  +'- Identificador 99 com a descrição "Circuito da válvula de purga do canister Circuito de controle aberto"\n'
+  +'- Identificador 99 com a descrição "Circuito da válvula de purga do canister"\n'
+  +'Essas múltiplas falhas podem ter causas independentes ou em comum.';
+ const parsed=h.context.window.ORACLE_GEMINI.extractVisionRows(reply);
+ assert.deepEqual(Array.from(parsed,x=>x.id),['12','08','13','99','99']);
+ assert.equal(parsed.every(x=>x.confirmed===false),true);
+ h.loadHistoryItem({
+  id:'historico-tela-scanner-20261020',createdAt:'2026-10-20T11:00:00.000Z',
+  vehicleData:{brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M'},
+  messages:[
+   {role:'bot',text:'Leitura local parcial: 6 — canister',at:'2026-10-20T11:00:00.000Z'},
+   {role:'bot',text:reply,at:'2026-10-20T11:01:00.000Z'}
+  ],
+  mediaAnalysis:[{kind:'foto',text:'6 — canister',scannerRows:[{id:'6',description:'canister',confidence:'low'}]}]
+ });
+ await h.flush();
+ assert.deepEqual(Array.from(h.state.caseContext.visionRows,x=>x.id),['12','08','13','99','99']);
+ const first=await say(h,'O motor está falhando. Quero começar o diagnóstico sem trocar peça no chute.');
+ assert.match(first,/12 — Circuito do sensor de detonação/);
+ assert.doesNotMatch(first,/Qual código aparece no scanner|diga .sem código./);
+ const second=await say(h,'A falha acontece o tempo todo.');
+ assert.match(second,/08 — Sensor de pressão absoluta/);
+ assert.doesNotMatch(second,/Qual código aparece no scanner|diga .sem código./);
+ assert.equal(h.state.caseContext.visionRows.length,5);
+ assert.ok(h.searches.some(x=>/detonação/i.test(x.query)));
+ const reopened=harness();
+ vm.runInContext(read('js/ai-gemini.js'),reopened.context);
+ reopened.loadHistoryItem(JSON.parse(JSON.stringify(h.buildSessionPayload())));
+ await reopened.flush();
+ assert.deepEqual(Array.from(reopened.state.caseContext.visionRows,x=>x.id),['12','08','13','99','99']);
+});
