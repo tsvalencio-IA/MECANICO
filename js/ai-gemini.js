@@ -40,6 +40,16 @@
   if(out.some(function(row){return row.id===m[1]&&row.description===description;}))return;
   out.push({id:m[1],description:description,confirmed:false,origin:"ai_visual_unverified"});
  });
+ // Gemini also reports several scanner lines in one prose paragraph:
+ // linha 12 com "...", linha 08 com "...". Never infer a P/DF mapping.
+ var inline=/\b(?:linha|identificador)\s+(\d{1,3})\s+(?:com\s+(?:(?:a\s+)?descri(?:ção|cao)\s+)?|[:—–-]\s*)["“]([^"”\n]{12,220})["”]/gi;
+ var found;
+ while((found=inline.exec(String(reply||"")))!==null){
+  var desc=found[2].trim();
+  if(!/circuito|sensor|sonda|lambda|detona|press[aã]o|coletor|v[aá]lvula|canister|c[aâ]nister|injetor/i.test(desc))continue;
+  if(!out.some(function(row){return row.id===found[1]&&row.description===desc;}))
+   out.push({id:found[1],description:desc,confirmed:false,origin:"ai_visual_unverified"});
+ }
  return out.slice(0,20);
 }
 async function diagnose(data){
