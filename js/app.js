@@ -1979,21 +1979,13 @@
           try{
             if(await ORACLE_GEMINI.ready()&&ORACLE_GEMINI.consentText()&&ORACLE_GEMINI.consentImage()){
               waitGemini=appendTextMessage("bot","Consultando Gemini gratuito para ler a fotografia do scanner...");
-              var externalRefs=[];
-              if(window.ORACLE_REMOTE_KNOWLEDGE){
-                try{externalRefs=await Promise.race([
-                  Promise.all([
-                    ORACLE_REMOTE_KNOWLEDGE.search("sensor detonação motor",state.vehicle,3),
-                    ORACLE_REMOTE_KNOWLEDGE.search("MAP lambda cânister circuito elétrico",state.vehicle,3)
-                  ]).then(function(xs){return xs[0].concat(xs[1]).slice(0,5);}),
-                  new Promise(function(resolve){setTimeout(function(){resolve([]);},4500);})
-                ]);}catch(e){externalRefs=[];}
-              }
+              // The OCR may be wrong. Do not invent the pictured circuits by
+              // searching fixed Clio components before the image has been read.
               var imageDataUrl=await ORACLE_MEDIA.imageForRemoteVision(file);
               var geminiImage=await ORACLE_GEMINI.diagnose({
                 question:"Interprete cada linha visível na fotografia ORIGINAL do scanner. O OCR enviado pode estar severamente errado. Preserve números repetidos e não traduza para P/DF sem tabela comprovada.",
                 vehicle:state.vehicle,mediaText:result.text,scannerRows:scannerRows,
-                evidence:externalRefs,history:state.messages.slice(-9),
+                evidence:[],history:state.messages.slice(-9),
                 tests:state.testResults.slice(-8),imageDataUrl:imageDataUrl
               });
               if(state.mediaAnalyses[idx]&&state.mediaAnalyses[idx].text===result.text){
@@ -2008,6 +2000,42 @@
                 appendTextMessage("bot",visionText);
                 recordMessage("bot",visionText,{aiAssisted:true,provider:"gemini-free",visionUsed:true});
                 persistSession();geminiRead=true;
+                // Now use the actual circuits read from this photograph to
+                // retrieve source windows; this happens AFTER the visual model
+                // reply, and therefore cannot be described as evidence the
+                // model saw during its initial image interpretation.
+                if(foundRows.length&&window.ORACLE_REMOTE_KNOWLEDGE){
+                  try{
+                    var searched=await Promise.race([
+                      Promise.all(foundRows.slice(0,5).map(function(row){
+                        return ORACLE_REMOTE_KNOWLEDGE.search(row.description,state.vehicle,2);
+                      })),
+                      new Promise(function(resolve){setTimeout(function(){resolve(null);},7500);})
+                    ]);
+                    if(Array.isArray(searched)){
+                      var uniqueEvidence=[],usedEvidence=new Set();
+                      searched.forEach(function(group){
+                        (group||[]).slice(0,2).forEach(function(hit){
+                          if(!hit||!hit.sourcePath||!hit.snippet)return;
+                          var hash=[hit.sourcePath,hit.page,hit.snippet].join("|");
+                          if(usedEvidence.has(hash)||uniqueEvidence.length>=5)return;
+                          usedEvidence.add(hash);uniqueEvidence.push(hit);
+                        });
+                      });
+                      var sourceNote=uniqueEvidence.length
+                        ?"Consulta posterior ao acervo (NÃO utilizada na leitura inicial da foto): "+uniqueEvidence.map(function(hit){
+                          var target=hit.compatibility||{};
+                          var complete=target.model==="matched"&&target.engine==="matched"&&target.year==="matched";
+                          return hit.sourcePath+(hit.page?" p. "+hit.page:"")+" ["+(hit.truthStatus||"sem classificação")+
+                            (complete?"; aplicação identificada":"; aplicação ano/motor NÃO confirmada")+"]";
+                        }).join("; ")+"."
+                        :"Consulta ao acervo após identificar os circuitos: não foi encontrada referência com aplicação comprovada para este veículo. Não utilizarei esquemas de outro modelo.";
+                      appendTextMessage("bot",sourceNote);
+                      recordMessage("bot",sourceNote,{knowledgeAudit:true,knowledgeHits:uniqueEvidence.length});
+                      persistSession();
+                    }
+                  }catch(searchError){console.warn("[Conhecimento após imagem]",searchError);}
+                }
               }else if(waitGemini){waitGemini.remove();}
             }
           }catch(error){
