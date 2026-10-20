@@ -156,7 +156,7 @@ test('Gemini 503 switches once to the free Lite model without paid gateway',asyn
   throw Error('Unexpected network call');
  };
  try{
-  const mod=await import('../backend/api/diagnose.mjs');
+  const mod=await import('../backend/api/diagnose.mjs?fallback-503-fixture');
   const response={statusCode:0,setHeader(){},end(s){this.body=JSON.parse(s)}};
   await mod.default({method:'POST',headers:{origin:'https://tsvalencio-ia.github.io',authorization:'Bearer '+token},body:{question:'Registro do Clio',visionRows:[{id:'99',description:'Circuito do cânister'}]}},response);
   assert.equal(response.statusCode,200);
