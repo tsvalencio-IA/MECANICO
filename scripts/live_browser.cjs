@@ -65,6 +65,25 @@ async function main(){
   ok('History persists five lines',stored?.caseContext?.visionRows?.length===5,stored?.caseContext?.visionRows?.map(r=>r.id).join(','));
   report.queries=await page.evaluate(()=>window.__knowledgeProbe||[]);
   ok('Knowledge search was actually invoked',report.queries.length>=2,JSON.stringify(report.queries));
+  const coverage=await page.evaluate(async()=>{
+    const api=window.ORACLE_REMOTE_KNOWLEDGE;
+    const manifest=await api.metadata();
+    const cases=[
+      {name:'Clio K4M detonação',q:'circuito do sensor de detonação',vehicle:{brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M'}},
+      {name:'Clio K4M cânister',q:'válvula de purga do canister',vehicle:{brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M'}},
+      {name:'Clio K4M lambda',q:'sonda lambda dianteira',vehicle:{brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M'}},
+      {name:'Duster K4M detonação',q:'sensor de detonação',vehicle:{brand:'Renault',model:'Duster',year:'2015',engine:'1.6 K4M'}}
+    ];
+    const results=[];
+    for(const test of cases){
+      const hits=await api.search(test.q,test.vehicle,4);
+      results.push({name:test.name,count:hits.length,sources:hits.map(x=>({path:x.sourcePath,page:x.page,truth:x.truthStatus,compatibility:x.compatibility,verified:x.verified}))});
+    }
+    return {indexed:manifest.records,focus:manifest.focused_topics,results};
+  });
+  report.coverage=coverage;
+  ok('Focused index was rebuilt and served on the live website',coverage.indexed>=20000&&coverage.focus?.detonacao>=400&&coverage.focus?.canister>=800,JSON.stringify(coverage.focus));
+  console.log('LIVE_INDEX_COVERAGE '+JSON.stringify(coverage).slice(0,7000));
   await page.screenshot({path:'artifacts/clio-browser-desktop.png',fullPage:true});
   await page.reload({waitUntil:'domcontentloaded',timeout:50000});
   await page.locator('#historyBtn').click();await page.locator('#historyList button.history-item').first().click();
