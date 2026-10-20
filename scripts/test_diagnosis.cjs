@@ -1084,6 +1084,37 @@ test('a later battery correction replaces the structured voltage without borrowi
   assert.equal(h.state.caseContext.startingBattery.during, 8);
 });
 
+test('Palio without DTC remembers fuel and reported services, handles unavailable scanner readings and reopens cleanly', async () => {
+  const vehicle = { brand: 'Fiat', model: 'Palio', year: '2011', engine: '1.0 ECONOMY' };
+  const h = harness(vehicle);
+  await say(h, 'Está falhando'); await say(h, 'O tempo todo'); await say(h, 'Sem código');
+  const condition = await say(h, 'Acelerando');
+  const withServices = await say(h, 'Gasolina, velas novas, bicos limpos e cabos novos');
+  assert.notEqual(withServices, condition);
+  assert.equal(h.state.caseContext.fuelType, 'gasolina');
+  assert.deepEqual(Array.from(h.state.caseContext.interventions, x => x.component), ['velas', 'bicos', 'cabos']);
+  assert.match(withServices, /velas novas[\s\S]*bicos limpos[\s\S]*cabos novos/);
+  assert.doesNotMatch(withServices, /troque a bobina|causa confirmada/);
+  assert.ok(h.searches.some(x => /falha combustao/.test(x.query)));
+  const noScanner = await say(h, 'Não tenho esse parâmetro no scanner');
+  assert.match(noScanner, /leituras não estão disponíveis/);
+  assert.doesNotMatch(noScanner, /envie o código do motor e uma leitura comparativa/);
+  const restored = harness();
+  restored.loadHistoryItem(JSON.parse(JSON.stringify(h.buildSessionPayload())));
+  await restored.flush();
+  assert.equal(restored.state.caseContext.fuelType, 'gasolina');
+  assert.equal(restored.state.caseContext.interventions.length, 3);
+  assert.match(await say(restored, 'Você está se repetindo'), /leituras não estão disponíveis/);
+});
+
+test('hypothetical or denied workshop services do not enter the Palio facts', async () => {
+  const h = harness({ brand:'Fiat', model:'Palio', engine:'1.0 ECONOMY' });
+  await say(h, 'Está falhando'); await say(h, 'A quente'); await say(h, 'Sem código');
+  await say(h, 'Se eu trocar as velas e os bicos, resolve?');
+  await say(h, 'Não troquei os cabos');
+  assert.equal(h.state.caseContext.interventions.length, 0);
+});
+
 test('misfire without a stored code advances to operating conditions without fabricating a cylinder', async () => {
   const h = harness(golf);
   await say(h, 'Está falhando a quente');

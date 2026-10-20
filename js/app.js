@@ -182,7 +182,7 @@
       observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
       startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:"",
       lastInputKind:"",confirmedCodeReminder:false,coilAppearance:null,engineCode:"",engineIdentificationUnavailable:false,repairVerified:false,
-      componentRepair:"",noCodesReported:false,compression:null,startingBattery:null,starterConnections:"",noStartReference:null,noStartFeedback:"",factVersion:1,continuityVersion:2};
+      componentRepair:"",noCodesReported:false,fuelType:"",interventions:[],noCodeScannerDataUnavailable:false,compression:null,startingBattery:null,starterConnections:"",noStartReference:null,noStartFeedback:"",factVersion:1,continuityVersion:2};
   }
 
   function plugObservation(text,allowBare){
@@ -191,6 +191,26 @@
     if(match)return text.slice(match.index,match.index+match[0].length).trim();
     if(allowBare&&new RegExp("^"+status+"[.! ]*$").test(q))return text;
     return "";
+  }
+
+  // Preserve reported fuel and workshop services without treating hypothetical work as performed.
+  function captureWorkshopFacts(c,text){
+    var parts=norm(text).split(/[,;]|\s+e\s+(?=(?:as?|os?)?\s*(?:velas?|bicos?|injetores?|cabos?))/);
+    parts.forEach(function(part){
+      part=part.trim();
+      if(!part||/[?]/.test(part)||/\b(?:se eu|se fosse|sera que|poderia|deveria|talvez|pode ser|nao|nunca|sem)\b/.test(part))return;
+      var fuel=part.match(/^(?:(?:combustivel\s*(?::|e)?\s*|uso\s+|abastecido\s+com\s+))?(gasolina|etanol|alcool|diesel|gnv)\b/);
+      if(fuel)c.fuelType=fuel[1]==="alcool"?"etanol":fuel[1];
+      var patterns=[
+        ["velas",/\bvelas?\s+(?:novas?|trocadas?|substituidas?)\b|\b(?:troquei|substitui|coloquei)\s+(?:as?\s+)?velas?\b/],
+        ["bicos",/\b(?:bicos?|injetores?)\s+(?:limpos?|limpados?|trocados?|substituidos?)\b|\b(?:limpei|limpamos|troquei|substitui)\s+(?:os?\s+)?(?:bicos?|injetores?)\b/],
+        ["cabos",/\bcabos?(?:\s+de\s+(?:vela|ignicao))?\s+(?:novos?|trocados?|substituidos?)\b|\b(?:troquei|substitui|coloquei)\s+(?:os?\s+)?cabos?\b/]
+      ];
+      patterns.forEach(function(item){
+        if(item[1].test(part)&&!c.interventions.some(function(record){return record.component===item[0]&&record.description===part;}))
+          c.interventions.push({component:item[0],description:part,status:"relatado"});
+      });
+    });
   }
 
   function relevantObservation(slot,text){
@@ -405,7 +425,7 @@
   // Bot questions and suggested codes must never become diagnostic evidence.
   function extendCaseContext(previous,text){
     var c=Object.assign(emptyCaseContext(),previous||{});
-    c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();
+    c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();c.interventions=(c.interventions||[]).slice();
     c.observedCylinders=(c.observedCylinders||[]).slice();
     c.vehicleDetails=Object.assign({},c.vehicleDetails||{});
     c.observations=Object.assign({},c.observations||{});
@@ -460,6 +480,8 @@
         Object.keys(c.observations).forEach(function(key){if(/^no-start-/.test(key))delete c.observations[key];});
       }
     }
+    if(c.symptom==="misfire")captureWorkshopFacts(c,text);
+    if(c.awaiting==="misfire-no-code-data"&&/\b(?:nao tenho|nao aparece|nao mostra|nao consigo|indisponivel|sem acesso)\b.*\b(?:parametro|scanner|stft|ltft|correcao|leitura|dados)\b|\bscanner\b.*\bnao (?:tem|mostra|exibe)\b/.test(q))c.noCodeScannerDataUnavailable=true;
     c.ambiguousCylinderReply=false;
     if(/\bgolf\b/.test(q)){c.vehicleDetails.model="Golf";c.vehicleDetails.brand="Volkswagen";}
     if(/\bgolf\b|\bano\b/.test(q)){
@@ -759,9 +781,17 @@
         answer.question="Qual código aparece no scanner? Se não houver código, diga ‘sem código’.";
       }else{
         answer.awaiting="misfire-no-code-data";
-        answer.question=data.observations["misfire-no-code-data"]
-          ?"Dados registrados: "+data.observations["misfire-no-code-data"].slice(0,180)+". Para separar mistura, ignição e condição mecânica, envie o código do motor e uma leitura comparativa pelo procedimento dessa aplicação. Ainda não há causa confirmada."
-          :"Sem código registrado. A falha aparece em marcha lenta, acelerando ou sob carga? Envie também as correções de combustível e os contadores de falha, se o scanner oferecer; não vou escolher um cilindro ou peça sem essa evidência.";
+        var serviceReports=(data.interventions||[]).map(function(item){return item.description;});
+        var facts=[data.fuelType?"Combustível relatado: "+data.fuelType+".":"",serviceReports.length?"Peças e serviços relatados: "+serviceReports.join(", ")+".":""].filter(Boolean).join(" ");
+        if(data.noCodeScannerDataUnavailable){
+          answer.question=(facts?facts+" ":"")+"Entendi que essas leituras não estão disponíveis no scanner. A falha também ocorre em marcha lenta ou somente ao acelerar? Informe a comparação observada, sem inventar valores ausentes.";
+        }else if(data.observations["misfire-no-code-data"]){
+          answer.question=facts
+            ?facts+" Peças novas ou limpas não comprovam o funcionamento. A falha também aparece em marcha lenta? Se o scanner disponibilizar, informe STFT/LTFT na condição do defeito; se não houver esse parâmetro, diga isso."
+            :"Dados registrados: "+data.observations["misfire-no-code-data"].slice(0,180)+". Para separar mistura, ignição e condição mecânica, envie o código do motor e uma leitura comparativa pelo procedimento dessa aplicação. Ainda não há causa confirmada.";
+        }else{
+          answer.question="Sem código registrado. A falha aparece em marcha lenta, acelerando ou sob carga? Envie também as correções de combustível e os contadores de falha, se o scanner oferecer; não vou escolher um cilindro ou peça sem essa evidência.";
+        }
       }
       return;
     }
@@ -1188,7 +1218,11 @@
 
   function diagnosticSearchQuery(diag){
     if(diag.context.caseData.symptom==="no-start")return "";
-    if(!diag.context.model||!diag.context.dtcs.length) return "";
+    if(!diag.context.model)return "";
+    if(!diag.context.dtcs.length){
+      return diag.context.caseData.symptom==="misfire"
+        ?[diag.context.engine,"falha combustao ignicao mistura"].filter(Boolean).join(" "):"";
+    }
     var answer=practicalAnswer(diag);
     if(/^misfire-compression-/.test(answer.awaiting))return answer.awaiting==="misfire-compression-unit"?""
       :[diag.context.caseData.engineCode,"compressao compression"].filter(Boolean).join(" ");
