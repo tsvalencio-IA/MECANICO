@@ -101,7 +101,7 @@ export default async function handler(req, res) {
   if (!body || typeof body !== "object") return json(res,400,{error:"invalid-body"});
   const imageDataUrl = typeof body.imageDataUrl === "string" ? body.imageDataUrl : "";
   const hasImage=!!imageDataUrl;
-  if (hasImage && (!/^data:image\\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(imageDataUrl) || imageDataUrl.length>1450000))
+  if (hasImage && (!new RegExp("^data:image/jpeg;base64,[A-Za-z0-9+/=]+$").test(imageDataUrl) || imageDataUrl.length>1450000))
     return json(res,413,{error:"invalid-image"});
   if (JSON.stringify(body).length > (hasImage?1500000:18000))
     return json(res,413,{error:"payload-too-large"});
