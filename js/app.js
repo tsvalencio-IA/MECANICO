@@ -1670,6 +1670,17 @@
     state.vehicle=item.vehicleData||{};
     state.messages=(item.messages||[]).slice();
     state.caseContext=item.caseContext?extendCaseContext(item.caseContext,""):recoverCaseContext(state.messages);
+    // Previous builds stored Gemini's readable scanner results as a bot message.
+    // Recover only explicitly labelled visual reports; never promote OCR or hypotheses.
+    if(!(state.caseContext.visionRows||[]).length&&window.ORACLE_GEMINI&&ORACLE_GEMINI.extractVisionRows){
+      var oldVisual=state.messages.filter(function(m){
+        return m.role==="bot"&&/^Leitura e orientação por Gemini gratuito \(imagem original; conferir\):/.test(m.text||"");
+      }).slice(-1)[0];
+      if(oldVisual){
+        var recoveredVisual=ORACLE_GEMINI.extractVisionRows(oldVisual.text||"");
+        if(recoveredVisual.length)state.caseContext.visionRows=recoveredVisual;
+      }
+    }
     if(item.caseContext&&item.caseContext.factVersion!==1){
       // Older snapshots may have overwritten a plug fact with an unrelated reply.
       // Recover only explicit user statements, never generated bot text.
