@@ -1518,7 +1518,11 @@
               appendTextMessage("bot",note);recordMessage("bot",note,{aiAssisted:true});persistSession();
             }
           }
-        }catch(error){console.warn("[IA externa] mantendo diagnóstico local",error);}
+        }catch(error){
+          console.warn("[IA externa] mantendo diagnóstico local",error);
+          var warning="A análise complementar por IA não foi concluída: "+String(error.message||"erro técnico")+". O diagnóstico local continua disponível.";
+          appendTextMessage("bot",warning);recordMessage("bot",warning,{aiError:true});persistSession();
+        }
       }
     },options.immediate?20:180);
   }
@@ -1858,7 +1862,7 @@
           state.caseContext.scannerRows=(state.caseContext.scannerRows||[]).concat(scannerRows).slice(-30);
         }
         var message=scannerRows.length
-          ?"Encontrei "+scannerRows.length+" registro(s) na tela do scanner:\n"+scannerRows.map(function(row){return row.id+" — "+row.description;}).join("\n")+"\nOs números são identificadores exibidos por esse aparelho; não converti nenhum deles em DTC P/DF. Confirme os textos que ficaram legíveis. Os defeitos são presentes ou memorizados? Qual sintoma o veículo apresenta?"
+          ?"Leitura local parcial (OCR), sujeita a erros. Reconheci "+scannerRows.length+" possível(is) registro(s):\n"+scannerRows.map(function(row){return row.id+" — "+row.description+(row.confidence==="low"?" [número incerto]":"");}).join("\n")+"\nNão converti esses números em DTC P/DF. A IA visual poderá confrontar a imagem, após autorização. Os defeitos são presentes ou memorizados?"
           :candidates.length
           ?"A leitura ficou incerta. Você confirma o código "+candidates.join(" ou ")+"?"
           :result.text?"Li texto, mas não consegui confirmar um código. Digite o código e a descrição que aparecem no scanner."
@@ -1883,26 +1887,50 @@
           var raw=document.createElement("p");raw.textContent=result.text.slice(0,240);reading.appendChild(raw);bubble.appendChild(reading);
         }
         recordMessage("bot",message,{mediaRead:true});persistSession();
-        if(scannerRows.length&&window.ORACLE_AI){
+        // External vision is a separate opt-in; the photograph is never persisted in the case.
+        if(file.type&&file.type.indexOf("image/")===0&&window.ORACLE_AI){
+          var waiting=null;
           try{
             if(await ORACLE_AI.ready()&&ORACLE_AI.consent()){
-              var lookups=window.ORACLE_REMOTE_KNOWLEDGE
-                ?await Promise.all([
-                  ORACLE_REMOTE_KNOWLEDGE.search("sensor detonação knock",state.vehicle,3),
-                  ORACLE_REMOTE_KNOWLEDGE.search("sensor pressão coletor MAP lambda canister",state.vehicle,3)
-                ]):[[],[]];
-              var aiReply=await ORACLE_AI.diagnose({
-                question:"Interprete o scanner sem transformar identificadores numéricos do equipamento em DTCs por suposição.",
-                vehicle:state.vehicle,mediaText:result.text,scannerRows:scannerRows,
-                evidence:lookups[0].concat(lookups[1]).slice(0,6),
-                history:state.messages.slice(-10),tests:state.testResults.slice(-10)
+              waiting=appendTextMessage("bot","Consultando a IA técnica; a leitura local continua disponível.");
+              var imageDataUrl="";
+              if(ORACLE_AI.consentImage())imageDataUrl=await ORACLE_MEDIA.imageForRemoteVision(file);
+              var references=[];
+              if(window.ORACLE_REMOTE_KNOWLEDGE){
+                try{
+                  references=await Promise.race([
+                    Promise.all([
+                      ORACLE_REMOTE_KNOWLEDGE.search("sensor detonacao K4M",state.vehicle,3),
+                      ORACLE_REMOTE_KNOWLEDGE.search("sensor MAP lambda canister Clio",state.vehicle,3)
+                    ]).then(function(rows){return rows[0].concat(rows[1]).slice(0,6);}),
+                    new Promise(function(resolve){setTimeout(function(){resolve([]);},5000);})
+                  ]);
+                }catch(e){references=[];}
+              }
+              var response=await ORACLE_AI.diagnose({
+                question:"Leia a imagem original, se disponibilizada; compare os identificadores com o OCR, que pode estar errado. Identifique somente informações realmente visíveis. Não invente códigos universais nem especificações técnicas.",
+                vehicle:state.vehicle,mediaText:result.text,
+                imageDataUrl:imageDataUrl,scannerRows:scannerRows,
+                evidence:references,history:state.messages.slice(-10),tests:state.testResults.slice(-10)
               });
               if(state.mediaAnalyses[idx]&&state.mediaAnalyses[idx].text===result.text){
-                var note="Análise complementar por IA (confirme os dados):\n"+aiReply.answer;
-                appendTextMessage("bot",note);recordMessage("bot",note,{aiAssisted:true});persistSession();
-              }
+                var note="Análise complementar por IA (conferir com a foto):\n"+response.answer;
+                if(waiting){waiting.querySelector(".bubble p").textContent=note;scrollMessages();}
+                else appendTextMessage("bot",note);
+                recordMessage("bot",note,{aiAssisted:true,visionUsed:!!imageDataUrl});persistSession();
+              }else if(waiting){waiting.remove();}
+            }else if(await ORACLE_AI.ready()){
+              // User declined; keep OCR only without unnecessary messages.
+            }else{
+              appendTextMessage("bot","IA externa indisponível. A leitura acima é apenas OCR e precisa de conferência.");
             }
-          }catch(error){console.warn("[Scanner IA] leitura local preservada",error);}
+          }catch(error){
+            console.warn("[Scanner IA]",error);
+            var notice="Não consegui concluir a análise por IA externa: "+String(error.message||"erro técnico")+". A leitura OCR acima não é um diagnóstico confirmado.";
+            if(waiting){waiting.querySelector(".bubble p").textContent=notice;scrollMessages();}
+            else appendTextMessage("bot",notice);
+            recordMessage("bot",notice,{aiError:true});persistSession();
+          }
         }
       }
 

@@ -68,6 +68,7 @@ function structuredInput(body) {
   };
 }
 const POLICY = `Você é thIAguinho, auxiliar técnico de diagnóstico automotivo. Responda em português brasileiro claro, direto e prático.
+Se houver imagem anexada, LEIA A IMAGEM antes do OCR, preserve a quantidade de linhas e cada identificador visível, deixando claro qualquer texto ilegível. Nunca complete leituras por suposição.
 Trate a entrada OCR como NÃO confirmada; códigos numéricos do scanner (12, 08, 13, 99...) NÃO equivalem a DTC P/DF por inferência.
 Separe relato, evidência, interpretação, hipótese e teste. Não invente modelo de ECU, pinagem, cor de fio, tabela de código, pressão, torque, número de peça, fonte ou reparo confirmado.
 Fontes fornecidas são trechos recuperados, podem estar errados ou não ser compatíveis. Cite no corpo SOMENTE IDs F1-F6 que comprovem uma afirmação técnica, com aplicação; se não houver, diga 'Sem referência específica confirmada'.
@@ -97,9 +98,15 @@ export default async function handler(req, res) {
     return json(res,429,{error:"rate-limited"});
   let body;
   try { body = typeof req.body === "string" ? JSON.parse(req.body) : req.body; } catch { return json(res,400,{error:"invalid-json"}); }
-  if (!body || typeof body !== "object" || JSON.stringify(body).length > 18000)
+  if (!body || typeof body !== "object") return json(res,400,{error:"invalid-body"});
+  const imageDataUrl = typeof body.imageDataUrl === "string" ? body.imageDataUrl : "";
+  const hasImage=!!imageDataUrl;
+  if (hasImage && (!/^data:image\\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(imageDataUrl) || imageDataUrl.length>1450000))
+    return json(res,413,{error:"invalid-image"});
+  if (JSON.stringify(body).length > (hasImage?1500000:18000))
     return json(res,413,{error:"payload-too-large"});
   const input = structuredInput(body);
+  input.visualEvidence = hasImage ? "Imagem JPEG enviada expressamente pelo mecânico; confrontar o OCR" : "Nenhuma foto recebida";
   if (!input.question && !input.mediaText && !input.scannerRows.length)
     return json(res,422,{error:"missing-diagnostic-data"});
   const apiKey = process.env.GROQ_API_KEY || "";
@@ -108,7 +115,12 @@ export default async function handler(req, res) {
   const endpoint = useGroq
     ? "https://api.groq.com/openai/v1/chat/completions"
     : "https://ai-gateway.vercel.sh/v1/chat/completions";
-  const model = process.env.MECANICO_IA_MODEL || "openai/gpt-oss-120b";
+  const model = hasImage ? (process.env.MECANICO_VISION_MODEL || "openai/gpt-4o-mini") : (process.env.MECANICO_IA_MODEL || "openai/gpt-oss-120b");
+  if (hasImage && useGroq && !process.env.MECANICO_VISION_MODEL) return json(res,422,{error:"vision-model-not-configured"});
+  const userContent=hasImage ? [
+    {type:"text",text:JSON.stringify(input)},
+    {type:"image_url",image_url:{url:imageDataUrl,detail:"high"}}
+  ] : JSON.stringify(input);
   try {
     const reply = await fetch(endpoint, {
       method:"POST",
@@ -117,18 +129,24 @@ export default async function handler(req, res) {
         model,
         messages:[
           {role:"system",content:POLICY},
-          {role:"user",content:JSON.stringify(input)}
+          {role:"user",content:userContent}
         ],
-        temperature:0.2,max_completion_tokens:850
+        max_completion_tokens:hasImage?1200:1800,stream:false
       }),
       signal:AbortSignal.timeout(18000)
     });
-    if (!reply.ok) return json(res,502,{error:"upstream-unavailable",status:reply.status});
+    if (!reply.ok) {
+      let upstreamCode="unknown";
+      try{const upstream=await reply.json();upstreamCode=clean(upstream?.error?.code||upstream?.error?.type||"upstream-error",80);}catch(e){}
+      console.warn("[MECANICO IA] upstream rejected",reply.status,upstreamCode,model);
+      return json(res,502,{error:"upstream-unavailable",status:reply.status,upstreamCode});
+    }
     const data = await reply.json();
     const answer = clean(data?.choices?.[0]?.message?.content,3800);
-    if (!answer) return json(res,502,{error:"empty-model-response"});
+    if (!answer) {console.warn("[MECANICO IA] empty completion",model);return json(res,502,{error:"empty-model-response"});}
     return json(res,200,{answer,model,referenceIds:input.evidence.map(x=>x.id),disclaimer:"Análise assistida por IA; confirmar medições e aplicação das fontes."});
-  } catch {
+  } catch(err) {
+    console.warn("[MECANICO IA] model unavailable",err?.name||"unknown");
     return json(res,504,{error:"ai-timeout-or-network-failure"});
   }
 }

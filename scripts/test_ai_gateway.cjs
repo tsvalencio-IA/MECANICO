@@ -23,3 +23,19 @@ test('backend rejects calls without authentication',async()=>{
  await mod.default({method:'POST',headers:{origin:'https://tsvalencio-ia.github.io'},body:{question:'Falha'}},res);
  assert.ok([401,503].includes(res.statusCode));
 });
+
+test('image transfer requires additional specific permission',()=>{
+ const code=fs.readFileSync(path.join(root,'js/ai-remote.js'),'utf8');
+ const decisions=[];const w={confirm:prompt=>{decisions.push(prompt);return true;}};
+ const store=new Map([['thiaguinho_external_ai_consent','yes']]);
+ vm.runInNewContext(code,{window:w,localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)}});
+ assert.equal(w.ORACLE_AI.consentImage(),true);
+ assert.equal(decisions.length,1);
+ assert.match(decisions[0],/FOTO/);
+});
+test('frontend keeps vision image out of persisted case data',()=>{
+ const app=fs.readFileSync(path.join(root,'js/app.js'),'utf8');
+ const start=app.indexOf('function buildSessionPayload()'),end=app.indexOf('function mergeHistory(',start);
+ assert.ok(start>0&&end>start);
+ assert.doesNotMatch(app.slice(start,end),/imageDataUrl|data:image\/jpeg/);
+});

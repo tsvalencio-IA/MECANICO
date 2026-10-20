@@ -37,6 +37,14 @@
     return rows.slice(0,15);
   }
 
+  // Only unambiguous numeric scanner IDs may be considered candidates; never derive a P/DF mapping.
+  function scannerRowsWithConfidence(text){
+    return scannerRows(text).map(function(row){
+      var valid=/^\\d{2,3}$/.test(row.id)&&row.description.length>=20;
+      return Object.assign({},row,{confidence:valid?"partial":"low"});
+    });
+  }
+
   function normalize(text){
     return String(text||"")
       .replace(/\r/g,"")
@@ -94,6 +102,21 @@
     }finally{URL.revokeObjectURL(url);}
   }
 
+  async function imageForRemoteVision(file){
+    var canvas=await imageToCanvas(file);
+    var maxWidth=1450,maxHeight=1100;
+    if(canvas.width>maxWidth||canvas.height>maxHeight){
+      var factor=Math.min(maxWidth/canvas.width,maxHeight/canvas.height);
+      var resized=makeCanvas(canvas.width*factor,canvas.height*factor);
+      resized.getContext("2d").drawImage(canvas,0,0,resized.width,resized.height);
+      canvas=resized;
+    }
+    var payload=canvas.toDataURL("image/jpeg",.72);
+    if(payload.length>1450000) payload=canvas.toDataURL("image/jpeg",.48);
+    if(payload.length>1450000)throw new Error("Foto grande demais para análise remota");
+    return payload;
+  }
+
   async function analyzeImage(file,onProgress){
     var canvas=await imageToCanvas(file);
     var text=await recognize(canvas,onProgress);
@@ -148,5 +171,5 @@
     throw new Error("Formato não suportado");
   }
 
-  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,codeCandidates:codeCandidates,scannerRows:scannerRows,analyzeFile:analyzeFile};
+  window.ORACLE_MEDIA={fileKind:fileKind,detectCodes:detectCodes,codeCandidates:codeCandidates,scannerRows:scannerRowsWithConfidence,imageForRemoteVision:imageForRemoteVision,analyzeFile:analyzeFile};
 })();
