@@ -240,6 +240,15 @@
     (ids||[]).forEach(function(id){map.set(Number(id),(map.get(Number(id))||0)+points);});
   }
 
+  // Navigation indices cite chapter names but do not actually contain a test.
+  // Never deliver a chapter list as if it were a workshop procedure.
+  function isNavigationOnly(path,body){
+    var p=norm(path).replace(/\\/g,"/");
+    var t=norm(body);
+    return /(?:^|\/)ind(?:ice)?\d*\.html?$/.test(p)
+      && /indice|como testar|localizacao dos componentes|esquema eletrico/.test(t);
+  }
+
   function truthWeight(rec){
     var s=rec.truth_status||"";
     if(s==="source_extracted") return 20;
@@ -345,6 +354,7 @@
       [].concat.apply([],focusSets).forEach(function(pair){
         var row=pair.row;
         if(!row||!row.path||!row.snippet||!matchesFocusedWindow(pair.key,row.snippet))return;
+        if(isNavigationOnly(row.path,row.snippet))return;
         var compat=compatibilityFor(row.snippet,row.path,vehicle);
         if(!compat||compat.model!=="matched")return;
         var rec={
@@ -366,6 +376,7 @@
         if(!rec) return;
         var body=(rec.text||"")+" "+(direct&&direct.snippet||"");
         var sourcePath=direct&&direct.path||rec.path||"";
+        if(isNavigationOnly(sourcePath,body))return;
         var text=norm(body+" "+sourcePath);
         if(codes.length&&!codes.some(function(c){return codesFrom(body).indexOf(c)>=0;})) return;
         if(!codes.length&&!compressionQuery&&!injectorLeakQuery&&!matchesTopics(text,topicTokens))return;
