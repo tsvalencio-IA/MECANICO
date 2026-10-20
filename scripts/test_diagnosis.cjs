@@ -1416,3 +1416,42 @@ test('Gemini actual prose: Identificador scanner rows survive OCR mismatch, foll
  await reopened.flush();
  assert.deepEqual(Array.from(reopened.state.caseContext.visionRows,x=>x.id),['12','08','13','99','99']);
 });
+
+test('after a synthetic scanner photo, the actual recognized rows drive knowledge queries without pre-seeding circuits',async()=>{
+ const h=harness({brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M'});
+ const visual='Identificador 12 com a descrição "Circuito do sensor de detonação"\n'
+  +'Identificador 08 com a descrição "Sensor de pressão absoluta do coletor"\n'
+  +'Identificador 13 com a descrição "Circuito da sonda Lambda dianteira"\n'
+  +'Identificador 99 com a descrição "Circuito da válvula de purga do cânister, controle aberto"\n'
+  +'Identificador 99 com a descrição "Circuito da válvula de purga do cânister"';
+ vm.runInContext(read('js/ai-gemini.js'),h.context);
+ const realParser=h.context.window.ORACLE_GEMINI.extractVisionRows;
+ let seenImagePayload=null;
+ const ai={
+  ready:async()=>true,consentText:()=>true,consentImage:()=>true,
+  diagnose:async function(payload){seenImagePayload=payload;return {answer:visual};},
+  extractVisionRows:realParser
+ };
+ h.context.window.ORACLE_GEMINI=ai;
+ h.context.ORACLE_GEMINI=ai;
+ const queries=[];
+ h.context.window.ORACLE_REMOTE_KNOWLEDGE.search=async function(q){
+  queries.push(q);
+  return [];
+ };
+ h.context.window.ORACLE_MEDIA.analyzeFile=async function(){
+  return {kind:'foto',text:'OCR INCERTO 6 Circuito do canister',scannerRows:[],codes:[],frames:1,ocrPasses:1};
+ };
+ h.context.window.ORACLE_MEDIA.imageForRemoteVision=async function(){
+  return 'fixture-image-data-not-real';
+ };
+ await h.processMedia({type:'image/png',size:512,name:'synthetic-fixture'});
+ assert.equal(seenImagePayload.evidence.length,0);
+ assert.deepEqual(Array.from(h.state.caseContext.visionRows,r=>r.id),['12','08','13','99','99']);
+ assert.ok(queries.some(q=>/detonação/i.test(q)));
+ assert.ok(queries.some(q=>/pressão absoluta/i.test(q)));
+ assert.ok(queries.some(q=>/lambda/i.test(q)));
+ assert.ok(queries.some(q=>/purga/i.test(q)));
+ assert.ok(h.state.messages.some(m=>/Consulta ao acervo após identificar os circuitos:/.test(m.text||'')));
+ assert.equal(h.state.caseContext.dtcs.length,0);
+});
