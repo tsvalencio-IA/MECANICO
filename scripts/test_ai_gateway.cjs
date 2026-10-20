@@ -170,3 +170,14 @@ test('Gemini policies never seed a known screenshot with specific numeric scanne
  assert.match(source,/visionRows/);
  assert.match(source,/origin:"ai_visual_unverified"/);
 });
+
+test('Gemini vision rows are parsed only from model reply, never seeded by fixed code list',()=>{
+ const code=fs.readFileSync(path.join(root,'js/ai-gemini.js'),'utf8');
+ const w={};
+ vm.runInNewContext(code,{window:w});
+ const reply='1) Observações:\n* **12**: "Circuito do sensor de detonação"\n* **08**: "Sensor de pressão absoluta do coletor"\n* **99**: "Circuito da válvula de purga do cânister"\n* **99**: "Circuito da válvula de purga do cânister Circuito aberto"';
+ const out=w.ORACLE_GEMINI.extractVisionRows(reply);
+ assert.deepEqual(Array.from(out,r=>r.id),['12','08','99','99']);
+ assert.equal(out.every(r=>r.confirmed===false),true);
+ assert.equal(w.ORACLE_GEMINI.extractVisionRows('1) Observações\n2) Hipóteses\n3) Próximo teste').length,0);
+});
