@@ -103,9 +103,38 @@ test('Gemini photo is sent only to protected endpoint and not persisted',()=>{
 });
 test('Gemini backend is free-tier only with no paid AI Gateway fallback',()=>{
  const content=fs.readFileSync(path.join(root,'backend/api/diagnose.mjs'),'utf8');
- assert.match(content,/const MODEL="gemini-2\.5-flash"/);
+ assert.match(content,/const MODELS=\["gemini-3\.8-flash","gemini-3\.5-flash-lite"\]/);
  assert.match(content,/process\.env\.GEMINI_API_KEY/);
  assert.doesNotMatch(content,/ai-gateway\.vercel\.sh|api\.groq\.com|GROQ_API_KEY/);
  assert.match(content,/inline_data/);
  assert.match(content,/firebaseUser\(auth\.slice\(7\)\)/);
+});
+
+test('new-project model compatibility: 404 only falls back to another free model',async()=>{
+ const {generateKeyPairSync,sign}=require('node:crypto');
+ const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});
+ const b64=t=>Buffer.from(typeof t==='string'?t:JSON.stringify(t)).toString('base64url');
+ const epoch=Math.floor(Date.now()/1000);
+ const head=b64({alg:'RS256',typ:'JWT',kid:'local-test'});
+ const data=b64({aud:'mecanico-b222e',iss:'https://securetoken.google.com/mecanico-b222e',sub:'test-anon-user',iat:epoch-10,exp:epoch+3600});
+ const raw=head+'.'+data;const signature=sign('RSA-SHA256',Buffer.from(raw),privateKey).toString('base64url');
+ const token=raw+'.'+signature;
+ const oldFetch=global.fetch,oldEnv=process.env.GEMINI_API_KEY;
+ const calls=[];process.env.GEMINI_API_KEY='TEST-ONLY-NOT-REAL';
+ global.fetch=async(url,opts)=>{
+   const addr=String(url);
+   if(addr.includes('service_accounts/v1/jwk/'))return {ok:true,json:async()=>({keys:[{...publicKey.export({format:'jwk'}),kid:'local-test'}]})};
+   calls.push(addr);
+   if(addr.includes('gemini-3.8-flash'))return {ok:false,status:404,json:async()=>({error:{status:'NOT_FOUND'}})};
+   if(addr.includes('gemini-3.5-flash-lite'))return {ok:true,status:200,json:async()=>({candidates:[{content:{parts:[{text:'Confirmar códigos numéricos pelo scanner, sem inventar DTC.'}]}}]})};
+   throw Error('Unexpected network destination');
+ };
+ try{
+  const mod=await import('../backend/api/diagnose.mjs');
+  const res={statusCode:0,setHeader(){},end(s){this.body=JSON.parse(s)}};
+  await mod.default({method:'POST',headers:{origin:'https://tsvalencio-ia.github.io',authorization:'Bearer '+token},body:{question:'Clio falhando',vehicle:{brand:'Renault',model:'Clio'}}},res);
+  assert.equal(res.statusCode,200);
+  assert.equal(res.body.model,'gemini-3.5-flash-lite');
+  assert.equal(calls.length,2);
+ }finally{global.fetch=oldFetch;if(oldEnv===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldEnv;}
 });
