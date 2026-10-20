@@ -5,7 +5,7 @@
   var manifest=null,manifestPromise=null,mapPromise=null;
   var jsonCache=new Map();
   var queryCache=new Map();
-  var SEARCH_VERSION="2.1.0-compact";
+  var SEARCH_VERSION="2.2.0-focus";
 
   function norm(v){
     return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
@@ -132,6 +132,37 @@
     return result;
   }
 
+
+  // Match actual subsystem terms rather than shared filler ("sensor", "circuito").
+  // Each name resolves to unchanged source windows in the generated focus index.
+  function focusTopicsFrom(query){
+    var q=norm(query),result=[];
+    var patterns={
+      detonacao:/\b(?:detonac\w*|knock\s+sensor)\b/,
+      map:/\b(?:sensor\s+(?:de\s+)?pressao\s+absoluta|pressao\s+absoluta|sensor\s+map|manifold\s+absolute)\b/,
+      lambda:/\b(?:lambda|sonda\s+(?:de\s+)?oxigenio|oxygen\s+sensor)\b/,
+      canister:/\b(?:canister|canistor|purga|evaporativ\w*)\b/,
+      alimentacao:/\b(?:rele\s+principal|alimentacao\s+(?:da\s+)?(?:ecu|uce|central)|aterramento\s+(?:da\s+)?(?:ecu|uce|central)|fusivel\s+(?:da\s+)?injecao)\b/,
+      injetor:/\b(?:injetor(?:es)?|injector(?:s)?|bico\s+injetor)\b/,
+      ignicao:/\b(?:bobina(?:s)?\s+(?:de\s+)?ignicao|ignition\s+coil)\b/
+    };
+    Object.keys(patterns).forEach(function(key){if(patterns[key].test(q))result.push(key);});
+    return result.slice(0,3);
+  }
+  function matchesFocusedWindow(topic,text){
+    var q=norm(text);
+    var patterns={
+      detonacao:/\b(?:detonac\w*|knock\s+sensor)\b/,
+      map:/\b(?:sensor\s+(?:de\s+)?pressao\s+absoluta|pressao\s+absoluta|sensor\s+map|manifold\s+absolute)\b/,
+      lambda:/\b(?:lambda|sonda\s+(?:de\s+)?oxigenio|oxygen\s+sensor)\b/,
+      canister:/\b(?:canister|canistor|purga|evaporativ\w*)\b/,
+      alimentacao:/\b(?:rele\s+principal|alimentacao\s+(?:da\s+)?(?:ecu|uce|central)|aterramento\s+(?:da\s+)?(?:ecu|uce|central)|fusivel\s+(?:da\s+)?injecao)\b/,
+      injetor:/\b(?:injetor(?:es)?|injector(?:s)?|bico\s+injetor)\b/,
+      ignicao:/\b(?:bobina(?:s)?\s+(?:de\s+)?ignicao|ignition\s+coil)\b/
+    };
+    return !!(patterns[topic]&&patterns[topic].test(q));
+  }
+
   function prefix(term){
     var t=String(term||"").replace(/[^a-z0-9]/g,"");
     if(t.length>=2) return t.slice(0,2);
@@ -252,7 +283,9 @@
     var topicTokens=topicTokensFrom(qTokens,vehicleText);
     var vehicleTokens=tokensFrom(vehicleText);
     var codes=codesFrom(String(query||"")+" "+vehicleText);
-    if(!codes.length&&!topicTokens.length)return [];
+    var requestedFocus=codes.length?[]:focusTopicsFrom(query);
+    var focusKeys=m.focused_topics?requestedFocus.filter(function(key){return Number(m.focused_topics[key])>0;}):[];
+    if(!codes.length&&!topicTokens.length&&!focusKeys.length)return [];
     var scores=new Map();
     var directEvidence={};
 
@@ -278,10 +311,10 @@
       var vehicleLists=await Promise.all(vterms.map(postingsForTerm));
       vehicleLists.forEach(function(ids){addScores(scores,ids,18);});
 
-      if(!scores.size) return [];
+      if(!scores.size&&!focusKeys.length) return [];
 
       var ranked=Array.from(scores.entries()).sort(function(a,b){return b[1]-a[1];}).slice(0,48);
-      var recordMap=await loadRecordMap();
+      var recordMap=ranked.length?await loadRecordMap():{};
       var bucketScore=new Map();
       ranked.forEach(function(x){
         var b=Number(recordMap[x[0]]);
@@ -297,6 +330,33 @@
       var queryText=norm(query),compressionQuery=!codes.length&&/compressao|compression/.test(queryText);
       var injectorLeakQuery=!codes.length&&!compressionQuery&&/estanqueidade|internal leakage/.test(queryText)&&/injetor|injector/.test(queryText);
       var detailed=[];
+      // The focused windows are not limited by the generic term posting cap or
+      // the first 2600 preview characters. Keep actual path/page/SHA/method.
+      // A focused hit must explicitly identify this MODEL. If the source only
+      // discusses another model, never promote it as vehicle-specific evidence.
+      var focusSets=await Promise.all(focusKeys.map(function(key){
+        return fetchJson("focus/"+key+".json",false).then(function(rows){
+          return Array.isArray(rows)?rows.map(function(row){return {key:key,row:row};}):[];
+        }).catch(function(e){
+          if(String(e&&e.message||e).indexOf("HTTP 404")>=0)return [];
+          throw e;
+        });
+      }));
+      [].concat.apply([],focusSets).forEach(function(pair){
+        var row=pair.row;
+        if(!row||!row.path||!row.snippet||!matchesFocusedWindow(pair.key,row.snippet))return;
+        var compat=compatibilityFor(row.snippet,row.path,vehicle);
+        if(!compat||compat.model!=="matched")return;
+        var rec={
+          id:row.id,path:row.path,page:row.page,chunk:row.chunk,
+          text:row.snippet,method:row.method,truth_status:row.truth_status,
+          confidence:row.confidence,sha256:row.sha256
+        };
+        detailed.push({
+          rec:rec,direct:null,compatibility:compat,
+          score:145+truthWeight(rec)+(compat.engine==="matched"?28:0)+(compat.year==="matched"?24:0)
+        });
+      });
       ranked.forEach(function(pair){
         var rec=records[String(pair[0])];
         var direct=(directEvidence[String(pair[0])]||[]).find(function(row){
@@ -362,6 +422,6 @@
     search:search,
     metadata:loadManifest,
     prefetch:prefetch,
-    get status(){return {manifest:manifest,mode:"compact",version:SEARCH_VERSION,cachedFiles:jsonCache.size,cachedQueries:queryCache.size};}
+    get status(){return {manifest:manifest,mode:"compact",version:SEARCH_VERSION,cachedFiles:jsonCache.size,cachedQueries:queryCache.size,focusTopics:manifest&&manifest.focused_topics||null};}
   };
 })();
