@@ -11,7 +11,7 @@ function record(id, text, extra = {}) {
   return { id, text, path: 'Volkswagen/Golf.pdf', page: id, method: 'pdf_text', truth_status: 'source_extracted', confidence: 1, sha256: 'source-hash', ...extra };
 }
 
-function harness({ records = {}, dtcs = {}, terms = {}, failures = {}, buckets = {}, revision } = {}) {
+function harness({ records = {}, dtcs = {}, terms = {}, focus = {}, failures = {}, buckets = {}, revision } = {}) {
   const calls = [], events = [], urls = [];
   const remaining = { ...failures };
   const context = {
@@ -25,12 +25,13 @@ function harness({ records = {}, dtcs = {}, terms = {}, failures = {}, buckets =
       calls.push(file);
       if (remaining[file]) { remaining[file]--; throw new Error('transient offline: ' + file); }
       let body;
-      if (file === 'manifest.json') body = { mode: 'compact-lexical', heavy_shards_required_by_client: false, records: Object.keys(records).length, source_archive_sha256: 'archive-hash', index_revision: revision };
+      if (file === 'manifest.json') body = { mode: 'compact-lexical', heavy_shards_required_by_client: false, records: Object.keys(records).length, source_archive_sha256: 'archive-hash', index_revision: revision, focused_topics: Object.fromEntries(Object.entries(focus).map(([k,v])=>[k,v.length])) };
       else if (file === 'record-map.json') body = Object.fromEntries(Object.keys(records).map(id => [id, buckets[id] || 0]));
       else if (file.startsWith('records/r')) {
         const bucket = Number(file.match(/r(\d+)/)[1]);
         body = Object.fromEntries(Object.entries(records).filter(([id]) => (buckets[id] || 0) === bucket));
       } else if (file.startsWith('dtc/')) body = dtcs[file.slice(4, -5)];
+      else if(file.startsWith('focus/')) body = focus[file.slice(6,-5)];
       else if (file.startsWith('terms/')) body = terms;
       if (body === undefined) return { ok: false, status: 404 };
       return { ok: true, async json() { return JSON.parse(JSON.stringify(body)); } };
@@ -231,4 +232,48 @@ test('missing coverage returns no sources rather than borrowing a different code
   const records = { 1: record(1, 'Golf 1.4 TSI P0301 falha.') };
   const h = harness({ records, terms: { golf: [1] } });
   assert.equal((await h.api.search('DF026', golf)).length, 0);
+});
+
+test('focus excerpt beyond compact preview retrieves precise Clio sensor data with path, page and SHA',async()=>{
+ const model={brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M'};
+ const plain=record(1,'Renault Clio: general introduction '.repeat(170),{
+  path:'Renault/Clio_2003_K4M.pdf',page:34
+ });
+ const realText='Renault Clio 2003 motor K4M circuito do sensor de detonação: comparar chicote com o esquema da ECU.';
+ const focus={detonacao:[{
+  id:1,path:plain.path,page:34,chunk:2,snippet:realText,
+  truth_status:'source_extracted',method:'pdf_text',sha256:'source-hash'
+ }]};
+ const h=harness({records:{1:plain},focus,terms:{detonacao:[1],clio:[1],sensor:[1]}});
+ const result=await h.api.search('1.6 16V K4M circuito do sensor de detonação',model,4);
+ assert.equal(result.length,1);
+ assert.equal(result[0].page,34);
+ assert.equal(result[0].sourcePath,plain.path);
+ assert.equal(result[0].truthStatus,'source_extracted');
+ assert.equal(result[0].sourceSha256,'source-hash');
+ assert.match(result[0].snippet,/sensor de detonação/);
+ assert.equal(result[0].compatibility.model,'matched');
+ assert.ok(h.calls.includes('focus/detonacao.json'));
+});
+test('focused search rejects another model or incompatible engine, even if component matches',async()=>{
+ const model={brand:'Renault',model:'Clio',year:'2003',engine:'1.6 16V K4M'};
+ const focus={canister:[
+  {id:11,path:'Renault/Duster_2018_K4M.pdf',page:10,snippet:'Duster 2018 K4M circuito do canister.',truth_status:'source_extracted'},
+  {id:12,path:'Renault/Clio_2003_K7M.pdf',page:15,snippet:'Clio 2003 motor K7M circuito do canister.',truth_status:'source_extracted'}
+ ]};
+ const h=harness({focus});
+ assert.equal((await h.api.search('válvula de purga do canister',model)).length,0);
+ assert.ok(h.calls.includes('focus/canister.json'));
+});
+test('focused OCR evidence keeps its unverified label, never becomes authoritative',async()=>{
+ const model={brand:'Renault',model:'Clio',engine:'1.6 16V K4M'};
+ const h=harness({focus:{lambda:[
+  {id:4,path:'Renault/Clio_K4M.pdf',page:3,chunk:1,
+   snippet:'Clio motor K4M circuito da sonda lambda anterior.',method:'ocr',
+   truth_status:'ocr_unverified',confidence:0.8,sha256:'ocr-source'}
+ ]}});
+ const r=await h.api.search('sonda lambda dianteira',model,4);
+ assert.equal(r.length,1);assert.equal(r[0].verified,false);
+ assert.match(r[0].statusLabel,/OCR/);
+ assert.equal(r[0].sourceSha256,'ocr-source');
 });
