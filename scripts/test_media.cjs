@@ -156,7 +156,7 @@ test('image OCR reuses one worker for regional rereads and releases it',async()=
   };}}
  };
  const ctx={
-  window:W,document:doc,Image,Uint8ClampedArray,Uint32Array,Float32Array,
+  window:W,Tesseract:W.Tesseract,document:doc,Image,Uint8ClampedArray,Uint32Array,Float32Array,
   URL:{createObjectURL:()=>'blob:local',revokeObjectURL:()=>{revoked++;}}
  };
  vm.runInNewContext(fs.readFileSync(path.join(root,'js/media.js'),'utf8'),ctx);
