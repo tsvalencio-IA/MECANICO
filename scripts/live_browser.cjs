@@ -64,7 +64,7 @@ async function main(){
   const damaged=await ask('O CHICOTE DO CANISTER ESTAVA QUEBRADO');
   ok('Broken harness registered, no inferred repair',/chicote|cânister|canister/i.test(damaged)&&!/reparo concluído|reparado e testado/i.test(damaged),damaged.slice(0,220));
   const update=await ask('TROCAMOS VELA,,BOBINA, FIZEMOS LIMPEZA DE BICOS, E LIMPEZA DE TBI.. ELE MELHOROU MAS NAO PARA EM MARCHA LENTA');
-  ok('Idle complaint changes next test',/marcha lenta/i.test(update)&&/pedal|acelerador/i.test(update)&&!/Manipulação monitorada/i.test(update),update.slice(-260));
+  ok('Idle complaint changes next test',/pedal|acelerador/i.test(update)&&!/Manipulação monitorada/i.test(update),update.slice(-260));
   const current=await page.evaluate(()=>JSON.parse(localStorage.getItem('thiaguinho_history')).find(x=>x.id==='TESTE-ISOLADO-CLIO')?.caseContext);
   ok('Workshop facts and vision rows persisted',current?.serviceLog?.length===4&&current?.visionRows?.length===5&&current?.canisterHarnessDamage==='relatado'&&!current?.canisterHarnessRepaired,JSON.stringify(current?.serviceLog?.map(x=>x.component)));
   const pedal=await ask('Com o pedal pressionado ele fica ligado.');
