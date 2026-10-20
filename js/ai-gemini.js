@@ -25,7 +25,19 @@
    var msg="Autoriza o envio DESTA fotografia ao Gemini gratuito do Google para leitura visual? A foto original será reduzida e transmitida somente para processamento, sem gravá-la no histórico do MECÂNICO IA. No nível gratuito, o Google pode usar os dados para melhorar produtos. Não envie placas ou dados pessoais visíveis. Cancelar mantém o OCR local.";
    return !!window.confirm(msg);
  }
- async function diagnose(data){
+ function extractVisionRows(reply){
+ var out=[];
+ String(reply||"").split(/\r?\n/).forEach(function(line){
+  var m=line.match(/^\s*(?:[-*•]\s*)?(?:\*\*|__)?(\d{1,3})(?:\*\*|__)?\s*[:—–-]\s*["“]?([^"”\n]{12,220})/);
+  if(!m)return;
+  var description=m[2].replace(/["”*]+\s*$/,"").trim();
+  if(!/circuito|sensor|sonda|lambda|detona|press[aã]o|coletor|v[aá]lvula|canister|c[aâ]nister|injetor/i.test(description))return;
+  if(out.some(function(row){return row.id===m[1]&&row.description===description;}))return;
+  out.push({id:m[1],description:description,confirmed:false,origin:"ai_visual_unverified"});
+ });
+ return out.slice(0,20);
+}
+async function diagnose(data){
    if(!window.ORACLE_FIREBASE)throw Error("Firebase indisponível");
    await window.ORACLE_FIREBASE.ready;
    var user=window.ORACLE_FIREBASE.auth&&window.ORACLE_FIREBASE.auth.currentUser;
@@ -48,5 +60,5 @@
    if(!result||typeof result.answer!=="string"||!result.answer.trim())throw Error("Resposta vazia do Gemini");
    return result;
  }
- window.ORACLE_GEMINI={ready:ready,consentText:consentText,consentImage:consentImage,diagnose:diagnose,mode:"free-tier-only"};
+ window.ORACLE_GEMINI={ready:ready,consentText:consentText,consentImage:consentImage,diagnose:diagnose,extractVisionRows:extractVisionRows,mode:"free-tier-only"};
 })();
