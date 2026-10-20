@@ -13,7 +13,7 @@ test('frontend IA keeps private credentials outside JS and requires permission',
 });
 test('frontend IA is loaded after Firebase and before app engine',()=>{
  const html=fs.readFileSync(path.join(root,'app-v134.html'),'utf8');
- const f=html.indexOf('js/firebase.js'),b=html.indexOf('js/ai-remote.js'),app=html.indexOf('js/app.js');
+ const f=html.indexOf('src="./js/firebase.js'),b=html.indexOf('src="./js/ai-remote.js'),app=html.indexOf('src="./js/app.js');
  assert.ok(f>=0&&b>f&&app>b);
  assert.match(html,/IA externa só recebe textos após sua autorização/);
 });
