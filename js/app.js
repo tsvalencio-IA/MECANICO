@@ -182,7 +182,7 @@
       observedCylinders:[],otherCodesKnown:false,awaiting:"",flowVersion:0,rpm:null,rpmPresent:false,rpmUnavailable:false,
       startAuthorized:"",ecuCommunication:"",starterSound:"",ambiguousCylinderReply:false,vehicleDetails:{},observations:{},dtcDescriptions:{},awaitingDtc:"",
       lastInputKind:"",confirmedCodeReminder:false,coilAppearance:null,engineCode:"",engineIdentificationUnavailable:false,repairVerified:false,
-      componentRepair:"",noCodesReported:false,fuelType:"",interventions:[],noCodeScannerDataUnavailable:false,compression:null,startingBattery:null,starterConnections:"",noStartReference:null,noStartFeedback:"",factVersion:1,continuityVersion:2};
+      componentRepair:"",noCodesReported:false,fuelType:"",interventions:[],noCodeScannerDataUnavailable:false,visionRows:[],scannerFaultStatus:"",compression:null,startingBattery:null,starterConnections:"",noStartReference:null,noStartFeedback:"",factVersion:1,continuityVersion:2};
   }
 
   function plugObservation(text,allowBare){
@@ -425,7 +425,7 @@
   // Bot questions and suggested codes must never become diagnostic evidence.
   function extendCaseContext(previous,text){
     var c=Object.assign(emptyCaseContext(),previous||{});
-    c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();c.interventions=(c.interventions||[]).slice();
+    c.dtcs=(c.dtcs||[]).slice();c.details=(c.details||[]).slice();c.interventions=(c.interventions||[]).slice();c.visionRows=(c.visionRows||[]).slice();
     c.observedCylinders=(c.observedCylinders||[]).slice();
     c.vehicleDetails=Object.assign({},c.vehicleDetails||{});
     c.observations=Object.assign({},c.observations||{});
@@ -481,6 +481,10 @@
       }
     }
     if(c.symptom==="misfire")captureWorkshopFacts(c,text);
+    if(c.visionRows.length){
+      if(/^(?:presente|presentes|ativa|ativas|ativo|ativos|estao presentes|estao ativos)[.! ]*$/.test(q)||/\bfalhas? (?:presentes?|ativas?)\b/.test(q))c.scannerFaultStatus="presentes";
+      else if(/^(?:memorizado|memorizados|historico|armazenado|armazenados|passado|passados)[.! ]*$/.test(q)||/\bfalhas? (?:memorizadas?|armazenadas?)\b/.test(q))c.scannerFaultStatus="memorizados";
+    }
     if(c.awaiting==="misfire-no-code-data"&&/\b(?:nao tenho|nao aparece|nao mostra|nao consigo|indisponivel|sem acesso)\b.*\b(?:parametro|scanner|stft|ltft|correcao|leitura|dados)\b|\bscanner\b.*\bnao (?:tem|mostra|exibe)\b/.test(q))c.noCodeScannerDataUnavailable=true;
     c.ambiguousCylinderReply=false;
     if(/\bgolf\b/.test(q)){c.vehicleDetails.model="Golf";c.vehicleDetails.brand="Volkswagen";}
@@ -635,7 +639,7 @@
     var caseData=suppliedCase||extendCaseContext(state.caseContext,question);
     // processMedia submits a readable code (or asks for confirmation). Old OCR
     // text must never restore a code the mechanic has subsequently withdrawn.
-    if(!caseData.dtcs.length)mediaText="";
+    if(!caseData.dtcs.length&&!caseData.visionRows.length)mediaText="";
     var currentResults=currentTestResults(state.testResults,caseData.flowVersion);
     var testText=currentResults.map(function(x){return x.title+" "+x.result;}).join(" ");
     var context={
@@ -1512,6 +1516,7 @@
               tests:state.testResults.slice(-10),
               mediaText:state.mediaAnalyses.map(function(m){return m.text||"";}).slice(-2).join("\n").slice(0,2200),
               scannerRows:state.caseContext.scannerRows||[],
+              visionRows:state.caseContext.visionRows||[],
               evidence:(diag.remoteEvidence||[]).slice(0,5)
             });
             if(state.sessionId===caseId&&state.requestSequence===requestId){
@@ -1572,7 +1577,7 @@
         nextTest:state.currentDiagnosis.tests&&state.currentDiagnosis.tests[0]?state.currentDiagnosis.tests[0].title:""
       }:null,
       mediaAnalysis:state.mediaAnalyses.map(function(m){
-        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],scannerRows:m.scannerRows||[],frames:m.frames||1};
+        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],scannerRows:m.scannerRows||[],visionRows:m.visionRows||[],frames:m.frames||1};
       })
     };
   }
@@ -1937,6 +1942,12 @@
                 tests:state.testResults.slice(-8),imageDataUrl:imageDataUrl
               });
               if(state.mediaAnalyses[idx]&&state.mediaAnalyses[idx].text===result.text){
+                var foundRows=ORACLE_GEMINI.extractVisionRows?ORACLE_GEMINI.extractVisionRows(geminiImage.answer):[];
+                if(foundRows.length){
+                  state.mediaAnalyses[idx].visionRows=foundRows;
+                  state.caseContext.visionRows=foundRows;
+                  state.caseContext.scannerFaultStatus="";
+                }
                 var visionText="Leitura e orientação por Gemini gratuito (imagem original; conferir):\n"+geminiImage.answer;
                 if(waitGemini){waitGemini.remove();waitGemini=null;}
                 appendTextMessage("bot",visionText);
