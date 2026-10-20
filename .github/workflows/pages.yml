@@ -85,7 +85,8 @@ jobs:
           grep -q 'const MIGRATION_VERSION="1.6.2"' sw-v132.js
           grep -q 'const MIGRATION_VERSION="1.6.2"' sw-v133.js
           grep -q "Fotos e vídeos são analisados localmente" app-v134.html
-          grep -q "A IA externa só recebe textos após sua autorização" app-v134.html
+          grep -q "A IA local gratuita funciona no computador compatível" app-v134.html
+          grep -q "js/ai-local.js" app-v134.html
           grep -q "js/ai-remote.js" app-v134.html
           grep -q "avatarCriticalStyle" app-v134.html
           grep -q "manifest-v134.json" app-v134.html
