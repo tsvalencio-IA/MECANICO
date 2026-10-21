@@ -1,0 +1,51 @@
+name: Converter conhecimento para Projeto ChatGPT e Plugin
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/export_chatgpt_knowledge.py'
+      - '.github/workflows/export-chatgpt-knowledge.yml'
+permissions:
+  contents: read
+jobs:
+  converter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Ler conversor, sem alterar aplicativo
+        uses: actions/checkout@v4
+        with:
+          path: app
+      - name: Ler acervo original
+        uses: actions/checkout@v4
+        with:
+          ref: knowledge
+          path: knowledge
+      - name: Gerar pacote e auditar contagem e arquivos
+        run: |
+          mkdir -p exportado
+          python3 app/scripts/export_chatgpt_knowledge.py --knowledge-dir knowledge --out exportado
+          python3 - <<'PY'
+          import json,zipfile
+          from pathlib import Path
+          folder=Path('exportado/MECANICO_IA_CHATGPT')
+          check=json.loads((folder/'AUDITORIA_INTEGRIDADE.json').read_text())
+          original=json.loads(Path('knowledge/manifest.json').read_text())
+          assert check['indexed_records']==original['extractor']['indexed_chunks']
+          assert check['textual_records']+check['without_text']==check['indexed_records']
+          assert 1<=len(check['files_to_attach'])<=20
+          for name in check['files_to_attach']:
+            item=folder/name
+            assert item.is_file()
+            assert item.stat().st_size<15_000_000,(name,'arquivo excedeu capacidade prudente')
+          with zipfile.ZipFile('exportado/MECANICO_IA_CHATGPT.zip') as z:
+            assert z.testzip() is None
+          print('PACOTE VALIDADO:',check['textual_records'],'trechos e',len(check['files_to_attach']),'arquivos')
+          PY
+      - name: Disponibilizar pacote ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MECANICO_IA_CHATGPT_PRONTO
+          path: exportado/MECANICO_IA_CHATGPT.zip
+          retention-days: 30
