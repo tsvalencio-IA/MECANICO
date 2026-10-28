@@ -240,15 +240,17 @@ function bind(){
   const text=$('caseText').value.trim();
   if(!text){setText('copyStatus','Descreva primeiro o defeito em “Conferir ou corrigir informações”.');return;}
   // Iniciar cópia e abertura no MESMO gesto: evita bloqueio de popup após await.
-  let legacyCopied=false;
-  try {
-   const tmp=document.createElement('textarea');tmp.value=text;tmp.setAttribute('readonly','');
-   tmp.style.cssText='position:fixed;left:0;top:-9999px;opacity:0';
-   document.body.appendChild(tmp);tmp.focus();tmp.select();
-   legacyCopied=document.execCommand('copy');tmp.remove();
-  }catch(e){legacyCopied=false;}
-  let pending=null;
+  let legacyCopied=false, pending=null;
+  // Nos celulares, preferir a API de transferência sem focar campos invisíveis.
   try{if(navigator.clipboard&&navigator.clipboard.writeText)pending=navigator.clipboard.writeText(text);}catch(e){}
+  if(!pending){
+   try{
+    const tmp=document.createElement('textarea');tmp.value=text;tmp.setAttribute('readonly','');
+    tmp.style.cssText='position:fixed;left:0;top:-9999px;opacity:0';
+    document.body.appendChild(tmp);tmp.focus();tmp.select();
+    legacyCopied=document.execCommand('copy');tmp.remove();
+   }catch(e){legacyCopied=false;}
+  }
   const saved=B.validChatUrl($('conversationUrl').value);
   openChat(saved || B.PLUGIN_URL);
   setText('copyStatus',legacyCopied?'Ficha copiada. No ChatGPT, toque em Colar e envie.':'Janela aberta. Se a cópia não funcionar, abra “Conferir ou corrigir informações” e use “Copiar ficha novamente”.');
