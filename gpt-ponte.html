@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#081522">
+<meta name="description" content="Ponte segura e gratuita entre a ficha do MECÂNICO IA e o Plugin privado thIAguinho no ChatGPT.">
+<title>thIAguinho • Ponte GPT sem API</title>
+<link rel="icon" type="image/svg+xml" href="./assets/icon-thIAguinho.svg?v=1.6.2">
+<style>
+:root{color-scheme:dark;--bg:#081522;--panel:#0e2031;--tile:#122b40;--border:#25445a;--txt:#eff8ff;--muted:#a8bfce;--accent:#43d1e8;--primary:#175e83;--good:#79e1b0;--warn:#fbd69b;--shadow:0 18px 48px rgba(0,0,0,.2)}
+@media(prefers-color-scheme:light){:root{color-scheme:light;--bg:#f0f6fa;--panel:#fff;--tile:#f3f8fb;--border:#cadce6;--txt:#153249;--muted:#587085;--accent:#006f98;--primary:#047ca5;--good:#167b56;--warn:#b56800;--shadow:0 12px 30px rgba(33,76,106,.08)}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-width:0}button,input,textarea,select{font:inherit}button{cursor:pointer}main{width:min(1180px,100%);margin:0 auto;padding:16px 16px 40px}header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 20px}header img{width:47px;height:47px;object-fit:contain}header h1{font-size:clamp(1.1rem,3vw,1.55rem);margin:0}header p{margin:0;color:var(--muted);font-size:13px}header a{margin-left:auto;color:var(--accent);font-weight:650;text-decoration:none}.intro{margin-bottom:18px;color:var(--muted);max-width:850px}.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:16px}.card{min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;box-shadow:var(--shadow)}.card h2{font-size:1.08rem;margin:0 0 10px}.card h3{font-size:0.91rem;margin:19px 0 6px}label{display:block;margin:12px 0 5px;font-weight:650;font-size:13px}.meta{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.field{display:block;width:100%;background:var(--tile);border:1px solid var(--border);border-radius:12px;padding:10px 12px;color:var(--txt);outline:0;min-width:0}.field:focus{outline:2px solid var(--accent);outline-offset:1px}textarea.field{resize:vertical;min-height:290px;line-height:1.55;font-size:13px}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}.btn{border-radius:12px;border:1px solid var(--border);background:var(--tile);color:var(--txt);font-weight:700;padding:11px 14px;min-height:44px;text-align:center}.btn:hover,.btn:focus-visible{border-color:var(--accent)}.btn-primary{border-color:var(--primary);background:var(--primary);color:white}.btn:disabled{opacity:.5;cursor:not-allowed}.btn-block{width:100%}.notice{border:1px solid var(--border);background:var(--tile);border-radius:12px;padding:11px 12px;margin:12px 0;color:var(--muted);font-size:13px}.notice b{color:var(--txt)}.state{border-left:3px solid var(--accent);padding-left:9px;color:var(--muted);font-size:13px;margin:10px 0;overflow-wrap:anywhere}.steps{margin:6px 0 0;padding-left:22px;color:var(--muted)}.steps li{margin:6px 0}.steps strong{color:var(--txt)}.notes{display:grid;gap:8px;margin-top:11px}.note{background:var(--tile);border:1px solid var(--border);border-radius:12px;padding:11px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}.note small{display:block;color:var(--muted);margin-bottom:6px}.pill{display:inline-block;border:1px solid var(--border);padding:3px 9px;border-radius:999px;color:var(--good);font-size:12px;font-weight:750}.danger{color:var(--warn)}.sr-only{position:absolute;left:-9999px}footer{margin-top:24px;color:var(--muted);font-size:12px;text-align:center}.field-note{min-height:130px!important}.gap{height:6px}
+@media(max-width:800px){.grid{grid-template-columns:minmax(0,1fr)}main{padding:12px 12px 34px}.card{padding:15px}header a{margin-left:0}.actions .btn{flex:1 1 160px}textarea.field{min-height:220px}}
+@media(max-width:380px){main{padding:10px 8px 28px}.card{padding:13px;border-radius:13px}.actions .btn{flex-basis:100%}header img{width:38px;height:38px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<img src="./assets/icon-thIAguinho.svg?v=1.6.2" alt="Logotipo thIAguinho">
+<div><h1>thIAguinho • Ponte GPT</h1><p>Diagnóstico profissional sem contratação de API</p></div>
+<a href="./app-v134.html">Voltar ao MECÂNICO IA</a>
+</header>
+<p class="intro">O site prepara os dados do veículo e abre uma janela real do nosso Plugin privado no ChatGPT. <strong>Você decide quais informações copiar e compartilhar.</strong> O Plugin não acessa automaticamente o Firebase nesta versão.</p>
+<div class="grid">
+<section class="card" aria-labelledby="caseTitle">
+<h2 id="caseTitle">1. Preparar a ficha do veículo</h2>
+<label for="caseSelector">Caso do histórico</label>
+<select class="field" id="caseSelector"><option value="">Carregando caso…</option></select>
+<p class="meta" id="caseStatus" aria-live="polite">Lendo a ficha local desta oficina…</p>
+<label for="caseText">Ficha para levar ao thIAguinho GPT — você pode editar antes de copiar</label>
+<textarea class="field" id="caseText" spellcheck="true" placeholder="Registre o veículo, sintoma, DTC e testes realizados para iniciar."></textarea>
+<div class="actions">
+<button type="button" id="copyCase" class="btn">Copiar ficha</button>
+<button type="button" id="openGpt" class="btn btn-primary">Abrir thIAguinho GPT ↗</button>
+</div>
+<p class="state" id="copyStatus" aria-live="polite">Nenhum texto é enviado automaticamente ao ChatGPT.</p>
+<div class="notice"><b>Privacidade:</b> revise nomes, placas, telefones e detalhes dos clientes antes de copiar. Fotografias e vídeos originais precisam ser anexados manualmente no ChatGPT. A cópia para a área de transferência é uma ação local do navegador.</div>
+</section>
+<aside class="card" aria-labelledby="returnTitle">
+<h2 id="returnTitle">2. Continuar e registrar o atendimento</h2>
+<ol class="steps">
+<li>Copie a ficha que o site preparou.</li>
+<li>Abra o Plugin e cole a ficha na conversa.</li>
+<li>Ao receber orientações, retorne a esta janela para registrar o resultado do atendimento.</li>
+</ol>
+<h3>Salvar o endereço da conversa</h3>
+<label for="conversationUrl">Link da conversa no ChatGPT</label>
+<input id="conversationUrl" class="field" type="url" inputmode="url" placeholder="https://chatgpt.com/c/…" autocomplete="off">
+<div class="actions">
+<button id="saveChatUrl" class="btn" type="button">Salvar link</button>
+<button id="continueChat" class="btn" type="button">Continuar conversa ↗</button>
+</div>
+<p class="meta" id="linkStatus" aria-live="polite">Cole aqui o link copiado no ChatGPT para retornar ao mesmo atendimento.</p>
+<h3>Registrar orientação recebida</h3>
+<p class="meta">O texto abaixo será armazenado como <b>orientação da IA, não como medição nem reparo comprovado</b>.</p>
+<label for="gptNote" class="sr-only">Cole a resposta do ChatGPT</label>
+<textarea id="gptNote" class="field field-note" placeholder="Cole a orientação ou a conclusão recebida no thIAguinho GPT..."></textarea>
+<div class="actions"><button id="saveNote" type="button" class="btn btn-primary btn-block">Registrar orientação no caso</button></div>
+<p class="state" id="noteStatus" aria-live="polite">Notas salvas separadamente da ficha original do veículo.</p>
+<div class="notes" id="savedNotes" aria-label="Orientações GPT registradas"></div>
+<div class="notice"><b>Armazenamento:</b> histórico local neste navegador; sincronização adicional em <code>usuarios/{uid}/gptNotas</code> no Realtime Database quando disponível. Não modifica peças, serviços ou diagnósticos existentes.</div>
+</aside>
+</div>
+<footer>thIAguinho Soluções Automotiva • Integração gratuita por janela independente • Sem API de modelos</footer>
+</main>
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-database-compat.js"></script>
+<script src="./js/firebase.js?v=1.6.2"></script>
+<script>
+/* Construtor de ficha: não usa rede nem interpreta códigos do scanner. */
+(function(root,factory){
+  const api=factory();
+  if(typeof module==='object'&&module.exports)module.exports=api;
+  if(root)root.THIA_GPT_BRIDGE=api;
+})(typeof window!=='undefined'?window:null,function(){
+  'use strict';
+  const PLUGIN_URL='https://chatgpt.com/plugins/plugins_6ad9272d2a2481918b90a44ef8868d54';
+  function clean(v,max){return String(v===undefined||v===null?'':v).trim().slice(0,max||4000);}
+  function safeCaseId(v){return /^CASE-[a-zA-Z0-9_-]{4,80}$/.test(String(v||''))?String(v):'';}
+  function textOf(v){return typeof v==='string'?v:JSON.stringify(v===undefined?'':v);}
+  function formatTime(v){try{if(!v)return 'sem horário informado';const d=new Date(v);return isNaN(+d)?'horário não confirmado':d.toISOString();}catch{return 'horário não confirmado';}}
+  function collectRows(caseData){
+    let out=[];
+    const media=Array.isArray(caseData.mediaAnalysis)?caseData.mediaAnalysis:[];
+    media.forEach((m,j)=>{
+      const label='Mídia '+(j+1)+' ('+clean(m.kind,30)+')';
+      (Array.isArray(m.scannerRows)?m.scannerRows:[]).forEach((r,i)=>{
+        out.push(label+' [OCR/extração NÃO VERIFICADA, linha '+(i+1)+']: '+clean(r.id||r.code,30)+' — '+clean(r.description||r.text||textOf(r),360));
+      });
+      (Array.isArray(m.visionRows)?m.visionRows:[]).forEach((r,i)=>{
+        out.push(label+' [leitura visual, confirmar na foto, linha '+(i+1)+']: '+clean(r.id||r.code,30)+' — '+clean(r.description||r.text||textOf(r),360));
+      });
+      if(!m.scannerRows?.length&&!m.visionRows?.length&&m.text)out.push(label+' [texto OCR não verificado]: '+clean(m.text,1100));
+    });
+    return out.slice(-60);
+  }
+  function build(caseData){
+    const data=caseData&&typeof caseData==='object'?caseData:{};
+    const vehicle=data.vehicleData&&typeof data.vehicleData==='object'?data.vehicleData:{};
+    const identity=[vehicle.brand,vehicle.model,vehicle.year,vehicle.engine,vehicle.transmission,vehicle.mileage&&('Km '+vehicle.mileage)].filter(Boolean).map(x=>clean(x,90)).join(' | ')||clean(data.vehicle,250)||'não identificado';
+    const msgs=(Array.isArray(data.messages)?data.messages:[]).filter(m=>m&&m.role==='user').slice(-45);
+    const logs=msgs.map((m,i)=>`${i+1}. [RELATO / ${formatTime(m.at)}] ${clean(m.text,1700)}${m.testResult?' [resposta marcada como teste pelo sistema]':''}`);
+    const tests=(Array.isArray(data.tests)?data.tests:[]).slice(-24).map((t,i)=>`${i+1}. [TESTE REGISTRADO] ${clean(t.title||t.id||'teste',160)} | resultado registrado: ${clean(t.report||t.result||t.outcome||'não especificado',450)} | ${formatTime(t.at)}`);
+    const scanner=collectRows(data);
+    const dtcs=(Array.isArray(data.dtcs)?data.dtcs:[]).map(x=>clean(x,42));
+    const lines=[
+      'FICHA DE CONTINUIDADE — MECÂNICO IA / thIAguinho',
+      'Esta ficha foi gerada pelo SITE para transferência MANUAL ao Plugin privado no ChatGPT. NÃO é resultado de consulta do Plugin ao Firebase.',
+      'Veículo: '+identity,
+      'Caso: '+clean(data.id,120),
+      'Queixa/título informado: '+clean(data.title,420),
+      '',
+      '[RELATOS DO MECÂNICO — ORDEM CRONOLÓGICA]',
+      ...(logs.length?logs:['Nenhum relato registrado nesta ficha.']),
+      '',
+      '[SCANNER / FOTOGRAFIAS — TRANSCRIÇÕES PODEM SER INCERTAS]',
+      ...(scanner.length?scanner:['Nenhuma leitura de mídia transcrita. Imagens originais NÃO foram transferidas.']),
+      'DTCs registrados pelo sistema (não necessariamente confirmados): '+(dtcs.join(' | ')||'nenhum'),
+      '',
+      '[TESTES E MEDIÇÕES REGISTRADOS — CONFERIR CONDIÇÕES E UNIDADES]',
+      ...(tests.length?tests:['Nenhum teste registrado.']),
+      '',
+      '[INSTRUÇÕES DE CONTINUIDADE]',
+      'Preserve os relatos inclusive linhas repetidas e correções posteriores. Não transforme OCR ou hipótese em medição. Não presuma reparos não comprovados. Consulte efetivamente sua biblioteca interna e cite Rxxxxxx/caminho/página/estado apenas se houver fonte lida. Confira aplicação exata. Um teste seguro e discriminativo por vez, com uma pergunta essencial. Não invente códigos, pinagem, valores nem procedimento.',
+      'ATENÇÃO: fotos e vídeos originais precisam ser anexados manualmente nesta conversa do ChatGPT. Faça a revisão desta ficha antes de copiá-la: remova placas, nomes e outros dados identificáveis de clientes.'
+    ];
+    return lines.join('\n').slice(0,35000);
+  }
+  function validChatUrl(value){
+    try{
+      const u=new URL(String(value||'').trim());
+      return u.protocol==='https:' && u.hostname==='chatgpt.com' && (u.pathname.startsWith('/c/')||u.pathname.startsWith('/share/')||u.pathname.startsWith('/plugins/')) ? u.href : '';
+    }catch{return '';}
+  }
+  function noteKey(caseId){return 'thiaguinho_gpt_notes_v1_'+safeCaseId(caseId);}
+  return {PLUGIN_URL,build,safeCaseId,validChatUrl,noteKey,collectRows};
+});
+
+</script>
+<script>
+(function(){
+'use strict';
+const B=window.THIA_GPT_BRIDGE;
+const $=id=>document.getElementById(id);
+const STORAGE='thiaguinho_gpt_handoff_v1', LINKS='thiaguinho_gpt_links_v1';
+let current=null,items=[],notes=[],busy=false;
+function json(key,fallback){try{const v=JSON.parse(localStorage.getItem(key)||'null');return v===null?fallback:v;}catch{return fallback;}}
+function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));return true;}catch{return false;}}
+function setText(id,text){$(id).textContent=text;}
+function allowedCase(data){return data&&typeof data==='object'&&B.safeCaseId(data.id);}
+function allLocal(){
+ const a=[];const selected=json(STORAGE,null);if(allowedCase(selected))a.push(selected);
+ const history=json('thiaguinho_history',[]);
+ if(Array.isArray(history))history.forEach(it=>{if(allowedCase(it)&&!a.some(x=>x.id===it.id))a.push(it);});
+ return a.slice(0,50);
+}
+function fillSelector(){
+ const selector=$('caseSelector');selector.replaceChildren();
+ const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Escolha o veículo';selector.appendChild(placeholder);
+ items.forEach((x,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=(x.vehicle||'Sem veículo').slice(0,90)+' • '+new Date(x.updatedAt||x.createdAt||Date.now()).toLocaleDateString('pt-BR');selector.appendChild(o);});
+}
+function localNotes(){return json(B.noteKey(current?.id),[]).filter(x=>x&&typeof x.text==='string').slice(-30);}
+function setCase(data){
+ if(!allowedCase(data))return;
+ current=data;
+ $('caseText').value=B.build(data);
+ $('caseSelector').value=String(items.findIndex(x=>x.id===data.id));
+ setText('caseStatus','Caso: '+data.id+' • '+(data.vehicle||'Veículo não informado')+'. A ficha foi preparada somente com informações registradas.');
+ const link=json(LINKS,{})[data.id]||'';
+ $('conversationUrl').value=B.validChatUrl(link)||'';
+ setText('linkStatus',link?'Link da conversa salvo neste dispositivo.':'Cole o link da conversa após abri-la no ChatGPT.');
+ notes=localNotes();renderNotes();loadCloud();
+}
+async function loadCloud(){
+ const at=current?.id;if(!at||!window.ORACLE_FIREBASE)return;
+ try{
+  await ORACLE_FIREBASE.ready;if(at!==current?.id||!ORACLE_FIREBASE.db||!ORACLE_FIREBASE.uid)return;
+  const snap=await ORACLE_FIREBASE.db.ref('usuarios/'+ORACLE_FIREBASE.uid+'/gptNotas/'+at).limitToLast(25).once('value');
+  if(at!==current?.id)return;
+  const received=[];snap.forEach(x=>{const v=x.val();if(v&&typeof v.text==='string')received.push({...v,id:x.key});});
+  notes=[...notes.filter(x=>!received.some(y=>y.id===x.id)),...received].sort((a,b)=>String(a.at).localeCompare(String(b.at))).slice(-30);
+  renderNotes();
+  const urlSnap=await ORACLE_FIREBASE.db.ref('usuarios/'+ORACLE_FIREBASE.uid+'/gptLinks/'+at).once('value');
+  if(at!==current?.id)return;
+  const valid=B.validChatUrl(urlSnap.val()?.url);
+  if(valid && !$('conversationUrl').value){$('conversationUrl').value=valid;setText('linkStatus','Link recuperado do seu histórico Firebase.');}
+ }catch(err){console.warn('[Ponte GPT] Falha de leitura da extensão:',err);setText('noteStatus','Registros locais disponíveis; Firebase indisponível ou identidade diferente.');}
+}
+function renderNotes(){
+ const target=$('savedNotes');target.replaceChildren();
+ if(!notes.length){const p=document.createElement('p');p.className='meta';p.textContent='Ainda não há orientações do GPT registradas neste caso.';target.appendChild(p);return;}
+ notes.slice(-8).reverse().forEach(x=>{const box=document.createElement('div');box.className='note';const small=document.createElement('small');small.textContent='Orientação IA — não comprovada • '+(x.at?new Date(x.at).toLocaleString('pt-BR'):'horário não informado')+(x.origin==='local'?' • somente neste aparelho':'');const content=document.createElement('div');content.textContent=x.text;box.append(small,content);target.appendChild(box);});
+}
+async function copyText(value){
+ try{await navigator.clipboard.writeText(value);return true;}catch{}
+ const t=document.createElement('textarea');t.value=value;t.style.cssText='position:fixed;top:0;left:-9999px';document.body.appendChild(t);t.focus();t.select();const ok=document.execCommand('copy');t.remove();return ok;
+}
+function openChat(url){
+ const w=Math.min(620,Math.max(420,Math.round(screen.availWidth*.42)));
+ const h=Math.min(850,Math.max(640,Math.round(screen.availHeight*.86)));
+ const left=Math.max(0,screen.availWidth-w-22),top=Math.max(0,Math.round((screen.availHeight-h)/2));
+ const opts=`popup=yes,resizable=yes,scrollbars=yes,width=${w},height=${h},left=${left},top=${top}`;
+ const win=window.open(url,'thiaguinho_gpt_chat',opts);
+ if(!win){setText('copyStatus','O navegador bloqueou a janela. Use o link abaixo para abrir o Plugin.');const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir thIAguinho em nova aba';a.style.color='var(--accent)';$('copyStatus').append(' ',a);return;}
+ try{win.focus();}catch{}
+}
+function bind(){
+ $('caseSelector').addEventListener('change',()=>{const n=Number($('caseSelector').value);if($('caseSelector').value!==''&&items[n])setCase(items[n]);});
+ $('copyCase').addEventListener('click',async()=>{
+  const text=$('caseText').value.trim();if(!text){setText('copyStatus','Escreva os dados do diagnóstico antes de copiar.');return;}
+  const ok=await copyText(text);setText('copyStatus',ok?'Ficha copiada. Abra o ChatGPT e cole no campo da conversa.':'Não foi possível copiar automaticamente. Selecione o texto da ficha e copie manualmente.');
+ });
+ $('openGpt').addEventListener('click',()=>{
+  if($('caseText').value.trim())setText('copyStatus','Janela do Plugin aberta. Cole a ficha que você copiou no campo do ChatGPT.');
+  openChat(B.PLUGIN_URL);
+ });
+ $('saveChatUrl').addEventListener('click',async()=>{
+  const url=B.validChatUrl($('conversationUrl').value);
+  if(!url){setText('linkStatus','Use apenas o endereço HTTPS da conversa em chatgpt.com/c/... ou o link do Plugin.');return;}
+  if(!current){setText('linkStatus','Selecione o caso antes de salvar.');return;}
+  const map=json(LINKS,{});map[current.id]=url;save(LINKS,map);
+  setText('linkStatus','Link salvo neste dispositivo. Tentando registrar uma cópia no Firebase...');
+  try{await ORACLE_FIREBASE.ready;if(!ORACLE_FIREBASE.db||!ORACLE_FIREBASE.uid)throw Error('sem login');
+   await ORACLE_FIREBASE.db.ref('usuarios/'+ORACLE_FIREBASE.uid+'/gptLinks/'+current.id).set({url,at:new Date().toISOString()});setText('linkStatus','Link da conversa salvo no Firebase e no dispositivo.');
+  }catch{setText('linkStatus','Link salvo neste dispositivo. Firebase ainda não confirmou o registro.');}
+ });
+ $('continueChat').addEventListener('click',()=>{
+  const url=B.validChatUrl($('conversationUrl').value);
+  if(!url){setText('linkStatus','Primeiro salve o endereço da conversa anterior. Se não houver, use “Abrir thIAguinho GPT”.');return;}
+  openChat(url);
+ });
+ $('saveNote').addEventListener('click',async()=>{
+  if(busy)return;const msg=$('gptNote').value.trim();if(!current){setText('noteStatus','Escolha um caso do veículo antes de registrar.');return;}
+  if(!msg||msg.length>12000){setText('noteStatus','Cole uma orientação de até 12.000 caracteres.');return;}
+  busy=true;$('saveNote').disabled=true;
+  const id='LOCAL-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+  const note={id,text:msg,at:new Date().toISOString(),origin:'local',classification:'orientacao_ia_nao_comprovada'};
+  const caseId=current.id;
+  // Registro local independente: nunca altera a OS, a ficha ou medições originais.
+  notes=[...notes,note].slice(-30);
+  save(B.noteKey(caseId),notes);
+  renderNotes();$('gptNote').value='';
+  setText('noteStatus','Orientação salva neste dispositivo; verificando o Firebase...');
+  try{
+   await ORACLE_FIREBASE.ready;if(!ORACLE_FIREBASE.db||!ORACLE_FIREBASE.uid)throw Error('Sem autenticação');
+   const ref=ORACLE_FIREBASE.db.ref('usuarios/'+ORACLE_FIREBASE.uid+'/gptNotas/'+caseId).push();
+   await ref.set({text:msg,at:note.at,classification:note.classification,origin:'GPT_revisao_manual'});
+   if(current?.id===caseId){notes=notes.map(x=>x.id===id?{...x,id:ref.key,origin:'nuvem'}:x);save(B.noteKey(caseId),notes);renderNotes();setText('noteStatus','Orientação registrada no Firebase, separada de testes e reparos comprovados.');}
+  }catch(err){setText('noteStatus','Orientação salva somente neste aparelho; Firebase não confirmou a gravação.');}
+  finally{busy=false;$('saveNote').disabled=false;}
+ });
+}
+async function init(){
+ bind();items=allLocal();fillSelector();
+ const query=new URLSearchParams(location.search);const id=B.safeCaseId(query.get('caseId'));
+ let chosen=items.find(x=>x.id===id)||items[0];
+ if(chosen){setCase(chosen);return;}
+ // Se o navegador não preservou os casos locais, recuperar somente o caso explicitamente selecionado.
+ if(id&&window.ORACLE_FIREBASE){
+  try{await ORACLE_FIREBASE.ready;if(ORACLE_FIREBASE.db&&ORACLE_FIREBASE.uid){const s=await ORACLE_FIREBASE.db.ref('usuarios/'+ORACLE_FIREBASE.uid+'/casos/'+id).once('value');if(allowedCase(s.val())){items=[s.val()];fillSelector();setCase(items[0]);return;}}}catch(err){console.warn('[Ponte GPT] histórico remoto indisponível',err);}
+ }
+ setText('caseStatus','Nenhum caso foi encontrado neste navegador. Você pode preencher a ficha manualmente ou retornar ao site e abrir um diagnóstico.');
+ $('caseText').value='FICHA MECÂNICO IA\n[RELATO] Veículo: \nQueixa: \nScanner (informar leituras inequívocas e incertas): \nServiços executados: \nMedições reais: \nTestes e resultados: \nNão inventar dados. Proponha somente o próximo teste seguro.';
+}
+init();
+})();
+
+</script>
+</body>
+</html>
