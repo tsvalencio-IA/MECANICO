@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<title>thIAguinho | Chat OpenAI (teste isolado)</title>
+<link rel="icon" href="./assets/icon-thIAguinho.svg" type="image/svg+xml">
+<style>
+:root{color-scheme:dark;--bg:#07111f;--panel:#0c1c2c;--edge:#28445a;--text:#e7f5ff;--muted:#a8bdcd;--accent:#43d9ef;--danger:#ffc3b4}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 0 0,#12304b 0,#07111f 55%);color:var(--text);font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+main{width:min(100%,940px);min-height:100dvh;margin:auto;display:flex;flex-direction:column;padding:12px;gap:12px}
+header,.pane,.compose,.setup{background:var(--panel);border:1px solid var(--edge);border-radius:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px}header img{width:42px;height:42px;object-fit:contain}header .brand{display:flex;align-items:center;gap:10px;min-width:0}header strong{font-size:1rem}small,.muted{color:var(--muted);font-size:.79rem}
+a{color:var(--accent)}.buttons{display:flex;align-items:center;gap:8px;flex-wrap:wrap}button,.outline{background:#173247;color:var(--text);border:1px solid #41637b;border-radius:10px;padding:9px 12px;font:inherit;cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button:hover{background:#234b63}button:disabled{opacity:.6;cursor:wait}
+.primary{background:var(--accent);border-color:var(--accent);color:#061520;font-weight:750}.primary:hover{background:#91ebf7}
+.pane{flex:1;min-height:35vh;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.bubble{white-space:pre-wrap;overflow-wrap:anywhere;max-width:min(84%,690px);border:1px solid #28445a;border-radius:15px;padding:12px 14px;line-height:1.53;font-size:.94rem}
+.bubble.user{align-self:flex-end;background:#17405c}.bubble.assistant{align-self:flex-start;background:#122b3d}.bubble.notice{align-self:center;background:transparent;color:var(--muted);font-size:.79rem;text-align:center;max-width:100%}
+.compose{padding:12px;display:grid;gap:8px}textarea,input{background:#071725;color:var(--text);border:1px solid #39586e;border-radius:10px;padding:11px;font:inherit;width:100%;min-width:0}textarea{resize:vertical;min-height:76px;max-height:240px}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.grow{flex:1}.status{border:1px solid #38556a;border-radius:12px;padding:10px 12px;color:var(--muted);font-size:.83rem;line-height:1.4}.setup{padding:12px;display:grid;gap:8px}.setup label{font-size:.83rem;color:var(--muted)}.setup .row input{flex:1 1 250px}.setup summary{cursor:pointer;font-weight:650;font-size:.83rem}.notice-text{font-size:.78rem;color:var(--muted);margin:0}.image-preview{display:none;align-items:center;gap:10px;font-size:.78rem;color:var(--muted)}.image-preview img{width:64px;height:64px;object-fit:cover;border-radius:10px}
+@media(max-width:640px){main{padding:7px;gap:7px}header{padding:8px;gap:6px}header strong{font-size:.89rem}.bubble{max-width:94%}.pane{padding:10px}.buttons .subtle{display:none}button{padding:9px}.row{align-items:stretch}.row button{flex-shrink:0}}
+</style>
+</head>
+<body>
+<main>
+ <header>
+  <div class="brand"><img src="./assets/icon-thIAguinho.svg" alt="Ícone thIAguinho"><div><strong>thIAguinho MECÂNICO IA</strong><div><small>Integração OpenAI • ambiente de teste</small></div></div></div>
+  <div class="buttons"><a class="outline subtle" href="./app-v134.html" style="text-decoration:none">Site atual</a><button id="newCase" type="button">Novo caso</button></div>
+ </header>
+ <div id="status" class="status" role="status" aria-live="polite">Verificando configuração do servidor...</div>
+ <details class="setup" id="settings">
+  <summary>Configuração do servidor de teste (sem inserir chave de API)</summary>
+  <label for="endpoint">Endereço HTTPS do servidor privado (ou localhost apenas em testes)</label>
+  <div class="row"><input id="endpoint" placeholder="https://SEU-SERVIDOR-SEGURO" autocomplete="off" spellcheck="false"><button id="saveEndpoint" type="button">Aplicar</button></div>
+  <p class="notice-text">A chave da OpenAI nunca deve ser digitada aqui. O servidor precisa validar o login Firebase e restringir usuários autorizados.</p>
+  <p class="notice-text">Identificador Firebase do navegador: <code id="userId">obtendo...</code></p>
+ </details>
+ <section class="pane" id="conversation" aria-label="Histórico de diagnóstico" aria-live="polite">
+  <div class="bubble notice">Este chat utiliza a API OpenAI somente quando o servidor privado estiver configurado. Não é a execução direta do Plugin instalado no ChatGPT. Nenhum teste físico ou diagnóstico foi executado automaticamente.</div>
+ </section>
+ <section class="compose" aria-label="Nova mensagem">
+  <label for="vehicle" class="muted">Identificação do veículo</label><input id="vehicle" placeholder="Ex.: Toyota Hilux 2018 2.8 Diesel, câmbio automático" maxlength="220">
+  <label for="message" class="muted">Queixa, leitura do scanner ou resultado de teste</label><textarea id="message" placeholder="Descreva o sintoma atual. Envie uma foto, se necessário." maxlength="2800"></textarea>
+  <div class="image-preview" id="preview"><img id="previewImg" alt="Foto selecionada"><span id="imageInfo"></span><button id="removeImage" type="button">Remover</button></div>
+  <div class="row">
+   <label for="photo" class="outline" style="cursor:pointer">Foto do scanner</label><input id="photo" type="file" accept="image/jpeg,image/png,image/webp" style="display:none">
+   <span class="muted grow">Enter para enviar • Shift+Enter para nova linha</span>
+   <button class="primary" id="send" type="button">Enviar</button>
+  </div>
+  <p class="notice-text">Texto e foto selecionada são enviados à API somente ao clicar em Enviar. Evite placas, rostos ou dados pessoais. O histórico textual é salvo neste navegador; não é sincronizado automaticamente com o histórico existente no Firebase.</p>
+ </section>
+</main>
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-database-compat.js"></script>
+<script src="./js/firebase.js"></script>
+<script>
+(function(){'use strict';
+ const $=id=>document.getElementById(id);const key='mecanico_openai_staging_history_v1';const endpointKey='mecanico_openai_staging_endpoint';
+ let messages=[],image=null,busy=false;try{messages=JSON.parse(localStorage.getItem(key)||'[]');if(!Array.isArray(messages))messages=[];}catch{messages=[];}
+ function originValid(url){try{let u=new URL(url);return u.protocol==='https:' || ((u.hostname==='localhost'||u.hostname==='127.0.0.1')&&u.protocol==='http:');}catch{return false;}}
+ function endpoint(){return $('endpoint').value.trim().replace(/\/+$/,'');}
+ function save(){localStorage.setItem(key,JSON.stringify(messages.slice(-18)));}
+ function append(role,text){let node=document.createElement('div');node.className='bubble '+role;node.textContent=text;$('conversation').appendChild(node);$('conversation').scrollTop=$('conversation').scrollHeight;return node;}
+ function state(text){$('status').textContent=text;}
+ async function check(){let base=endpoint();if(!base){state('Pendente: informe o endereço do servidor privado de testes. Nenhuma chamada à API será feita.');return;}
+   if(!originValid(base)){state('Endereço do servidor inválido. Use HTTPS ou localhost para desenvolvimento.');return;}
+   try{let r=await fetch(base+'/health',{cache:'no-store',signal:AbortSignal.timeout(5000)}),d=await r.json();state(d.configured?'Servidor configurado • biblioteca: '+d.libraryRecords+' registros textuais.':'Servidor ainda não pronto. Requer chave privada, UID autorizado e biblioteca importada.');}
+   catch{state('Servidor de testes indisponível. O chat antigo não foi modificado.');}
+ }
+ async function resize(file){const bmp=await createImageBitmap(file);const canvas=document.createElement('canvas');let scale=Math.min(1,1600/Math.max(bmp.width,bmp.height));canvas.width=Math.round(bmp.width*scale);canvas.height=Math.round(bmp.height*scale);canvas.getContext('2d').drawImage(bmp,0,0,canvas.width,canvas.height);bmp.close();return canvas.toDataURL('image/jpeg',0.8);}
+ async function selected(file){if(!file)return;try{if(!/^image\/(jpeg|png|webp)$/.test(file.type))throw Error('Formato inválido');let data=await resize(file);if(data.length>2_800_000)throw Error('Imagem excede o limite de envio');image=data;$('previewImg').src=data;$('imageInfo').textContent='Foto preparada para envio manual';$('preview').style.display='flex';}
+ catch(e){alert(e.message);image=null;$('photo').value='';}}
+ async function send(){if(busy)return;let base=endpoint(),text=$('message').value.trim();if(!originValid(base)){state('Configure o endereço do servidor primeiro.');$('settings').open=true;return;}
+  if(!text){$('message').focus();return;}if(image&&!confirm('Autoriza enviar esta foto à OpenAI pela API privada? Verifique dados pessoais antes de prosseguir.'))return;
+  busy=true;$('send').disabled=true;try{await window.ORACLE_FIREBASE.ready;const user=window.ORACLE_FIREBASE.auth?.currentUser;if(!user)throw Error('Login Firebase ainda não disponível');let token=await user.getIdToken();const next=[...messages,{role:'user',text}].slice(-18);state('Consultando o servidor privado...');
+   const r=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({messages:next,vehicle:$('vehicle').value.trim(),image}),signal:AbortSignal.timeout(75000)});
+   const d=await r.json();if(!r.ok)throw Error(d.error||'Falha de conexão');if(typeof d.answer!=='string'||!d.answer.trim())throw Error('Resposta vazia');
+   append('user',text+(image?'\n[Foto enviada para leitura]':''));append('assistant',d.answer);messages=[...next,{role:'assistant',text:d.answer}].slice(-18);save();$('message').value='';$('photo').value='';$('preview').style.display='none';image=null;state('Análise concluída pela API. A aplicação dos documentos citados exige confirmação técnica.');
+  }catch(e){state('Mensagem não enviada: '+e.message);}finally{busy=false;$('send').disabled=false;}}
+ $('send').addEventListener('click',send);$('message').addEventListener('keydown',ev=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();send();}});
+ $('photo').addEventListener('change',ev=>selected(ev.target.files?.[0]));$('removeImage').addEventListener('click',()=>{image=null;$('photo').value='';$('preview').style.display='none';});
+ $('newCase').addEventListener('click',()=>{if(messages.length&&!confirm('Apagar histórico textual local deste teste e iniciar outro caso?'))return;messages=[];save();$('conversation').innerHTML='';append('notice','Novo caso aberto. Nada foi apagado do Firebase.');$('message').focus();});
+ $('saveEndpoint').addEventListener('click',()=>{let e=endpoint();if(e&&!originValid(e)){alert('Informe HTTPS ou localhost');return;}localStorage.setItem(endpointKey,e);check();});
+ $('endpoint').value=localStorage.getItem(endpointKey)||'';messages.forEach(m=>{if(['user','assistant'].includes(m.role))append(m.role,m.text);});
+ Promise.resolve(window.ORACLE_FIREBASE?.ready).then(()=>{$('userId').textContent=window.ORACLE_FIREBASE?.auth?.currentUser?.uid||'indisponível';});check();
+})();
+</script>
+</body>
+</html>
