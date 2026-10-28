@@ -2297,7 +2297,8 @@
     $("closeMediaSourceBtn").addEventListener("click",function(){closeDialog(dialog);});
     $("closePhotoBatchBtn").addEventListener("click",cancelBatch);
     $("cancelPhotoBatchBtn").addEventListener("click",cancelBatch);
-    $("addPhotoBatchBtn").addEventListener("click",function(){if(!processingBatch)$("photoInput").click();});
+    $("addPhotoBatchBtn").addEventListener("click",function(){if(!processingBatch)$("photoBatchMoreInput").click();});
+    $("photoBatchMoreInput").addEventListener("change",function(){var files=Array.from(this.files||[]);this.value="";if(files.length)addToBatch(files);});
     $("confirmPhotoBatchBtn").addEventListener("click",confirmBatch);
     batchDialog.addEventListener("cancel",function(event){if(processingBatch)event.preventDefault();else cancelBatch();});
     ["photoInput","videoInput","photoCameraInput","videoCameraInput"].forEach(function(id){
