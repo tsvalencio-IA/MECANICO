@@ -2427,6 +2427,9 @@
     else window.addEventListener("load",registerWorker,{once:true});
   }
 
+  // Exportação somente de leitura do caso ativo para a ponte GPT (sem API externa).
+  window.THIA_GPT_EXPORT_CURRENT_CASE=function(){return buildSessionPayload();};
+
   initTheme();
   initSettings();
   initVehicle();
