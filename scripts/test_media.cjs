@@ -37,7 +37,8 @@ function harness() {
     openDialog: el => { el.open = true; },
     closeDialog: el => { el.open = false; },
     toast() {},
-    processMedia: file => processed.push(file)
+    processMedia: file => processed.push(file),
+    appendPhotoBatchReport() {}
   });
   return {
     elements, picks, processed,
