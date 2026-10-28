@@ -1,0 +1,4 @@
+private/
+.env
+*.log
+node_modules/
