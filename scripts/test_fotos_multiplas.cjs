@@ -12,7 +12,7 @@ const source=app.slice(start,end);
 
 function setup(){
   const elements=new Map();
-  const processed=[];
+  const processed=[],reports=[];
   let opened=null;
   const node=()=>({
     children:[],listeners:{},value:'',textContent:'',files:[],disabled:false,
@@ -24,13 +24,14 @@ function setup(){
     click(){this.listeners.click?.({});}
   });
   const $=id=>{if(!elements.has(id))elements.set(id,node());return elements.get(id);};
-  const init=new Function('$','document','URL','openDialog','closeDialog','toast','processMedia',source+'\nreturn initMedia;')(
+  const init=new Function('$','document','URL','openDialog','closeDialog','toast','processMedia','appendPhotoBatchReport',source+'\nreturn initMedia;')(
     $,{createElement:node},{createObjectURL:file=>'blob:'+file.name,revokeObjectURL:()=>{}},
     el=>{opened=el===$('photoBatchDialog')?'batch':'other';},()=>{opened=null;},()=>{},
-    async(file,options)=>{processed.push({name:file.name,localOnly:options?.localOnly===true});}
+    async(file,options)=>{processed.push({name:file.name,localOnly:options?.localOnly===true,batch:options?.batch===true});return {photo:options?.batchIndex,ok:true,text:'OCR',codes:[],scannerRows:[]};},
+    (items,total)=>reports.push({items,total})
   );
   init();
-  return {$,processed,get opened(){return opened;}};
+  return {$,processed,reports,get opened(){return opened;}};
 }
 const photo=i=>({name:'imagem-'+i+'.jpg',size:10000,type:'image/jpeg',lastModified:i});
 
@@ -62,7 +63,9 @@ test('análise executa todas as fotos do lote em ordem, sem Gemini',async()=>{
   await Promise.resolve();
   await Promise.resolve();
   assert.deepEqual(ui.processed.map(x=>x.name),['imagem-1.jpg','imagem-2.jpg','imagem-3.jpg']);
-  assert.ok(ui.processed.every(x=>x.localOnly));
+  assert.ok(ui.processed.every(x=>x.localOnly&&x.batch));
+  assert.equal(ui.reports.length,1);
+  assert.equal(ui.reports[0].total,3);
 });
 test('limite de 12 por lote, câmera individual e vídeo individual',async()=>{
   const ui=setup();
@@ -79,4 +82,17 @@ test('limite de 12 por lote, câmera individual e vídeo individual',async()=>{
 test('código principal permanece sintaticamente válido',()=>{
   assert.doesNotThrow(()=>new Function(app));
   assert.match(app,/activeMediaTasks/);
+});
+
+test('OCR do lote gera resumo único e sinaliza incerteza',()=>{
+ const a=app.indexOf('  function summarizePhotoBatch(results,total){');
+ const b=app.indexOf('\n  function appendPhotoBatchReport(',a);
+ assert.ok(a>0&&b>a);
+ const summarize=new Function(app.slice(a,b)+'\nreturn summarizePhotoBatch;')();
+ const msg=summarize([{photo:1,ok:true,codes:['C1115']},{photo:2,ok:true,codes:['B0D28','C1115']},{photo:3,ok:false,codes:[]}],3);
+ assert.match(msg,/Recebi 3 foto/);
+ assert.match(msg,/C1115 \(fotos 1, 2\)/);
+ assert.match(msg,/B0D28 \(foto 2\)/);
+ assert.match(msg,/POSSÍVEIS, não confirmados/);
+ assert.match(msg,/sintoma ATUAL/);
 });
