@@ -1987,6 +1987,7 @@
     var el=$("chatInput");el.style.height="auto";el.style.height=Math.min(el.scrollHeight,112)+"px";
   }
 
+  var activeMediaTasks=0;
   function renderMediaQueue(){
     var q=$("mediaQueue");
     if(!state.mediaAnalyses.length){q.innerHTML="";return;}
@@ -1997,14 +1998,15 @@
       return '<div class="media-item"><div class="media-item-main"><span class="media-icon">'+(x.kind==="video"?"🎥":"📷")+'</span>'+
         '<div><strong>'+(x.kind==="video"?"Vídeo":"Foto")+'</strong><small>'+esc(status)+'</small>'+codes+
         (pct<100?'<div class="progress"><i style="width:'+pct+'%"></i></div>':'')+
-        '</div></div><button type="button" class="media-remove" data-remove-media="'+i+'" aria-label="Remover">×</button></div>';
+        '</div></div><button type="button" class="media-remove" data-remove-media="'+i+'" '+(activeMediaTasks?'disabled aria-label="Análise em andamento"':'aria-label="Remover"')+'>×</button></div>';
     }).join("");
     q.querySelectorAll("[data-remove-media]").forEach(function(btn){
-      btn.addEventListener("click",function(){state.mediaAnalyses.splice(Number(btn.dataset.removeMedia),1);renderMediaQueue();});
+      btn.addEventListener("click",function(){if(activeMediaTasks)return;state.mediaAnalyses.splice(Number(btn.dataset.removeMedia),1);renderMediaQueue();});
     });
   }
 
-  async function processMedia(file){
+  async function processMedia(file,options){
+    options=options||{};
     if(!file) return;
     if(file.size>120*1024*1024){toast("Vídeo/foto acima de 120 MB. Grave um trecho menor.");return;}
     if(!window.ORACLE_MEDIA){toast("Motor visual não carregou");return;}
@@ -2014,6 +2016,7 @@
       kind:(file.type||"").indexOf("video/")===0?"video":"foto",
       text:"",codes:[],status:"Preparando análise...",progress:0
     });
+    activeMediaTasks++;
     renderMediaQueue();
 
     try{
@@ -2071,7 +2074,7 @@
         recordMessage("bot",message,{mediaRead:true});persistSession();
         // Visual Gemini free tier: original image ONLY after separate consent.
         var geminiRead=false;
-        if(file.type&&file.type.indexOf("image/")===0&&window.ORACLE_GEMINI){
+        if(!options.localOnly&&file.type&&file.type.indexOf("image/")===0&&window.ORACLE_GEMINI){
           var waitGemini=null;
           try{
             if(await ORACLE_GEMINI.ready()&&ORACLE_GEMINI.consentText()&&ORACLE_GEMINI.consentImage()){
@@ -2193,41 +2196,121 @@
         renderMediaQueue();
       }
       toast("Não consegui ler esta mídia");
+    }finally{
+      activeMediaTasks=Math.max(0,activeMediaTasks-1);
+      renderMediaQueue();
     }
   }
 
   function initMedia(){
     var kind="photo";
     var dialog=$("mediaSourceDialog");
+    var batchDialog=$("photoBatchDialog");
+    var selectedPhotos=[];
+    var previewUrls=[];
+    var processingBatch=false;
+    var MAX_PHOTOS=12;
 
+    function releasePreviews(){
+      previewUrls.forEach(function(url){URL.revokeObjectURL(url);});
+      previewUrls=[];
+    }
+    function renderBatch(){
+      var list=$("photoBatchPreview");
+      releasePreviews();list.replaceChildren();
+      $("photoBatchCount").textContent=String(selectedPhotos.length);
+      $("photoBatchStatus").textContent=selectedPhotos.length
+        ?selectedPhotos.length+" foto(s) selecionada(s). Até "+MAX_PHOTOS+" por lote."
+        :"Selecione uma ou mais fotos da galeria.";
+      selectedPhotos.forEach(function(file,index){
+        var item=document.createElement("div");item.className="photo-batch-item";
+        var image=document.createElement("img");
+        var url=URL.createObjectURL(file);previewUrls.push(url);
+        image.src=url;image.alt="Foto "+(index+1);
+        var label=document.createElement("small");label.textContent=file.name||("Foto "+(index+1));
+        var remove=document.createElement("button");remove.type="button";remove.textContent="×";
+        remove.setAttribute("aria-label","Retirar foto "+(index+1));
+        remove.disabled=processingBatch;
+        remove.addEventListener("click",function(){
+          if(processingBatch)return;
+          selectedPhotos.splice(index,1);renderBatch();
+        });
+        item.append(image,label,remove);list.appendChild(item);
+      });
+      $("confirmPhotoBatchBtn").disabled=!selectedPhotos.length||processingBatch;
+      $("cancelPhotoBatchBtn").disabled=processingBatch;
+      $("addPhotoBatchBtn").disabled=processingBatch||selectedPhotos.length>=MAX_PHOTOS;
+      $("closePhotoBatchBtn").disabled=processingBatch;
+      $("confirmPhotoBatchBtn").textContent="Analisar "+selectedPhotos.length+" foto(s)";
+    }
+    function addToBatch(files){
+      var rejected=0,limitHit=false;
+      Array.from(files||[]).forEach(function(file){
+        if(!file||!(file.type||"").startsWith("image/")||file.size>120*1024*1024){rejected++;return;}
+        if(selectedPhotos.length>=MAX_PHOTOS){limitHit=true;return;}
+        if(selectedPhotos.some(function(x){return x.name===file.name&&x.size===file.size&&x.lastModified===file.lastModified;}))return;
+        selectedPhotos.push(file);
+      });
+      if(rejected)toast(rejected+" foto(s) ignorada(s): formato ou tamanho inválido");
+      if(limitHit)toast("Máximo de "+MAX_PHOTOS+" fotos por lote. Envie mais em outro lote.");
+      if(!selectedPhotos.length)return;
+      renderBatch();openDialog(batchDialog);
+    }
+    function cancelBatch(){
+      if(processingBatch)return;
+      selectedPhotos=[];releasePreviews();closeDialog(batchDialog);renderBatch();
+    }
+    async function confirmBatch(){
+      if(processingBatch||!selectedPhotos.length)return;
+      var files=selectedPhotos.slice();
+      processingBatch=true;
+      closeDialog(batchDialog);
+      selectedPhotos=[];releasePreviews();
+      try{
+        for(var i=0;i<files.length;i++){
+          toast("Lendo foto "+(i+1)+" de "+files.length);
+          await processMedia(files[i],{localOnly:true});
+        }
+        toast(files.length+" foto(s) processada(s)");
+      }finally{
+        processingBatch=false;renderBatch();
+      }
+    }
     function chooseSource(nextKind){
       kind=nextKind;
       var video=kind==="video";
-      $("mediaSourceTitle").textContent=video?"Enviar vídeo":"Enviar foto";
+      $("mediaSourceTitle").textContent=video?"Enviar vídeo":"Enviar fotos";
       $("mediaCameraLabel").textContent=video?"Gravar vídeo":"Tirar foto";
       $("mediaCameraIcon").textContent=video?"🎥":"📷";
-      $("mediaGalleryHint").textContent=video?"Vídeos salvos neste aparelho":"Fotos salvas neste aparelho";
+      $("mediaGalleryLabel").textContent=video?"Escolher vídeo":"Escolher várias fotos";
+      $("mediaGalleryHint").textContent=video?"Vídeos salvos neste aparelho":"Selecione várias fotos da galeria de uma só vez";
       openDialog(dialog);
     }
-
     function openPicker(camera){
       closeDialog(dialog);
       $(kind+(camera?"CameraInput":"Input")).click();
     }
-
     $("photoBtn").addEventListener("click",function(){chooseSource("photo");});
     $("videoBtn").addEventListener("click",function(){chooseSource("video");});
     $("mediaCameraBtn").addEventListener("click",function(){openPicker(true);});
     $("mediaGalleryBtn").addEventListener("click",function(){openPicker(false);});
     $("closeMediaSourceBtn").addEventListener("click",function(){closeDialog(dialog);});
-
+    $("closePhotoBatchBtn").addEventListener("click",cancelBatch);
+    $("cancelPhotoBatchBtn").addEventListener("click",cancelBatch);
+    $("addPhotoBatchBtn").addEventListener("click",function(){if(!processingBatch)$("photoBatchMoreInput").click();});
+    $("photoBatchMoreInput").addEventListener("change",function(){var files=Array.from(this.files||[]);this.value="";if(files.length)addToBatch(files);});
+    $("confirmPhotoBatchBtn").addEventListener("click",confirmBatch);
+    batchDialog.addEventListener("cancel",function(event){if(processingBatch)event.preventDefault();else cancelBatch();});
     ["photoInput","videoInput","photoCameraInput","videoCameraInput"].forEach(function(id){
       $(id).addEventListener("change",function(){
-        var file=this.files&&this.files[0];
+        var files=Array.from(this.files||[]);
         this.value="";
-        if(file) processMedia(file);
+        if(!files.length)return;
+        if(id==="photoInput")addToBatch(files);
+        else processMedia(files[0]);
       });
     });
+    renderBatch();
   }
 
   function initVoice(){

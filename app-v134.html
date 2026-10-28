@@ -49,6 +49,18 @@
 .gpt-handoff-btn:hover,.gpt-handoff-btn:focus-visible{outline:2px solid #31d7ff;outline-offset:2px}
 @media(max-width:600px){.gpt-launch-strip{flex-direction:column;align-items:stretch;gap:9px;padding:10px 12px}.gpt-handoff-btn{width:100%;min-height:46px;font-size:.82rem}}
 </style>
+  <style id="multiPhotoStyle">
+    .photo-batch-dialog{width:min(680px,calc(100vw - 18px));max-height:min(88vh,850px);padding:16px;overflow:auto}
+    .photo-batch-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:10px;margin:12px 0;max-width:100%}
+    .photo-batch-item{min-width:0;border:1px solid var(--line);border-radius:12px;padding:6px;background:var(--input);position:relative}
+    .photo-batch-item img{width:100%;height:100px;object-fit:cover;border-radius:9px;display:block}
+    .photo-batch-item small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.68rem;color:var(--muted);padding:4px 1px 0}
+    .photo-batch-item button{position:absolute;top:5px;right:5px;width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:1.1rem;cursor:pointer}
+    .photo-batch-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:14px}
+    .photo-batch-actions button{min-height:44px}
+    .photo-batch-status{color:var(--muted);font-size:.78rem;line-height:1.5}
+    @media(max-width:470px){.photo-batch-dialog{padding:12px}.photo-batch-preview{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.photo-batch-item img{height:82px}.photo-batch-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.photo-batch-actions #confirmPhotoBatchBtn{grid-column:1/-1}.photo-batch-actions button{min-width:0;padding:9px 8px}}
+  </style>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -208,7 +220,7 @@
       </button>
       <button id="mediaGalleryBtn" type="button" class="media-source-option">
         <span class="media-source-icon" aria-hidden="true">🖼</span>
-        <span><strong>Escolher da galeria</strong><small id="mediaGalleryHint">Fotos salvas neste aparelho</small></span>
+        <span><strong id="mediaGalleryLabel">Escolher várias fotos</strong><small id="mediaGalleryHint">Selecione várias fotos da galeria em uma só vez</small></span>
         <span aria-hidden="true">›</span>
       </button>
     </div>
@@ -278,7 +290,23 @@
     <div id="historyList" class="history-list"></div>
   </dialog>
 
-  <input id="photoInput" type="file" accept="image/*" hidden>
+  <dialog id="photoBatchDialog" class="app-dialog photo-batch-dialog" aria-labelledby="photoBatchTitle">
+    <div class="dialog-head">
+      <div><span class="eyebrow">GALERIA DE FOTOS</span><h2 id="photoBatchTitle">Fotos selecionadas: <span id="photoBatchCount">0</span></h2></div>
+      <button id="closePhotoBatchBtn" type="button" class="icon-btn" aria-label="Fechar seleção de fotos">×</button>
+    </div>
+    <p class="dialog-intro">Confira as miniaturas. Remova o que não deseja analisar. As fotos serão lidas uma por vez para evitar travamentos; os arquivos originais não ficam armazenados no histórico.</p>
+    <div id="photoBatchPreview" class="photo-batch-preview" aria-label="Prévia das fotos selecionadas"></div>
+    <input id="photoBatchMoreInput" type="file" accept="image/*" multiple hidden>
+    <p class="photo-batch-status" id="photoBatchStatus" aria-live="polite">Selecione as fotos que deseja analisar.</p>
+    <div class="photo-batch-actions">
+      <button id="addPhotoBatchBtn" type="button" class="ghost-btn">Adicionar fotos</button>
+      <button id="cancelPhotoBatchBtn" type="button" class="ghost-btn">Cancelar</button>
+      <button id="confirmPhotoBatchBtn" type="button" class="primary-btn">Analisar fotos</button>
+    </div>
+  </dialog>
+
+  <input id="photoInput" type="file" accept="image/*" multiple hidden>
   <input id="videoInput" type="file" accept="video/*" hidden>
   <input id="photoCameraInput" type="file" accept="image/*" capture="environment" hidden>
   <input id="videoCameraInput" type="file" accept="video/*" capture="environment" hidden>
