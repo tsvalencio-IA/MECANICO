@@ -1,31 +1,29 @@
-# Ponte gratuita MECÂNICO IA ↔ Plugin privado thIAguinho
+# Ponte gratuita MECÂNICO IA ↔ ChatGPT — versão simplificada
 
-## O que funciona (sem API paga)
-- Na tela existente `app-v134.html`, link `GPT ↗` abre a página isolada `gpt-ponte.html` em nova aba/janela. O chat local original não é substituído.
-- A página lê o histórico local `thiaguinho_history` do mesmo navegador/origem (até 50 casos) e prepara uma ficha editável com veículo, relatos cronológicos, leituras de scanner de origem incerta e testes registrados.
-- O mecânico revisa e copia a ficha, abre o Plugin **privado** no ChatGPT e cola manualmente. O ChatGPT usa a Skill/biblioteca do Plugin, não a API paga.
-- O mecânico pode salvar manualmente o link de conversa e registrar respostas como **orientações da IA não comprovadas**. Ficam em armazenamento local e, se disponível, em **novos nós separados** do Firebase: `usuarios/{uid}/gptNotas/{caseId}` e `usuarios/{uid}/gptLinks/{caseId}`.
-- Nenhum dado é enviado ao ChatGPT até o mecânico copiar/colar. Fotos/vídeos originais exigem envio manual no ChatGPT.
+## Como usar
 
-## O que NÃO funciona automaticamente
-- Sem servidor MCP autenticado no Plugin atual, ele não pode consultar/salvar por conta própria no Firebase nem controlar uma aba externa do ChatGPT.
-- O site não recebe respostas automaticamente, não transfere fotos, não cria conversas com texto preinserido e não associa automaticamente URL a um chat.
-- O histórico do Firebase utiliza identidade anônima por navegador; não há garantia de acesso entre dispositivos.
-- Popup depende das permissões do navegador; se bloqueado, a abertura padrão de uma nova aba pelo link continua possível.
-- A página nova não substitui o chat anterior nem altera o motor diagnóstico, regras de banco ou a biblioteca.
+1. No MECÂNICO IA, clique em **Conversar com thIAguinho** (botão visível logo abaixo do veículo).
+2. A nova tela já seleciona o caso que está aberto no site, quando o histórico estiver disponível. Você pode escolher outro carro ou conferir/editar a ficha.
+3. Clique em **Conversar com thIAguinho GPT**. O navegador tenta **copiar a ficha e abrir o ChatGPT no mesmo gesto**.
+4. **No ChatGPT, cole a ficha e envie a mensagem.** Fotos originais precisam ser anexadas manualmente.
+5. Para guardar link da conversa ou orientação no histórico, abra **Guardar conversa ou orientação**. Esse passo é opcional.
 
-## Privacidade e segurança
-- Endereço fixo do Plugin: https://chatgpt.com/plugins/plugins_6ad9272d2a2481918b90a44ef8868d54
-- Links salvos aceitam apenas `https://chatgpt.com/c/...`, `/share/...` ou `/plugins/...`.
-- Não armazenar tokens de autenticação em URL, copiar chaves ou usar API de modelos.
-- Recomenda-se omitir dados de clientes na ficha revisada antes de transferir ao ChatGPT.
-- Os registros da IA devem ser revisados por profissional e não são provas de reparo, medição ou aplicação de documento.
+Se o navegador impedir a cópia, clique em **Conferir ou corrigir informações** e **Copiar ficha novamente**. Se bloquear a janela, use o link alternativo que aparece na tela. O site nunca envia automaticamente os dados ao ChatGPT.
 
-## Validação
-- `node --test scripts/test_gpt_ponte.cjs`: seis testes sobre preservação de duplicatas, proveniência, URLs e limites.
-- Scripts inline da página validados com `node --check`.
-- Teste de navegador não concluído no ambiente de autoria (acesso à navegação bloqueado pelo executor).
-- **Não mesclar automaticamente em produção sem validação manual na branch/ambiente isolado.**
+## Preservação e limites
 
-## Futuro conector MCP (não implantado)
-É necessário um servidor HTTPS seguro, autenticação vinculada ao usuário e permissões por caso. Nunca transformar o Firebase em leitura pública, colocar credenciais Admin no navegador ou instalar um MCP sem verificar a autenticação. Isso é uma evolução separada, sem necessidade da API paga de geração de texto.
+- O ChatGPT abre em uma janela ou aba independente; não pode ser incorporado nem controlado pelo site usando a assinatura atual.
+- Plugin privado: https://chatgpt.com/plugins/plugins_6ad9272d2a2481918b90a44ef8868d54.
+- **Não utiliza API paga**, Gemini ou serviços de inferência externos ao Plugin do ChatGPT.
+- A interface atual, o sistema de diagnóstico, a biblioteca local, as fotografias e as regras Firebase não foram substituídos.
+- A ficha preserva linhas repetidas de scanner e identifica OCR como não verificado. Não reclassifica respostas da IA como medições nem reparos comprovados.
+- A conversa não é sincronizada automaticamente com o Firebase. Links e orientações são registrados manualmente em nós separados: `usuarios/{uid}/gptLinks/{caseId}` e `usuarios/{uid}/gptNotas/{caseId}` (quando a autenticação do histórico estiver disponível); uma cópia fica no navegador.
+- A identidade Firebase anônima não garante continuidade automática entre dispositivos.
+- O Plugin privado só está disponível para contas com autorização no ChatGPT.
+- O conteúdo copiado pode conter dados de cliente: confira a ficha e remova dados identificáveis antes de enviar.
+
+## Testes
+
+`node --test scripts/test_gpt_ponte.cjs` — oito testes, incluindo fluxo simplificado.
+
+A visualização real em Android/iPhone e a aceitação da janela pelo navegador precisam ser verificadas nesses dispositivos.

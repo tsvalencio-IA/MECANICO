@@ -36,3 +36,19 @@ test('limita comprimento dos relatos sem omitir classificação de testes',()=>{
  assert.equal((text.match(/X/g)||[]).length,1700);
  assert.match(text,/resultado registrado: good/);
 });
+
+test('interface do GPT tem um botão principal e opções avançadas recolhidas',()=>{
+ assert.match(html,/id="openGpt"[^>]*>Conversar com thIAguinho GPT/);
+ assert.match(html,/<details class="review">/);
+ assert.match(html,/<details class="optional"/);
+ assert.match(html,/No ChatGPT, toque em Colar/);
+ assert.match(html,/const opened=openChat/);
+});
+test('site principal mostra acesso legível ao GPT sem alterar Firebase',()=>{
+ const app=fs.readFileSync(path.join(__dirname,'../app-v134.html'),'utf8');
+ const js=fs.readFileSync(path.join(__dirname,'../js/app.js'),'utf8');
+ assert.equal((app.match(/id="gptHandoffBtn"/g)||[]).length,1);
+ assert.match(app,/Conversar com thIAguinho/);
+ assert.match(app,/thiaguinho_gpt_handoff_v1/);
+ assert.match(js,/THIA_GPT_EXPORT_CURRENT_CASE/);
+});

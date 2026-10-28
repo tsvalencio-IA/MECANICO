@@ -14,56 +14,79 @@
 @media(max-width:800px){.grid{grid-template-columns:minmax(0,1fr)}main{padding:12px 12px 34px}.card{padding:15px}header a{margin-left:0}.actions .btn{flex:1 1 160px}textarea.field{min-height:220px}}
 @media(max-width:380px){main{padding:10px 8px 28px}.card{padding:13px;border-radius:13px}.actions .btn{flex-basis:100%}header img{width:38px;height:38px}}
 </style>
+
+<style id="uxSimplificada">
+main{width:min(960px,100%)}header{margin-bottom:15px}header a{font-size:13px}.intro-simple{color:var(--muted);font-size:14px;margin:0 0 20px;max-width:650px}
+.simple-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:16px;align-items:start}
+.simple-layout .card{padding:22px}.simple-layout .card h2{font-size:1.24rem;margin:6px 0 18px;letter-spacing:-.025em}
+.eyebrow{font-size:11px;font-weight:850;letter-spacing:.1em;color:var(--accent)}.simple-main .field{min-height:48px}
+.case-selected{background:var(--tile);color:var(--muted);font-size:13px;padding:12px;border-radius:12px;border:1px solid var(--border);overflow-wrap:anywhere;margin:10px 0 16px}
+.review{margin:14px 0}.review summary,.optional summary{font-size:13px;color:var(--accent);font-weight:750;cursor:pointer;list-style:revert}
+.review .field{min-height:170px}.review[open]{padding:10px;background:var(--tile);border-radius:12px}
+.launch-area{background:var(--tile);border:1px solid var(--border);border-radius:17px;padding:18px;margin-top:18px}
+.launch-area h3{margin:0 0 8px;font-size:1.1rem}.launch-area p{font-size:13px;color:var(--muted);margin:4px 0 14px;line-height:1.6}.launch-area strong{color:var(--txt)}
+.main-cta{font-size:15px;min-height:58px;width:100%;background:linear-gradient(130deg,#087da7,#12678f);color:#fff;box-shadow:0 4px 15px #001e2d33}
+.launch-area .state{margin:13px 0 0;font-size:12px;color:var(--muted)}.step-two{background:var(--panel)}
+.step-instruction{display:flex;gap:12px;align-items:flex-start;font-size:14px;margin:18px 0;line-height:1.5}
+.step-number{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;background:var(--tile);border:1px solid var(--accent);font-weight:800;color:var(--accent)}
+.muted-note{font-size:12px;color:var(--muted);border-top:1px solid var(--border);padding-top:14px}
+.optional{margin-top:18px;border-top:1px solid var(--border);padding-top:16px}.optional[open] summary{margin-bottom:15px}.optional h3{font-size:14px}.optional-label{background:var(--tile);border:1px solid var(--border);padding:2px 7px;border-radius:100px;font-size:11px;color:var(--muted);margin-left:4px}
+@media(max-width:780px){main{padding:12px 12px 28px}.simple-layout{grid-template-columns:minmax(0,1fr);gap:12px}.simple-layout .card{padding:17px}.intro-simple{margin-bottom:13px}.simple-layout .card h2{font-size:1.1rem;margin:5px 0 12px}.launch-area{padding:14px}.main-cta{min-height:56px}header img{width:42px;height:42px}}
+@media(max-width:390px){.simple-layout .card{padding:13px}.launch-area{padding:12px}main{padding:10px 8px 20px}.main-cta{font-size:14px}}
+</style>
 </head>
 <body>
 <main>
 <header>
 <img src="./assets/icon-thIAguinho.svg?v=1.6.2" alt="Logotipo thIAguinho">
-<div><h1>thIAguinho • Ponte GPT</h1><p>Diagnóstico profissional sem contratação de API</p></div>
+<div><h1>Diagnóstico com thIAguinho</h1><p>Use nosso GPT e nossa biblioteca técnica</p></div>
 <a href="./app-v134.html">Voltar ao MECÂNICO IA</a>
 </header>
-<p class="intro">O site prepara os dados do veículo e abre uma janela real do nosso Plugin privado no ChatGPT. <strong>Você decide quais informações copiar e compartilhar.</strong> O Plugin não acessa automaticamente o Firebase nesta versão.</p>
-<div class="grid">
-<section class="card" aria-labelledby="caseTitle">
-<h2 id="caseTitle">1. Preparar a ficha do veículo</h2>
-<label for="caseSelector">Caso do histórico</label>
-<select class="field" id="caseSelector"><option value="">Carregando caso…</option></select>
-<p class="meta" id="caseStatus" aria-live="polite">Lendo a ficha local desta oficina…</p>
-<label for="caseText">Ficha para levar ao thIAguinho GPT — você pode editar antes de copiar</label>
-<textarea class="field" id="caseText" spellcheck="true" placeholder="Registre o veículo, sintoma, DTC e testes realizados para iniciar."></textarea>
-<div class="actions">
-<button type="button" id="copyCase" class="btn">Copiar ficha</button>
-<button type="button" id="openGpt" class="btn btn-primary">Abrir thIAguinho GPT ↗</button>
-</div>
-<p class="state" id="copyStatus" aria-live="polite">Nenhum texto é enviado automaticamente ao ChatGPT.</p>
-<div class="notice"><b>Privacidade:</b> revise nomes, placas, telefones e detalhes dos clientes antes de copiar. Fotografias e vídeos originais precisam ser anexados manualmente no ChatGPT. A cópia para a área de transferência é uma ação local do navegador.</div>
+<p class="intro-simple">Escolha o veículo e toque no botão. O thIAguinho abrirá no ChatGPT e você poderá continuar o diagnóstico com nossa biblioteca técnica.</p>
+<div class="simple-layout">
+<section class="card simple-main" aria-labelledby="caseTitle">
+  <div class="eyebrow">PASSO 1 · ESCOLHER O VEÍCULO</div>
+  <h2 id="caseTitle">Qual carro vamos diagnosticar?</h2>
+  <label for="caseSelector">Veículo do histórico</label>
+  <select class="field" id="caseSelector"><option value="">Carregando veículos…</option></select>
+  <p class="case-selected" id="caseStatus" aria-live="polite">Procurando seu atendimento…</p>
+  <details class="review"><summary>Conferir ou corrigir informações do veículo</summary>
+    <p class="meta">Você pode apagar nomes, placas e outras informações antes de copiar.</p>
+    <label for="caseText">Informações que serão copiadas</label>
+    <textarea class="field" id="caseText" spellcheck="true" placeholder="Veículo, sintomas, scanner, testes e resultados…"></textarea>
+    <div class="actions"><button type="button" id="copyCase" class="btn">Copiar ficha novamente</button></div>
+  </details>
+  <div class="launch-area">
+    <h3>Vamos conversar com o thIAguinho?</h3>
+    <p>Ao tocar abaixo, o site tenta <strong>copiar a ficha</strong> e abre o <strong>ChatGPT</strong> em outra janela ou aba.</p>
+    <button type="button" id="openGpt" class="btn btn-primary main-cta">Conversar com thIAguinho GPT ↗</button>
+    <p class="state" id="copyStatus" aria-live="polite">O texto só será enviado ao ChatGPT quando você colar e enviar na conversa.</p>
+  </div>
 </section>
-<aside class="card" aria-labelledby="returnTitle">
-<h2 id="returnTitle">2. Continuar e registrar o atendimento</h2>
-<ol class="steps">
-<li>Copie a ficha que o site preparou.</li>
-<li>Abra o Plugin e cole a ficha na conversa.</li>
-<li>Ao receber orientações, retorne a esta janela para registrar o resultado do atendimento.</li>
-</ol>
-<h3>Salvar o endereço da conversa</h3>
-<label for="conversationUrl">Link da conversa no ChatGPT</label>
-<input id="conversationUrl" class="field" type="url" inputmode="url" placeholder="https://chatgpt.com/c/…" autocomplete="off">
-<div class="actions">
-<button id="saveChatUrl" class="btn" type="button">Salvar link</button>
-<button id="continueChat" class="btn" type="button">Continuar conversa ↗</button>
+<section class="card step-two" aria-label="Como continuar a conversa">
+  <div class="eyebrow">PASSO 2 · NO CHATGPT</div>
+  <h2>Cole a ficha e converse normalmente</h2>
+  <p class="step-instruction"><span class="step-number">1</span><span>Na janela do ChatGPT, toque no campo de mensagem e escolha <strong>Colar</strong> (ou Ctrl+V no computador).</span></p>
+  <p class="step-instruction"><span class="step-number">2</span><span>Envie a mensagem. Para analisar fotografias, anexe as fotos originais no próprio ChatGPT.</span></p>
+  <p class="muted-note">A janela do ChatGPT é independente do site. O Plugin não tem acesso automático ao Firebase; não é necessário contratar API.</p>
+  <details class="optional" id="extraCaseTools">
+   <summary>Guardar conversa ou orientação no histórico <span class="optional-label">Opcional</span></summary>
+   <h3>Continuar uma conversa anterior</h3>
+   <label for="conversationUrl">Endereço da conversa no ChatGPT</label>
+   <input id="conversationUrl" class="field" type="url" inputmode="url" placeholder="https://chatgpt.com/c/…" autocomplete="off">
+   <div class="actions"><button id="saveChatUrl" class="btn" type="button">Salvar link</button><button id="continueChat" class="btn" type="button">Abrir conversa salva ↗</button></div>
+   <p class="meta" id="linkStatus" aria-live="polite">Para retomar o mesmo atendimento, salve aqui o endereço da conversa.</p>
+   <h3>Registrar orientação recebida</h3>
+   <p class="meta">A orientação fica separada dos testes e reparos confirmados.</p>
+   <label for="gptNote">Resposta do thIAguinho</label>
+   <textarea id="gptNote" class="field field-note" placeholder="Cole a resposta que deseja guardar…"></textarea>
+   <div class="actions"><button id="saveNote" type="button" class="btn btn-primary btn-block">Guardar orientação</button></div>
+   <p class="state" id="noteStatus" aria-live="polite">Orientações do GPT não são medições nem reparos comprovados.</p>
+   <div class="notes" id="savedNotes" aria-label="Orientações GPT registradas"></div>
+  </details>
+</section>
 </div>
-<p class="meta" id="linkStatus" aria-live="polite">Cole aqui o link copiado no ChatGPT para retornar ao mesmo atendimento.</p>
-<h3>Registrar orientação recebida</h3>
-<p class="meta">O texto abaixo será armazenado como <b>orientação da IA, não como medição nem reparo comprovado</b>.</p>
-<label for="gptNote" class="sr-only">Cole a resposta do ChatGPT</label>
-<textarea id="gptNote" class="field field-note" placeholder="Cole a orientação ou a conclusão recebida no thIAguinho GPT..."></textarea>
-<div class="actions"><button id="saveNote" type="button" class="btn btn-primary btn-block">Registrar orientação no caso</button></div>
-<p class="state" id="noteStatus" aria-live="polite">Notas salvas separadamente da ficha original do veículo.</p>
-<div class="notes" id="savedNotes" aria-label="Orientações GPT registradas"></div>
-<div class="notice"><b>Armazenamento:</b> histórico local neste navegador; sincronização adicional em <code>usuarios/{uid}/gptNotas</code> no Realtime Database quando disponível. Não modifica peças, serviços ou diagnósticos existentes.</div>
-</aside>
-</div>
-<footer>thIAguinho Soluções Automotiva • Integração gratuita por janela independente • Sem API de modelos</footer>
+<footer>thIAguinho Soluções Automotiva · Diagnóstico dentro do ChatGPT · Sem API paga</footer>
 </main>
 <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.3.0/firebase-auth-compat.js"></script>
@@ -171,7 +194,7 @@ function setCase(data){
  setText('caseStatus','Caso: '+data.id+' • '+(data.vehicle||'Veículo não informado')+'. A ficha foi preparada somente com informações registradas.');
  const link=json(LINKS,{})[data.id]||'';
  $('conversationUrl').value=B.validChatUrl(link)||'';
- setText('linkStatus',link?'Link da conversa salvo neste dispositivo.':'Cole o link da conversa após abri-la no ChatGPT.');
+ setText('linkStatus',link?'Conversa anterior encontrada. O botão principal tentará reabri-la.':'Opcional: salve o link desta conversa para retomá-la depois.');
  notes=localNotes();renderNotes();loadCloud();
 }
 async function loadCloud(){
@@ -204,8 +227,9 @@ function openChat(url){
  const left=Math.max(0,screen.availWidth-w-22),top=Math.max(0,Math.round((screen.availHeight-h)/2));
  const opts=`popup=yes,resizable=yes,scrollbars=yes,width=${w},height=${h},left=${left},top=${top}`;
  const win=window.open(url,'thiaguinho_gpt_chat',opts);
- if(!win){setText('copyStatus','O navegador bloqueou a janela. Use o link abaixo para abrir o Plugin.');const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir thIAguinho em nova aba';a.style.color='var(--accent)';$('copyStatus').append(' ',a);return;}
+ if(!win){setText('copyStatus','O navegador bloqueou a janela. Abra pelo link a seguir:');const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir thIAguinho em nova aba';a.style.color='var(--accent)';$('copyStatus').append(' ',a);return false;}
  try{win.focus();}catch{}
+ return true;
 }
 function bind(){
  $('caseSelector').addEventListener('change',()=>{const n=Number($('caseSelector').value);if($('caseSelector').value!==''&&items[n])setCase(items[n]);});
@@ -214,8 +238,26 @@ function bind(){
   const ok=await copyText(text);setText('copyStatus',ok?'Ficha copiada. Abra o ChatGPT e cole no campo da conversa.':'Não foi possível copiar automaticamente. Selecione o texto da ficha e copie manualmente.');
  });
  $('openGpt').addEventListener('click',()=>{
-  if($('caseText').value.trim())setText('copyStatus','Janela do Plugin aberta. Cole a ficha que você copiou no campo do ChatGPT.');
-  openChat(B.PLUGIN_URL);
+  const text=$('caseText').value.trim();
+  if(!text){setText('copyStatus','Descreva primeiro o defeito em “Conferir ou corrigir informações”.');return;}
+  // Iniciar cópia e abertura no MESMO gesto: evita bloqueio de popup após await.
+  let legacyCopied=false, pending=null;
+  // Nos celulares, preferir a API de transferência sem focar campos invisíveis.
+  try{if(navigator.clipboard&&navigator.clipboard.writeText)pending=navigator.clipboard.writeText(text);}catch(e){}
+  if(!pending){
+   try{
+    const tmp=document.createElement('textarea');tmp.value=text;tmp.setAttribute('readonly','');
+    tmp.style.cssText='position:fixed;left:0;top:-9999px;opacity:0';
+    document.body.appendChild(tmp);tmp.focus();tmp.select();
+    legacyCopied=document.execCommand('copy');tmp.remove();
+   }catch(e){legacyCopied=false;}
+  }
+  const saved=B.validChatUrl($('conversationUrl').value);
+  const opened=openChat(saved || B.PLUGIN_URL);
+  if(opened)setText('copyStatus',legacyCopied?'Ficha copiada. No ChatGPT, toque em Colar e envie.':'Janela aberta. Se a cópia não funcionar, abra “Conferir ou corrigir informações” e use “Copiar ficha novamente”.');
+  if(pending)pending.then(()=>{if(opened)setText('copyStatus','Ficha copiada. Agora vá ao ChatGPT, cole no campo de mensagem e envie.');}).catch(()=>{
+    if(opened&&!legacyCopied)setText('copyStatus','A janela abriu, mas o navegador não permitiu copiar. Abra “Conferir ou corrigir informações” e copie manualmente.');
+  });
  });
  $('saveChatUrl').addEventListener('click',async()=>{
   const url=B.validChatUrl($('conversationUrl').value);
