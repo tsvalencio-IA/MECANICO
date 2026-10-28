@@ -1718,7 +1718,7 @@
         nextTest:state.currentDiagnosis.tests&&state.currentDiagnosis.tests[0]?state.currentDiagnosis.tests[0].title:""
       }:null,
       mediaAnalysis:state.mediaAnalyses.map(function(m){
-        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],scannerRows:m.scannerRows||[],visionRows:m.visionRows||[],frames:m.frames||1};
+        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],scannerRows:m.scannerRows||[],visionRows:m.visionRows||[],frames:m.frames||1,ocrOnly:!!m.ocrOnly,batchIndex:m.batchIndex||null};
       })
     };
   }
@@ -1991,7 +1991,7 @@
   function renderMediaQueue(){
     var q=$("mediaQueue");
     if(!state.mediaAnalyses.length){q.innerHTML="";return;}
-    q.innerHTML=state.mediaAnalyses.map(function(x,i){
+    var mediaList=state.mediaAnalyses.map(function(x,i){
       var pct=typeof x.progress==="number"?x.progress:100;
       var status=x.status||"Analisado";
       var codes=x.codes&&x.codes.length?'<span class="media-codes">'+esc(x.codes.join(", "))+'</span>':'';
@@ -2000,6 +2000,9 @@
         (pct<100?'<div class="progress"><i style="width:'+pct+'%"></i></div>':'')+
         '</div></div><button type="button" class="media-remove" data-remove-media="'+i+'" '+(activeMediaTasks?'disabled aria-label="Análise em andamento"':'aria-label="Remover"')+'>×</button></div>';
     }).join("");
+    q.innerHTML=state.mediaAnalyses.length>3
+      ?'<details class="media-list-collapsed"><summary>'+state.mediaAnalyses.length+' arquivos do diagnóstico'+(activeMediaTasks?' • analisando...':' • ver ou remover')+'</summary>'+mediaList+'</details>'
+      :mediaList;
     q.querySelectorAll("[data-remove-media]").forEach(function(btn){
       btn.addEventListener("click",function(){if(activeMediaTasks)return;state.mediaAnalyses.splice(Number(btn.dataset.removeMedia),1);renderMediaQueue();});
     });
@@ -2029,12 +2032,20 @@
       if(!state.mediaAnalyses[idx]) return;
       state.mediaAnalyses[idx]=Object.assign({},result,{
         progress:100,
-        status:result.text?"Leitura concluída; arquivo descartado":"Sem texto legível; arquivo descartado"
+        status:options.batch?(result.text?"Texto OCR incerto; foto não armazenada":"Sem texto legível; foto não armazenada"):(result.text?"Leitura concluída; arquivo descartado":"Sem texto legível; arquivo descartado")
       });
       renderMediaQueue();
 
       var codes=extractCodes(result.text||"");
       state.mediaAnalyses[idx].codes=codes;
+      if(options.batch){
+        // No lote, OCR é evidência incerta. Nunca gerar diagnóstico ou DTC confirmado por fotografia.
+        var batchRows=Array.isArray(result.scannerRows)?result.scannerRows:(ORACLE_MEDIA.scannerRows?ORACLE_MEDIA.scannerRows(result.text||""):[]);
+        state.mediaAnalyses[idx].scannerRows=batchRows;
+        state.mediaAnalyses[idx].ocrOnly=true;
+        state.mediaAnalyses[idx].batchIndex=options.batchIndex;
+        return {photo:options.batchIndex,ok:!!result.text,text:result.text||"",codes:codes,scannerRows:batchRows};
+      }
       if(codes.length){
         var question=codes.join(" ");
         recordMessage("user","Código lido na mídia: "+codes.join(", "),{mediaRead:true});
@@ -2196,10 +2207,54 @@
         renderMediaQueue();
       }
       toast("Não consegui ler esta mídia");
+      if(options.batch)return {photo:options.batchIndex,ok:false,text:"",codes:[],scannerRows:[],error:true};
     }finally{
       activeMediaTasks=Math.max(0,activeMediaTasks-1);
       renderMediaQueue();
     }
+  }
+
+  function summarizePhotoBatch(results,total){
+    var items=Array.isArray(results)?results:[];
+    var found=items.filter(function(x){return x&&x.ok;}).length;
+    var codes=[];
+    items.forEach(function(item){
+      (item&&item.codes||[]).forEach(function(code){
+        var hit=codes.find(function(x){return x.code===code;});
+        if(!hit){hit={code:code,photos:[]};codes.push(hit);}
+        hit.photos.push(item.photo);
+      });
+    });
+    var overview=codes.slice(0,12).map(function(x){return x.code+" (foto"+(x.photos.length>1?"s":"")+" "+x.photos.join(", ")+")";});
+    var line="Recebi "+total+" foto(s) do scanner. Fiz leitura OCR local em "+found+"; "+(total-found)+" sem texto aproveitável. ";
+    line+=overview.length?"Códigos POSSÍVEIS, não confirmados: "+overview.join("; ")+". ":"Nenhum código alfanumérico confirmado pela leitura automática. ";
+    line+="As descrições e identificadores numéricos podem conter erros. Não transformei essas leituras em DTCs, diagnóstico ou reparo comprovado. ";
+    line+="Abra “Conferir leituras das fotos” abaixo para verificar cada transcrição. ";
+    line+="Qual é o sintoma ATUAL do veículo e em qual módulo o scanner mostrou os códigos?";
+    return line;
+  }
+
+  function appendPhotoBatchReport(results,total){
+    var report=summarizePhotoBatch(results,total);
+    var article=appendTextMessage("bot",report);
+    var bubble=article.querySelector(".bubble");
+    var details=document.createElement("details");
+    details.className="diagnosis-sources photo-batch-reading";
+    var summary=document.createElement("summary");
+    summary.textContent="Conferir leituras das "+total+" fotos (OCR incerto)";
+    details.appendChild(summary);
+    (results||[]).forEach(function(item,i){
+      var row=document.createElement("div");row.className="photo-batch-reading-item";
+      var heading=document.createElement("strong");
+      heading.textContent="Foto "+(item&&item.photo||i+1)+(item&&item.error?" — falha na leitura":"");
+      var p=document.createElement("pre");
+      p.textContent=item&&item.text?item.text.slice(0,1800):"Sem texto legível nesta foto";
+      row.append(heading,p);
+      details.appendChild(row);
+    });
+    bubble.appendChild(details);
+    recordMessage("bot",report,{mediaBatch:true,ocrUnverified:true,batchPhotos:total});
+    persistSession();
   }
 
   function initMedia(){
@@ -2267,11 +2322,14 @@
       closeDialog(batchDialog);
       selectedPhotos=[];releasePreviews();
       try{
+        var results=[];
         for(var i=0;i<files.length;i++){
           toast("Lendo foto "+(i+1)+" de "+files.length);
-          await processMedia(files[i],{localOnly:true});
+          var result=await processMedia(files[i],{batch:true,localOnly:true,batchIndex:i+1});
+          results.push(result||{photo:i+1,ok:false,text:"",codes:[],scannerRows:[],error:true});
         }
-        toast(files.length+" foto(s) processada(s)");
+        appendPhotoBatchReport(results,files.length);
+        toast(files.length+" foto(s) conferida(s) em conjunto");
       }finally{
         processingBatch=false;renderBatch();
       }
