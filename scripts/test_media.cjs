@@ -11,18 +11,32 @@ const init = source.slice(source.indexOf('  function initMedia(){'), source.inde
 function harness() {
   const elements = {}, picks = [], processed = [];
   const ids = ['photoBtn', 'videoBtn', 'mediaSourceDialog', 'mediaSourceTitle',
-    'mediaCameraLabel', 'mediaCameraIcon', 'mediaGalleryHint', 'mediaCameraBtn',
-    'mediaGalleryBtn', 'closeMediaSourceBtn', 'photoInput', 'videoInput',
-    'photoCameraInput', 'videoCameraInput'];
-  for (const id of ids) elements[id] = {
-    open: false, textContent: '', value: '', files: [], handlers: {},
-    click() { picks.push(id); },
-    addEventListener(type, fn) { this.handlers[type] = fn; }
-  };
+    'mediaCameraLabel', 'mediaCameraIcon', 'mediaGalleryLabel', 'mediaGalleryHint',
+    'mediaCameraBtn', 'mediaGalleryBtn', 'closeMediaSourceBtn', 'photoInput', 'videoInput',
+    'photoCameraInput', 'videoCameraInput', 'photoBatchDialog', 'photoBatchCount',
+    'photoBatchStatus', 'photoBatchPreview', 'photoBatchMoreInput', 'confirmPhotoBatchBtn',
+    'cancelPhotoBatchBtn', 'addPhotoBatchBtn', 'closePhotoBatchBtn'];
+
+  function createElement(id) {
+    return {
+      open: false, textContent: '', value: '', files: [], handlers: {},
+      children: [], disabled: false, 
+      click() { if (id) picks.push(id); return this.handlers.click?.call(this); },
+      addEventListener(type, fn) { this.handlers[type] = fn; },
+      replaceChildren() { this.children = []; },
+      appendChild(node) { this.children.push(node); },
+      append(...nodes) { this.children.push(...nodes); },
+      setAttribute() {}
+    };
+  }
+  for (const id of ids) elements[id] = createElement(id);
   vm.runInNewContext(init + '\ninitMedia();', {
     $: id => elements[id],
+    document: {createElement: () => createElement(null)},
+    URL: {createObjectURL: file => 'blob:' + file.name, revokeObjectURL() {}},
     openDialog: el => { el.open = true; },
     closeDialog: el => { el.open = false; },
+    toast() {},
     processMedia: file => processed.push(file)
   });
   return {
@@ -32,7 +46,7 @@ function harness() {
       const input = elements[id];
       input.files = file ? [file] : [];
       input.value = file ? file.name : '';
-      input.handlers.change.call(input);
+      return input.handlers.change.call(input);
     }
   };
 }
@@ -50,7 +64,7 @@ test('camera and gallery are distinct inputs with the correct media type', () =>
     }
   }
   assert.match(html, /id="mediaSourceDialog"[^>]*aria-labelledby="mediaSourceTitle"/);
-  assert.match(html, /Escolher da galeria/);
+  assert.match(html, /Escolher várias fotos/);
 });
 
 for (const kind of ['photo', 'video']) {
@@ -67,15 +81,29 @@ for (const kind of ['photo', 'video']) {
   });
 
   for (const camera of [false, true]) {
-    test(`${kind}: ${camera ? 'camera' : 'gallery'} opens only the selected source`, () => {
+    test(`${kind}: ${camera ? 'camera' : 'gallery'} opens only the selected source`, async () => {
       const h = harness(), input = kind + (camera ? 'CameraInput' : 'Input');
       h.click(kind + 'Btn');
       h.click(camera ? 'mediaCameraBtn' : 'mediaGalleryBtn');
       assert.deepEqual(h.picks, [input]);
       assert.equal(h.elements.mediaSourceDialog.open, false);
-      const file = { name: kind === 'photo' ? 'scanner.jpg' : 'scanner.mp4' };
+      const file = {
+        name: kind === 'photo' ? 'scanner.jpg' : 'scanner.mp4',
+        type: kind === 'photo' ? 'image/jpeg' : 'video/mp4',
+        size: 1024,
+        lastModified: 1
+      };
       h.change(input, file);
+      if (kind === 'photo' && !camera) {
+        assert.equal(h.elements.photoBatchDialog.open, true);
+        assert.equal(h.elements.photoBatchCount.textContent, '1');
+        await h.click('confirmPhotoBatchBtn');
+      }
       h.change(input, file);
+      if (kind === 'photo' && !camera) {
+        assert.equal(h.elements.photoBatchDialog.open, true);
+        await h.click('confirmPhotoBatchBtn');
+      }
       assert.deepEqual(h.processed, [file, file]);
       assert.equal(h.elements[input].value, '');
       h.change(input, null);
