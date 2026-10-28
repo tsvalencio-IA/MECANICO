@@ -1718,7 +1718,7 @@
         nextTest:state.currentDiagnosis.tests&&state.currentDiagnosis.tests[0]?state.currentDiagnosis.tests[0].title:""
       }:null,
       mediaAnalysis:state.mediaAnalyses.map(function(m){
-        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],scannerRows:m.scannerRows||[],visionRows:m.visionRows||[],frames:m.frames||1};
+        return {kind:m.kind,text:(m.text||"").slice(0,5000),codes:m.codes||[],scannerRows:m.scannerRows||[],visionRows:m.visionRows||[],frames:m.frames||1,ocrOnly:!!m.ocrOnly,batchIndex:m.batchIndex||null};
       })
     };
   }
@@ -1991,7 +1991,7 @@
   function renderMediaQueue(){
     var q=$("mediaQueue");
     if(!state.mediaAnalyses.length){q.innerHTML="";return;}
-    q.innerHTML=state.mediaAnalyses.map(function(x,i){
+    var mediaList=state.mediaAnalyses.map(function(x,i){
       var pct=typeof x.progress==="number"?x.progress:100;
       var status=x.status||"Analisado";
       var codes=x.codes&&x.codes.length?'<span class="media-codes">'+esc(x.codes.join(", "))+'</span>':'';
@@ -2000,6 +2000,9 @@
         (pct<100?'<div class="progress"><i style="width:'+pct+'%"></i></div>':'')+
         '</div></div><button type="button" class="media-remove" data-remove-media="'+i+'" '+(activeMediaTasks?'disabled aria-label="Análise em andamento"':'aria-label="Remover"')+'>×</button></div>';
     }).join("");
+    q.innerHTML=state.mediaAnalyses.length>3
+      ?'<details class="media-list-collapsed"><summary>'+state.mediaAnalyses.length+' arquivos do diagnóstico'+(activeMediaTasks?' • analisando...':' • ver ou remover')+'</summary>'+mediaList+'</details>'
+      :mediaList;
     q.querySelectorAll("[data-remove-media]").forEach(function(btn){
       btn.addEventListener("click",function(){if(activeMediaTasks)return;state.mediaAnalyses.splice(Number(btn.dataset.removeMedia),1);renderMediaQueue();});
     });
