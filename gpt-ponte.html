@@ -227,8 +227,9 @@ function openChat(url){
  const left=Math.max(0,screen.availWidth-w-22),top=Math.max(0,Math.round((screen.availHeight-h)/2));
  const opts=`popup=yes,resizable=yes,scrollbars=yes,width=${w},height=${h},left=${left},top=${top}`;
  const win=window.open(url,'thiaguinho_gpt_chat',opts);
- if(!win){setText('copyStatus','O navegador bloqueou a janela. Use o link abaixo para abrir o Plugin.');const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir thIAguinho em nova aba';a.style.color='var(--accent)';$('copyStatus').append(' ',a);return;}
+ if(!win){setText('copyStatus','O navegador bloqueou a janela. Abra pelo link a seguir:');const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir thIAguinho em nova aba';a.style.color='var(--accent)';$('copyStatus').append(' ',a);return false;}
  try{win.focus();}catch{}
+ return true;
 }
 function bind(){
  $('caseSelector').addEventListener('change',()=>{const n=Number($('caseSelector').value);if($('caseSelector').value!==''&&items[n])setCase(items[n]);});
@@ -252,10 +253,10 @@ function bind(){
    }catch(e){legacyCopied=false;}
   }
   const saved=B.validChatUrl($('conversationUrl').value);
-  openChat(saved || B.PLUGIN_URL);
-  setText('copyStatus',legacyCopied?'Ficha copiada. No ChatGPT, toque em Colar e envie.':'Janela aberta. Se a cópia não funcionar, abra “Conferir ou corrigir informações” e use “Copiar ficha novamente”.');
-  if(pending)pending.then(()=>setText('copyStatus','Ficha copiada. Agora vá ao ChatGPT, cole no campo de mensagem e envie.')).catch(()=>{
-    if(!legacyCopied)setText('copyStatus','A janela abriu, mas o navegador não permitiu copiar. Abra “Conferir ou corrigir informações” e copie manualmente.');
+  const opened=openChat(saved || B.PLUGIN_URL);
+  if(opened)setText('copyStatus',legacyCopied?'Ficha copiada. No ChatGPT, toque em Colar e envie.':'Janela aberta. Se a cópia não funcionar, abra “Conferir ou corrigir informações” e use “Copiar ficha novamente”.');
+  if(pending)pending.then(()=>{if(opened)setText('copyStatus','Ficha copiada. Agora vá ao ChatGPT, cole no campo de mensagem e envie.');}).catch(()=>{
+    if(opened&&!legacyCopied)setText('copyStatus','A janela abriu, mas o navegador não permitiu copiar. Abra “Conferir ou corrigir informações” e copie manualmente.');
   });
  });
  $('saveChatUrl').addEventListener('click',async()=>{
