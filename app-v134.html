@@ -40,6 +40,11 @@
     })();
   </script>
   <!-- Instalação e registro do sw-v134.js gerenciados em js/app.js. -->
+<style id="gptHandoffStyle">
+.gpt-handoff-btn{min-height:38px;padding:8px 12px;max-width:100%;font-weight:800;letter-spacing:.01em;border:1px solid #299fc0;background:rgba(21,106,146,.17);border-radius:12px;color:var(--text);white-space:nowrap;cursor:pointer}
+.gpt-handoff-btn:hover,.gpt-handoff-btn:focus-visible{outline:2px solid #31d7ff;outline-offset:1px}
+@media(max-width:470px){.gpt-handoff-btn{min-height:36px;padding:6px 9px;font-size:.77rem}}
+</style>
 </head>
 <body>
   <div class="ambient ambient-a"></div>
@@ -92,6 +97,7 @@
           </div>
         </div>
         <div class="chat-actions">
+          <a id="gptHandoffBtn" class="gpt-handoff-btn" href="./gpt-ponte.html" target="thiaguinho_gpt_ponte" rel="noopener" title="Abrir ficha no thIAguinho GPT sem API paga" aria-label="Abrir ficha no thIAguinho GPT">GPT ↗</a>
           <button id="newCaseBtn" class="ghost-btn" type="button">Novo</button>
           <button id="historyBtn" class="icon-btn" type="button" title="Histórico" aria-label="Abrir histórico">◴</button>
         </div>
